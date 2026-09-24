@@ -94,6 +94,23 @@
   #battleAttackBtn:active { filter:brightness(0.9); transform:scale(0.96); }
   #battleAttackBtn:disabled { filter:grayscale(0.6) brightness(0.7); cursor:default; }
 
+  /* on-screen movement D-pad — touch devices only (phones/tablets have no arrow keys) */
+  #dpad {
+    position:absolute; left:calc(18px + var(--safe)); bottom:calc(18px + var(--safe)); z-index:20;
+    display:none; grid-template-columns:56px 56px 56px; grid-template-rows:56px 56px 56px; gap:4px;
+  }
+  @media (pointer:coarse){ #dpad.enabled { display:grid; } }
+  .dpadBtn {
+    border:none; border-radius:12px; background:rgba(20,26,46,0.7); color:#cfe0ff; font-size:22px;
+    display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none;
+    touch-action:none; border:1px solid rgba(126,249,255,0.3);
+  }
+  .dpadBtn:active { background:rgba(126,249,255,0.35); }
+  #dpadUp{grid-column:2;grid-row:1;}
+  #dpadLeft{grid-column:1;grid-row:2;}
+  #dpadRight{grid-column:3;grid-row:2;}
+  #dpadDown{grid-column:2;grid-row:3;}
+
   /* overlays: menu / chapter end */
   .fullOverlay {
     position:absolute; inset:0; display:flex; flex-direction:column;
@@ -199,6 +216,13 @@
     <button id="actionBtn" type="button">Interagir</button>
     <button id="battleAttackBtn" type="button" title="Atacar">⚔</button>
     <button id="settingsBtn" type="button" title="Menu / Configurações">⚙</button>
+
+    <div id="dpad">
+      <button class="dpadBtn" id="dpadUp" type="button">▲</button>
+      <button class="dpadBtn" id="dpadLeft" type="button">◀</button>
+      <button class="dpadBtn" id="dpadRight" type="button">▶</button>
+      <button class="dpadBtn" id="dpadDown" type="button">▼</button>
+    </div>
 
     <div id="settingsOverlay">
       <div id="settingsPanel">
@@ -963,6 +987,23 @@ actionBtn.addEventListener('click', ()=> handleInteractKey());
 const battleAttackBtn = document.getElementById('battleAttackBtn');
 battleAttackBtn.addEventListener('click', ()=> battleAttack());
 
+// on-screen D-pad — mirrors the same `keys` flags the keyboard uses, so movement code needs no changes
+const dpad = document.getElementById('dpad');
+dpad.classList.add('enabled');
+function bindDpad(id, key){
+  const el = document.getElementById(id);
+  const press = (e)=>{ e.preventDefault(); keys[key] = true; };
+  const release = (e)=>{ e.preventDefault(); keys[key] = false; };
+  el.addEventListener('pointerdown', press);
+  el.addEventListener('pointerup', release);
+  el.addEventListener('pointercancel', release);
+  el.addEventListener('pointerleave', release);
+}
+bindDpad('dpadUp', 'arrowup');
+bindDpad('dpadLeft', 'arrowleft');
+bindDpad('dpadRight', 'arrowright');
+bindDpad('dpadDown', 'arrowdown');
+
 function showBanner(text){
   chapterBanner.textContent = text;
   chapterBanner.style.opacity = '1';
@@ -997,6 +1038,7 @@ function updateActionButton(){
   const menuVisible = !menuOverlay.classList.contains('hidden');
   const endVisible = !endOverlay.classList.contains('hidden');
   const battleVisible = battleOverlay.style.display === 'flex';
+  dpad.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
   if (menuVisible || endVisible || battleVisible){
     actionBtn.style.display = 'none';
     return;
