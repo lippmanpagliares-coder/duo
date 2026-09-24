@@ -1,0 +1,2922 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuga Alienígena</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --ui-scale:1; --safe:0px; }
+  html,body {
+    width:100%; height:100%; background:#0a0e1a; overflow:hidden;
+    font-family:'Trebuchet MS','Segoe UI',sans-serif; color:#eef;
+  }
+  #wrap {
+    position:relative; width:100vw; height:100vh;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #stage {
+    position:relative; width:960px; height:600px; max-width:100vw; max-height:100vh;
+    background:#000; border:3px solid #2a3a63; border-radius:6px; overflow:hidden;
+    box-shadow:0 0 50px rgba(80,140,255,0.25);
+    transform:scale(var(--ui-scale)); transition:transform 0.15s ease;
+  }
+  body.lowfx * { box-shadow:none !important; text-shadow:none !important; }
+  canvas { display:block; background:#123; image-rendering:pixelated; }
+
+  #hint {
+    position:absolute; left:50%; bottom:calc(96px + var(--safe)); transform:translateX(-50%);
+    background:rgba(10,14,26,0.75); border:1px solid #4a5a8a; border-radius:6px;
+    padding:6px 14px; font-size:13px; color:#ffd54a; letter-spacing:1px;
+    pointer-events:none; display:none; white-space:nowrap;
+  }
+  #chapterBanner {
+    position:absolute; top:calc(26px + var(--safe)); left:50%; transform:translateX(-50%);
+    font-size:28px; letter-spacing:3px; color:#7ef9ff;
+    text-shadow:0 0 16px rgba(126,249,255,0.8);
+    opacity:0; transition:opacity 0.6s; pointer-events:none; text-align:center;
+  }
+  #flash {
+    position:absolute; inset:0; background:#ff2244; opacity:0; pointer-events:none;
+    transition:opacity 0.08s;
+  }
+
+  #inventoryHud {
+    position:absolute; top:calc(14px + var(--safe)); left:calc(14px + var(--safe)); z-index:15;
+    display:flex; gap:8px; pointer-events:none;
+  }
+  .invSlot {
+    width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:19px; background:rgba(10,14,26,0.7); border:1px solid #3a4a70;
+    filter:grayscale(1) brightness(0.35); opacity:0.55; transition:filter 0.3s, opacity 0.3s, box-shadow 0.3s;
+  }
+  .invSlot.owned {
+    filter:none; opacity:1; box-shadow:0 0 12px rgba(255,213,74,0.55); border-color:#ffd54a;
+  }
+
+  /* dialogue box */
+  #dialogueBox {
+    position:absolute; left:calc(24px + var(--safe)); right:calc(24px + var(--safe)); bottom:calc(20px + var(--safe)); min-height:110px;
+    background:rgba(8,10,20,0.92); border:2px solid #4a5a8a; border-radius:10px;
+    padding:14px 20px; display:none; flex-direction:column; gap:6px;
+    box-shadow:0 0 30px rgba(0,0,0,0.6);
+  }
+  #dialogueSpeaker { font-weight:bold; font-size:15px; letter-spacing:1px; }
+  #dialogueText { font-size:15px; line-height:1.5; color:#dfe8ff; min-height:44px; }
+  #dialogueAdvance { align-self:flex-end; font-size:12px; color:#8fa; opacity:0.85; }
+
+  #actionBtn {
+    position:absolute; right:calc(22px + var(--safe)); bottom:calc(140px + var(--safe)); z-index:20;
+    width:78px; height:78px; border-radius:50%; border:none; cursor:pointer;
+    background:linear-gradient(180deg,#ffd54a,#b8860b); color:#2a1a00;
+    font-family:inherit; font-weight:bold; font-size:13px; letter-spacing:0.5px;
+    box-shadow:0 0 20px rgba(255,213,74,0.55);
+    display:none; align-items:center; justify-content:center; text-align:center; line-height:1.2;
+  }
+  #actionBtn:active { filter:brightness(0.9); transform:scale(0.96); }
+
+  #battleAttackBtn {
+    position:absolute; right:calc(22px + var(--safe)); bottom:calc(70px + var(--safe)); z-index:20; pointer-events:auto;
+    width:86px; height:86px; border-radius:50%; border:none; cursor:pointer;
+    background:linear-gradient(180deg,#c9a0ff,#7a3fd0); color:#1a0a2e;
+    font-family:inherit; font-weight:bold; font-size:26px;
+    box-shadow:0 0 22px rgba(154,95,224,0.6);
+    display:none; align-items:center; justify-content:center;
+  }
+  #battleAttackBtn:active { filter:brightness(0.9); transform:scale(0.96); }
+  #battleAttackBtn:disabled { filter:grayscale(0.6) brightness(0.7); cursor:default; }
+
+  /* overlays: menu / chapter end */
+  .fullOverlay {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:16px; text-align:center;
+    background:radial-gradient(ellipse at center, #10182e 0%, #05070f 100%);
+  }
+  .fullOverlay h1 { font-size:38px; color:#7ef9ff; text-shadow:0 0 20px #00c8ff; letter-spacing:3px; }
+  .fullOverlay h2 { font-size:24px; color:#ffd54a; text-shadow:0 0 14px rgba(255,213,74,0.6); }
+  .fullOverlay p { max-width:520px; font-size:14px; line-height:1.7; color:#9fb; }
+  .btnRow { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .gameBtn {
+    padding:12px 26px; font-size:15px; font-family:inherit; letter-spacing:1px;
+    border:none; border-radius:8px; cursor:pointer; font-weight:bold;
+    background:linear-gradient(180deg,#1fd0ff,#0088cc); color:#001622;
+    box-shadow:0 0 18px rgba(0,200,255,0.5);
+  }
+  .gameBtn.secondary { background:linear-gradient(180deg,#5cff9a,#1e9955); color:#002a12; }
+  .gameBtn.locked { background:#2a3550; color:#6a7a95; cursor:not-allowed; box-shadow:none; }
+  .gameBtn:hover:not(.locked) { filter:brightness(1.15); }
+  .hidden { display:none !important; }
+
+  /* battle — slim real-time HUD; the arena itself renders on the game canvas underneath */
+  #battleOverlay {
+    position:absolute; inset:0; display:none; flex-direction:column; justify-content:space-between;
+    padding:calc(14px + var(--safe)) calc(18px + var(--safe)); pointer-events:none; z-index:12;
+  }
+  #battleTitle { text-align:center; font-size:15px; letter-spacing:2px; color:#c9a8ff; text-shadow:0 0 10px rgba(201,168,255,0.6); }
+  #battleHudTop { display:flex; justify-content:space-between; gap:16px; margin-top:6px; }
+  .battleHpCard { width:260px; background:rgba(10,6,18,0.72); border:1px solid #3a2a4a; border-radius:8px; padding:8px 12px; }
+  .battleHpCard.enemy { align-self:flex-end; }
+  .hpLabel { font-size:13px; color:#dfe8ff; margin-bottom:5px; display:flex; justify-content:space-between; }
+  .hpBarBg { width:100%; height:11px; background:#241a30; border:1px solid #55406a; border-radius:6px; overflow:hidden; }
+  .hpBarFill { height:100%; background:linear-gradient(90deg,#5cff9a,#1e9955); transition:width 0.35s ease; }
+  .hpBarFill.enemy { background:linear-gradient(90deg,#ff6a6a,#a01e1e); }
+  #battleToast {
+    align-self:center; background:rgba(10,6,18,0.8); border:1px solid #3a2a4a; border-radius:8px;
+    padding:8px 16px; font-size:13.5px; color:#e8d8ff; opacity:0; transition:opacity 0.3s; text-align:center; max-width:70%;
+  }
+  #battleHint { align-self:center; font-size:12px; color:#c9a8ff; opacity:0.8; margin-bottom:4px; }
+  #battleActions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; pointer-events:auto; }
+  .battleBtn {
+    padding:10px 18px; font-family:inherit; font-size:14px; font-weight:bold; letter-spacing:0.5px;
+    border:none; border-radius:8px; cursor:pointer; color:#fff;
+    background:linear-gradient(180deg,#7a4ad0,#4a2a90); box-shadow:0 0 12px rgba(120,80,220,0.5);
+  }
+  .battleBtn:hover { filter:brightness(1.2); }
+  .battleBtn:disabled { background:#2a2540; color:#6a6a80; cursor:not-allowed; box-shadow:none; }
+
+  /* pause / settings */
+  #settingsBtn {
+    position:absolute; top:calc(14px + var(--safe)); right:calc(14px + var(--safe)); z-index:30; pointer-events:auto;
+    width:38px; height:38px; border-radius:8px; border:1px solid #3a4a70; cursor:pointer;
+    background:rgba(10,14,26,0.75); color:#cfe0ff; font-size:19px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #settingsBtn:hover { background:rgba(30,40,70,0.92); }
+  #settingsOverlay {
+    position:absolute; inset:0; z-index:40; display:none; align-items:center; justify-content:center;
+    background:rgba(4,6,14,0.82);
+  }
+  #settingsOverlay.open { display:flex; }
+  #settingsPanel {
+    width:min(560px, 92%); max-height:86%; overflow-y:auto;
+    background:linear-gradient(180deg,#141a30,#0c0f1e); border:1px solid #3a4a70; border-radius:12px;
+    padding:22px 26px; display:flex; flex-direction:column; gap:16px;
+    box-shadow:0 0 40px rgba(0,0,0,0.6);
+  }
+  #settingsPanel h2 { font-size:20px; color:#7ef9ff; letter-spacing:1px; text-align:center; }
+  .settingsRow { display:flex; flex-direction:column; gap:7px; }
+  .settingsRow label { font-size:11.5px; letter-spacing:1px; color:#9fb3d8; text-transform:uppercase; display:flex; justify-content:space-between; }
+  .segGroup { display:flex; gap:8px; flex-wrap:wrap; }
+  .segBtn {
+    flex:1; min-width:80px; padding:8px 10px; font-family:inherit; font-size:13px; font-weight:bold;
+    border:1px solid #3a4a70; border-radius:7px; background:#1a2340; color:#cfe0ff; cursor:pointer;
+  }
+  .segBtn.active { background:linear-gradient(180deg,#1fd0ff,#0088cc); color:#001622; border-color:#1fd0ff; }
+  .segBtn:hover:not(.active) { filter:brightness(1.2); }
+  .settingsRow select {
+    padding:8px 10px; font-family:inherit; font-size:13px; background:#1a2340; color:#cfe0ff;
+    border:1px solid #3a4a70; border-radius:7px;
+  }
+  .settingsRow input[type=range] { width:100%; }
+  .settingsVal { color:#7ef9ff; font-size:11px; letter-spacing:0; text-transform:none; }
+  .settingsActions { display:flex; gap:12px; justify-content:center; margin-top:2px; flex-wrap:wrap; }
+  .settingsHr { border:none; border-top:1px solid #2a3a63; margin:2px 0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="game" width="960" height="600"></canvas>
+    <div id="flash"></div>
+    <div id="chapterBanner"></div>
+    <div id="hint"></div>
+    <div id="inventoryHud">
+      <div class="invSlot" id="invJewel" title="Joia da Vida">💚</div>
+      <div class="invSlot" id="invEmerald" title="Esmeralda do Poder">💎</div>
+      <div class="invSlot" id="invWeapon" title="Arma Alienígena">🔫</div>
+      <div class="invSlot" id="invTeleport" title="Joia do Teleporte">🌀</div>
+      <div class="invSlot" id="invElemental" title="Esmeralda dos Elementos">🟠</div>
+      <div class="invSlot" id="invDisguise" title="Esmeralda do Disfarce">🎭</div>
+    </div>
+    <button id="actionBtn" type="button">Interagir</button>
+    <button id="battleAttackBtn" type="button" title="Atacar">⚔</button>
+    <button id="settingsBtn" type="button" title="Menu / Configurações">⚙</button>
+
+    <div id="settingsOverlay">
+      <div id="settingsPanel">
+        <h2>Menu</h2>
+        <div class="settingsActions">
+          <button class="gameBtn" id="btnResume">▶ Continuar</button>
+          <button class="gameBtn secondary" id="btnGoWorld">🌎 Selecionar capítulo</button>
+        </div>
+
+        <hr class="settingsHr">
+
+        <div class="settingsRow">
+          <label>Dificuldade</label>
+          <div class="segGroup" id="segDifficulty">
+            <button class="segBtn" data-val="facil">Fácil</button>
+            <button class="segBtn" data-val="normal">Normal</button>
+            <button class="segBtn" data-val="dificil">Difícil</button>
+          </div>
+        </div>
+
+        <div class="settingsRow">
+          <label>Qualidade gráfica</label>
+          <div class="segGroup" id="segQuality">
+            <button class="segBtn" data-val="alta">Alta</button>
+            <button class="segBtn" data-val="media">Média</button>
+            <button class="segBtn" data-val="baixa">Baixa</button>
+          </div>
+        </div>
+
+        <div class="settingsRow">
+          <label>Idioma</label>
+          <select id="selLanguage">
+            <option value="pt">Português (BR)</option>
+            <option value="en" disabled>English — em breve</option>
+            <option value="es" disabled>Español — em breve</option>
+          </select>
+        </div>
+
+        <div class="settingsRow">
+          <label>Tamanho da tela (zoom) <span class="settingsVal" id="valScale">100%</span></label>
+          <input type="range" id="rangeScale" min="80" max="120" step="2" value="100">
+        </div>
+
+        <div class="settingsRow">
+          <label>Área segura (margem pra borda cortada / TV) <span class="settingsVal" id="valSafe">0px</span></label>
+          <input type="range" id="rangeSafe" min="0" max="40" step="2" value="0">
+        </div>
+
+        <hr class="settingsHr">
+
+        <div class="settingsActions">
+          <button class="gameBtn" style="background:linear-gradient(180deg,#ff6a6a,#a01e1e);" id="btnRestart">↺ Reiniciar tudo</button>
+          <button class="gameBtn" id="btnCloseSettings">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dialogueBox">
+      <div id="dialogueSpeaker"></div>
+      <div id="dialogueText"></div>
+      <div id="dialogueAdvance">▶ espaço / clique para continuar</div>
+    </div>
+
+    <div id="battleOverlay">
+      <div>
+        <div id="battleTitle"></div>
+        <div id="battleHudTop">
+          <div class="battleHpCard" id="battlePlayerCard">
+            <div class="hpLabel"><span id="battlePlayerName"></span><span id="battlePlayerHpText"></span></div>
+            <div class="hpBarBg"><div class="hpBarFill" id="battlePlayerHpBar"></div></div>
+          </div>
+          <div class="battleHpCard enemy" id="battleEnemyCard">
+            <div class="hpLabel"><span id="battleEnemyName"></span><span id="battleEnemyHpText"></span></div>
+            <div class="hpBarBg"><div class="hpBarFill enemy" id="battleEnemyHpBar"></div></div>
+          </div>
+        </div>
+      </div>
+      <div id="battleToast"></div>
+      <div>
+        <div id="battleHint">setas/WASD pra andar · espaço pra atacar de perto</div>
+        <div id="battleActions"></div>
+      </div>
+    </div>
+
+    <div id="menuOverlay" class="fullOverlay">
+      <h1>FUGA ALIENÍGENA</h1>
+      <p>Uma história em capítulos. Comece pelo Capítulo 1 — o resto libera conforme você avança.</p>
+      <div class="btnRow">
+        <button class="gameBtn" id="btnCh1">Capítulo 1: O Bosque Mágico</button>
+        <button class="gameBtn secondary" id="btnCh2">Capítulo 2: Vulcrom</button>
+        <button class="gameBtn" id="btnCh3" style="background:linear-gradient(180deg,#c98fff,#7a3fd0);">Capítulo 3: O Encontro</button>
+        <button class="gameBtn" id="btnCh4" style="background:linear-gradient(180deg,#ff9a5c,#b8480f);">Capítulo 4: O Titã</button>
+      </div>
+      <p style="font-size:12px;opacity:0.6;">Mover: setas / WASD &nbsp;·&nbsp; Interagir: espaço/enter</p>
+    </div>
+
+    <div id="endOverlay" class="fullOverlay hidden">
+      <h2 id="endTitle"></h2>
+      <p id="endText"></p>
+      <div class="btnRow" id="endButtons"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let unlocked = { ch2: false, ch3: false, ch4: false };
+let upgrades = { jewelOfLife: false, emeraldOfPower: false, alienWeapon: false, teleportGem: false, elementalEmerald: false, disguiseEmerald: false };
+
+/* ---------------- settings (session-only, no storage) ---------------- */
+let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0 };
+const DIFFICULTY_MULT = {
+  facil:   { hp:0.75, atk:0.7 },
+  normal:  { hp:1,    atk:1 },
+  dificil: { hp:1.3,  atk:1.4 },
+};
+
+/* ---------------- sound (synthesized, no audio files needed) ---------------- */
+let audioCtx = null;
+function getAudioCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function beep(freq, duration, type, volume, delay){
+  try{
+    const ctx = getAudioCtx();
+    const startAt = ctx.currentTime + (delay||0);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.setValueAtTime(freq, startAt);
+    gain.gain.setValueAtTime(volume||0.15, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(startAt); osc.stop(startAt + duration + 0.02);
+  } catch(e){ /* audio not available — fail silently */ }
+}
+function sfxAttack(){ beep(320,0.09,'square',0.16); beep(180,0.1,'square',0.12,0.05); }
+function sfxAllyAssist(){ beep(500,0.08,'triangle',0.16); beep(700,0.1,'triangle',0.14,0.06); }
+function sfxEnemyHit(){ beep(140,0.14,'sawtooth',0.14); }
+function sfxVictory(){ [523,659,784,1047].forEach((f,i)=> beep(f,0.18,'triangle',0.14,i*0.11)); }
+function sfxDefeat(){ [300,240,180].forEach((f,i)=> beep(f,0.22,'sawtooth',0.13,i*0.14)); }
+function sfxStep(){ beep(95,0.045,'square',0.045); }
+function sfxPickup(){ beep(660,0.08,'triangle',0.14); beep(880,0.12,'triangle',0.13,0.07); }
+
+/* ---------------- input ---------------- */
+const keys = {};
+window.addEventListener('keydown', e=>{
+  if (e.key === 'Escape'){ toggleSettings(); return; }
+  if (settingsOpen) return;
+  keys[e.key.toLowerCase()] = true;
+  if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
+  if (e.key===' ' || e.key==='Enter') handleInteractKey();
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+document.getElementById('dialogueBox').addEventListener('click', ()=> advanceDialogue());
+
+/* ---------------- character drawing ---------------- */
+// all sprites are procedurally drawn (no image assets needed)
+function roundRect(g,x,y,w,h,r){
+  g.beginPath();
+  g.moveTo(x+r,y);
+  g.arcTo(x+w,y,x+w,y+h,r);
+  g.arcTo(x+w,y+h,x,y+h,r);
+  g.arcTo(x,y+h,x,y,r);
+  g.arcTo(x,y,x+w,y,r);
+  g.closePath();
+}
+// full-body owl: feet, tapered body, head tufts, belly, wing, beak — palette-driven so parents can reuse it
+function drawOwlAdult(g,x,y,s,facing,opts){
+  opts = opts || {};
+  const bodyColor = opts.body || '#4fb800';
+  const bellyColor = opts.belly || '#eaffe0';
+  const wingColor = opts.wing || '#3a8f00';
+  const beakColor = opts.beak || '#ffb020';
+  facing = facing || 1;
+  g.save(); g.translate(x,y);
+  // feet
+  g.fillStyle = beakColor;
+  g.beginPath(); g.ellipse(-s*0.22, s*0.8, s*0.14, s*0.09, 0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.22, s*0.8, s*0.14, s*0.09, 0,0,Math.PI*2); g.fill();
+  // body (tapered egg shape, wider base than head)
+  g.fillStyle = bodyColor;
+  g.beginPath();
+  g.moveTo(-s*0.6, s*0.05);
+  g.bezierCurveTo(-s*0.6,-s*0.58,-s*0.3,-s*0.86,0,-s*0.86);
+  g.bezierCurveTo(s*0.3,-s*0.86,s*0.6,-s*0.58,s*0.6,s*0.05);
+  g.bezierCurveTo(s*0.6,s*0.5,s*0.32,s*0.74,0,s*0.74);
+  g.bezierCurveTo(-s*0.32,s*0.74,-s*0.6,s*0.5,-s*0.6,s*0.05);
+  g.closePath(); g.fill();
+  // head feather tufts
+  g.beginPath(); g.moveTo(-s*0.2,-s*0.8); g.lineTo(-s*0.3,-s*1.02); g.lineTo(-s*0.06,-s*0.86); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(s*0.2,-s*0.8); g.lineTo(s*0.3,-s*1.02); g.lineTo(s*0.06,-s*0.86); g.closePath(); g.fill();
+  // belly patch
+  g.fillStyle = bellyColor;
+  g.beginPath(); g.ellipse(0, s*0.2, s*0.32, s*0.4, 0,0,Math.PI*2); g.fill();
+  // wing
+  g.fillStyle = wingColor;
+  g.beginPath(); g.ellipse(-s*0.56*facing, 0, s*0.15, s*0.3, 0.3*facing, 0, Math.PI*2); g.fill();
+  // eyes
+  eyesBig(g, s, opts.eyeWhite||'#fff', opts.eyePupil||'#1a1a1a', -0.28);
+  // beak
+  g.fillStyle = beakColor;
+  g.beginPath(); g.moveTo(-s*0.15,-s*0.05); g.lineTo(s*0.15,-s*0.05); g.lineTo(0, s*0.14); g.closePath(); g.fill();
+  // optional accessory for parents
+  if (opts.accessory === 'glasses'){
+    g.strokeStyle = '#2a2a2a'; g.lineWidth = s*0.05;
+    g.beginPath(); g.arc(-s*0.24,-s*0.3,s*0.16,0,Math.PI*2); g.stroke();
+    g.beginPath(); g.arc(s*0.24,-s*0.3,s*0.16,0,Math.PI*2); g.stroke();
+    g.beginPath(); g.moveTo(-s*0.08,-s*0.3); g.lineTo(s*0.08,-s*0.3); g.stroke();
+  } else if (opts.accessory === 'bow'){
+    g.fillStyle = opts.bowColor || '#ff5fa0';
+    g.beginPath(); g.moveTo(0,-s*0.96); g.lineTo(-s*0.18,-s*1.12); g.lineTo(-s*0.02,-s*0.98); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(0,-s*0.96); g.lineTo(s*0.18,-s*1.12); g.lineTo(s*0.02,-s*0.98); g.closePath(); g.fill();
+    g.beginPath(); g.arc(0,-s*0.96,s*0.06,0,Math.PI*2); g.fill();
+  }
+  g.restore();
+}
+function drawDuo(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{}); }
+function drawFatherOwl(g,x,y,s,facing){
+  drawOwlAdult(g,x,y,s,facing,{body:'#2e6b1f',belly:'#cdeab8',wing:'#1f4a14',beak:'#e0951a',accessory:'glasses'});
+}
+function drawMotherOwl(g,x,y,s,facing){
+  drawOwlAdult(g,x,y,s,facing,{body:'#1fa088',belly:'#d8fff5',wing:'#137a66',beak:'#ffb020',accessory:'bow',bowColor:'#ff5fa0'});
+}
+function drawVillagerOwl(g,x,y,s,facing){
+  drawOwlAdult(g,x,y,s,facing,{body:'#a05a2c',belly:'#ffe8c9',wing:'#7a3f1a',beak:'#ffd54a'});
+}
+// full-body Astro: helmet-like head + torso + arms + legs, distinct from Duo's owl silhouette
+// shared body plan for Astro's species — palette-driven so other folks from his planet can reuse it
+function drawAstroSpecies(g,x,y,s,facing,opts){
+  opts = opts || {};
+  const skin = opts.skin || '#f2f6ff';
+  const trim = opts.trim || '#3ddc84';
+  const legs = opts.legs || '#324';
+  facing = facing || 1;
+  g.save(); g.translate(x,y);
+  g.fillStyle = legs;
+  g.fillRect(-s*0.26, s*0.5, s*0.18, s*0.34);
+  g.fillRect(s*0.08, s*0.5, s*0.18, s*0.34);
+  g.fillStyle = trim;
+  g.fillRect(-s*0.28, s*0.8, s*0.22, s*0.1);
+  g.fillRect(s*0.06, s*0.8, s*0.22, s*0.1);
+  g.fillStyle = skin;
+  g.beginPath(); g.ellipse(-s*0.42*facing, s*0.16, s*0.11, s*0.24, 0.15*facing, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.42*facing, s*0.16, s*0.11, s*0.24, -0.15*facing, 0, Math.PI*2); g.fill();
+  g.fillStyle = skin;
+  roundRect(g, -s*0.34, s*0.0, s*0.68, s*0.56, s*0.2); g.fill();
+  g.strokeStyle = trim; g.lineWidth = s*0.05; g.stroke();
+  g.fillStyle = trim;
+  g.fillRect(-s*0.08, s*0.18, s*0.16, s*0.16);
+  g.fillStyle = skin;
+  g.beginPath(); g.ellipse(0, -s*0.34, s*0.4, s*0.42, 0, 0, Math.PI*2); g.fill();
+  g.strokeStyle = trim; g.lineWidth = s*0.05;
+  g.beginPath(); g.ellipse(0, -s*0.34, s*0.4, s*0.42, 0, 0, Math.PI*2); g.stroke();
+  g.beginPath(); g.moveTo(0,-s*0.74); g.lineTo(0,-s*0.98); g.stroke();
+  g.fillStyle = trim; g.beginPath(); g.arc(0,-s*1.0,s*0.07,0,Math.PI*2); g.fill();
+  eyesBig(g, s*0.8, opts.eyeWhite||'#eafff2', opts.eyePupil||'#12321f', -0.42);
+  g.restore();
+}
+function drawAstro(g,x,y,s,facing){ drawAstroSpecies(g,x,y,s,facing,{}); }
+// Cueio — from Astro's homeworld, but a different dimension of it: looks like a bunny, not a humanoid like Astro
+function drawCueio(g,x,y,s,facing){
+  facing = facing || 1;
+  const fur = '#e8a05a', furDark = '#c97f3a', belly = '#fff1dd';
+  const eyeWhite = '#fff8ef', eyePupil = '#2a1a08';
+  g.save(); g.translate(x,y);
+  // feet
+  g.fillStyle = furDark;
+  g.beginPath(); g.ellipse(-s*0.22,s*0.68,s*0.17,s*0.12,0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.22,s*0.68,s*0.17,s*0.12,0,0,Math.PI*2); g.fill();
+  // round body
+  g.fillStyle = fur;
+  g.beginPath(); g.ellipse(0,s*0.28,s*0.44,s*0.42,0,0,Math.PI*2); g.fill();
+  g.fillStyle = belly;
+  g.beginPath(); g.ellipse(0,s*0.36,s*0.26,s*0.28,0,0,Math.PI*2); g.fill();
+  // stubby arms
+  g.fillStyle = fur;
+  g.beginPath(); g.ellipse(-s*0.42*facing,s*0.22,s*0.1,s*0.2,0.3*facing,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.42*facing,s*0.22,s*0.1,s*0.2,-0.3*facing,0,Math.PI*2); g.fill();
+  // a broken rope collar — a small nod to the cage he was just freed from
+  g.strokeStyle = '#5a4a38'; g.lineWidth = s*0.05;
+  g.beginPath(); g.arc(0,-s*0.02,s*0.3,0.15*Math.PI,0.85*Math.PI); g.stroke();
+  // long ears (drawn behind the head)
+  g.fillStyle = fur;
+  [-1,1].forEach(side=>{
+    g.save(); g.translate(side*s*0.16,-s*0.62); g.rotate(side*0.1);
+    roundRect(g,-s*0.1,-s*0.58,s*0.2,s*0.58,s*0.1); g.fill();
+    g.fillStyle = '#ffcfa0';
+    roundRect(g,-s*0.055,-s*0.5,s*0.11,s*0.42,s*0.055); g.fill();
+    g.fillStyle = fur;
+    g.restore();
+  });
+  // round head + muzzle
+  g.fillStyle = fur;
+  g.beginPath(); g.arc(0,-s*0.14,s*0.36,0,Math.PI*2); g.fill();
+  g.fillStyle = belly;
+  g.beginPath(); g.ellipse(0,-s*0.02,s*0.22,s*0.18,0,0,Math.PI*2); g.fill();
+  eyesBig(g, s*0.66, eyeWhite, eyePupil, -0.24);
+  // nose + buck teeth
+  g.fillStyle = '#ff8f9e';
+  g.beginPath(); g.ellipse(0,-s*0.02,s*0.045,s*0.032,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#fffdf5';
+  g.fillRect(-s*0.045,s*0.02,s*0.04,s*0.06);
+  g.fillRect(s*0.005,s*0.02,s*0.04,s*0.06);
+  g.strokeStyle = '#d8c8b0'; g.lineWidth = s*0.008;
+  g.strokeRect(-s*0.045,s*0.02,s*0.04,s*0.06);
+  g.strokeRect(s*0.005,s*0.02,s*0.04,s*0.06);
+  // whiskers
+  g.strokeStyle = 'rgba(90,70,50,0.55)'; g.lineWidth = s*0.012;
+  [-1,1].forEach(side=>{
+    for (let i=0;i<2;i++){
+      g.beginPath(); g.moveTo(side*s*0.14,-s*0.02+i*s*0.04); g.lineTo(side*s*0.32,-s*0.05+i*s*0.06); g.stroke();
+    }
+  });
+  g.restore();
+}
+// the security guard's target and the interior guards reuse drawAlienHunter (type 'hunter')
+// a different predator lurking in the secret forest — low, shadowy, feline-like (distinct from Vulcrom's)
+function drawShadowPredator(g,x,y,s){
+  g.save(); g.translate(x,y);
+  const bob = Math.sin(Date.now()/220)*s*0.03;
+  g.translate(0,bob);
+  g.fillStyle = '#241a30';
+  g.beginPath(); g.ellipse(0,s*0.1,s*0.6,s*0.32,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#1a1224';
+  [[-0.45,0.32],[-0.15,0.36],[0.2,0.36],[0.48,0.32]].forEach(([dx,dy])=>{
+    g.fillRect(dx*s-s*0.06,dy*s,s*0.12,s*0.3);
+  });
+  g.strokeStyle = '#241a30'; g.lineWidth = s*0.12; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(s*0.55,s*0.02); g.quadraticCurveTo(s*0.95,-s*0.1,s*0.85,-s*0.4); g.stroke();
+  g.fillStyle = '#2e2140';
+  g.beginPath(); g.ellipse(-s*0.55,-s*0.08,s*0.26,s*0.22,0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.moveTo(-s*0.68,-s*0.24); g.lineTo(-s*0.74,-s*0.42); g.lineTo(-s*0.58,-s*0.3); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(-s*0.44,-s*0.24); g.lineTo(-s*0.38,-s*0.42); g.lineTo(-s*0.52,-s*0.3); g.closePath(); g.fill();
+  g.fillStyle = '#c9a8ff';
+  g.beginPath(); g.ellipse(-s*0.62,-s*0.1,s*0.05,s*0.03,0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(-s*0.46,-s*0.1,s*0.05,s*0.03,0,0,Math.PI*2); g.fill();
+  g.restore();
+}
+// the King of the big castle — robed, crowned, guarded
+function drawKing(g,x,y,s,facing){
+  facing = facing || 1;
+  g.save(); g.translate(x,y);
+  g.fillStyle = '#4a1f6e';
+  g.beginPath(); g.moveTo(-s*0.36,s*0.86); g.lineTo(-s*0.3,-s*0.05); g.lineTo(s*0.3,-s*0.05); g.lineTo(s*0.36,s*0.86); g.closePath(); g.fill();
+  g.fillStyle = '#ffd54a'; g.fillRect(-s*0.36,s*0.5,s*0.72,s*0.08);
+  g.fillStyle = '#4a1f6e';
+  g.fillRect(-s*0.46,s*0.02,s*0.14,s*0.4);
+  g.fillRect(s*0.32,s*0.02,s*0.14,s*0.4);
+  g.fillStyle = '#e8c39e';
+  g.beginPath(); g.arc(0,-s*0.32,s*0.28,0,Math.PI*2); g.fill();
+  eyesBig(g, s*0.5, '#fff', '#2a1a10', -0.34);
+  g.fillStyle = '#d8d8d8';
+  g.beginPath(); g.moveTo(-s*0.2,-s*0.2); g.quadraticCurveTo(0,s*0.14,s*0.2,-s*0.2); g.lineTo(s*0.14,-s*0.28); g.quadraticCurveTo(0,-s*0.1,-s*0.14,-s*0.28); g.closePath(); g.fill();
+  g.fillStyle = '#ffd54a';
+  g.beginPath(); g.moveTo(-s*0.26,-s*0.5); g.lineTo(-s*0.26,-s*0.66); g.lineTo(-s*0.13,-s*0.54); g.lineTo(0,-s*0.7); g.lineTo(s*0.13,-s*0.54); g.lineTo(s*0.26,-s*0.66); g.lineTo(s*0.26,-s*0.5); g.closePath(); g.fill();
+  g.fillStyle = '#a020f0';
+  g.beginPath(); g.arc(0,-s*0.63,s*0.045,0,Math.PI*2); g.fill();
+  g.restore();
+}
+function drawDisguiseEmerald(g,x,y,s,found){
+  if (found) return;
+  const pulse = 0.6 + 0.4*Math.sin(Date.now()/190);
+  g.save(); g.translate(x,y);
+  g.fillStyle = `rgba(255,110,220,${0.3*pulse})`; g.beginPath(); g.arc(0,0,s*0.85,0,Math.PI*2); g.fill();
+  g.fillStyle = '#3a1a3a';
+  g.beginPath(); g.moveTo(0,-s*0.44); g.lineTo(s*0.3,0); g.lineTo(0,s*0.44); g.lineTo(-s*0.3,0); g.closePath(); g.fill();
+  g.fillStyle = `rgba(255,150,230,${0.75+0.25*pulse})`;
+  g.beginPath(); g.moveTo(0,-s*0.24); g.lineTo(s*0.15,0); g.lineTo(0,s*0.24); g.lineTo(-s*0.15,0); g.closePath(); g.fill();
+  g.restore();
+}
+function eyeSingle(g,s,white,pupil,yOff){
+  yOff = yOff===undefined ? -0.05 : yOff;
+  const cy = s*yOff;
+  g.fillStyle = white;
+  g.beginPath(); g.ellipse(0,cy,s*0.28,s*0.32,0,0,Math.PI*2); g.fill();
+  g.fillStyle = pupil;
+  g.beginPath(); g.arc(0,cy+s*0.03,s*0.13,0,Math.PI*2); g.fill();
+  g.fillStyle = '#fff';
+  g.beginPath(); g.arc(-s*0.07,cy-s*0.07,s*0.045,0,Math.PI*2); g.fill();
+}
+// forest sunflower: one big eye, petals radiating out — used for every eye-plant in the bosque
+function drawEyePlant(g,x,y,s,talking){
+  g.save(); g.translate(x,y);
+  g.strokeStyle = '#2e6b1f'; g.lineWidth = s*0.14;
+  g.beginPath(); g.moveTo(0,s*0.85); g.lineTo(0,s*0.08); g.stroke();
+  g.fillStyle = '#2e6b1f';
+  g.beginPath(); g.ellipse(-s*0.32,s*0.55,s*0.24,s*0.13,0.5,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.32,s*0.42,s*0.24,s*0.13,-0.5,0,Math.PI*2); g.fill();
+  g.fillStyle = '#ffcc33';
+  const petals = 11;
+  for (let i=0;i<petals;i++){
+    const a = (i/petals)*Math.PI*2;
+    g.save(); g.rotate(a);
+    g.beginPath(); g.ellipse(0,-s*0.56,s*0.15,s*0.28,0,0,Math.PI*2); g.fill();
+    g.restore();
+  }
+  g.fillStyle = '#7a4a1e';
+  g.beginPath(); g.arc(0,0,s*0.42,0,Math.PI*2); g.fill();
+  eyeSingle(g, s, '#fff', '#1a1a1a', 0);
+  // mouth — always visible, opens wider while talking
+  g.strokeStyle = '#2a1608'; g.lineWidth = s*0.07; g.lineCap = 'round';
+  g.beginPath();
+  if (talking) g.arc(0, s*0.26, s*0.17, 0.1*Math.PI, 0.9*Math.PI);
+  else g.arc(0, s*0.22, s*0.15, 0.15*Math.PI, 0.85*Math.PI);
+  g.stroke();
+  g.restore();
+}
+function drawDrone(g,x,y,s){
+  g.save(); g.translate(x,y);
+  const bob = Math.sin(Date.now()/220)*s*0.05;
+  g.translate(0,bob);
+  g.fillStyle = '#5a3d8a';
+  g.beginPath(); g.ellipse(0,0,s*0.85,s*0.4,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#8a5fd0';
+  g.beginPath(); g.ellipse(0,-s*0.22,s*0.45,s*0.32,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#ff2f4a';
+  g.beginPath(); g.arc(0,-s*0.22,s*0.14,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,60,80,0.5)';
+  g.beginPath(); g.arc(0,-s*0.22,s*0.24,0,Math.PI*2); g.fill();
+  for (let i=-1;i<=1;i+=2){
+    g.strokeStyle = '#3a2560'; g.lineWidth = s*0.06;
+    g.beginPath(); g.moveTo(i*s*0.5, s*0.1); g.lineTo(i*s*0.65, s*0.5); g.stroke();
+  }
+  g.restore();
+}
+// fluffy, spotted, round-eared companion with stubby hug-arms — distinct from the old plain blob
+function drawHuggy(g,x,y,s,talking){
+  g.save(); g.translate(x,y);
+  const body = '#2f6fe0', dark = '#1f4fb0', spot = '#a9d4ff';
+  g.fillStyle = dark;
+  g.beginPath(); g.ellipse(-s*0.3,s*0.95,s*0.18,s*0.12,0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.3,s*0.95,s*0.18,s*0.12,0,0,Math.PI*2); g.fill();
+  g.fillStyle = dark;
+  g.beginPath(); g.ellipse(-s*0.45,-s*0.75,s*0.16,s*0.2,-0.3,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.45,-s*0.75,s*0.16,s*0.2,0.3,0,Math.PI*2); g.fill();
+  g.fillStyle = body;
+  g.beginPath(); g.ellipse(-s*0.78,s*0.15,s*0.16,s*0.32,0.5,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.78,s*0.15,s*0.16,s*0.32,-0.5,0,Math.PI*2); g.fill();
+  g.fillStyle = body;
+  for (let i=0;i<10;i++){
+    const a = (i/10)*Math.PI*2;
+    g.beginPath(); g.arc(Math.cos(a)*s*0.66, Math.sin(a)*s*0.82, s*0.12, 0, Math.PI*2); g.fill();
+  }
+  g.beginPath(); g.ellipse(0,0,s*0.7,s*0.86,0,0,Math.PI*2); g.fill();
+  g.fillStyle = spot;
+  g.beginPath(); g.arc(-s*0.3,-s*0.1,s*0.09,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.22,s*0.32,s*0.07,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.15,-s*0.4,s*0.06,0,Math.PI*2); g.fill();
+  eyesBig(g, s, '#fff', '#2a1440', -0.15);
+  g.strokeStyle = '#2a1440'; g.lineWidth = s*0.06; g.lineCap='round';
+  g.beginPath();
+  if (talking) g.arc(0, s*0.34, s*0.2, 0.15*Math.PI, 0.85*Math.PI);
+  else g.arc(0, s*0.28, s*0.2, 0.15*Math.PI, 0.85*Math.PI);
+  g.stroke();
+  g.restore();
+}
+// clawed, spiked Vulcrom predator — its own design, no longer a recolored drone
+function drawVulcromPredator(g,x,y,s){
+  g.save(); g.translate(x,y);
+  const bob = Math.sin(Date.now()/180)*s*0.03;
+  g.translate(0,bob);
+  g.strokeStyle = '#4a1a1a'; g.lineWidth = s*0.14; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(s*0.5,s*0.3); g.quadraticCurveTo(s*0.95,s*0.1,s*0.85,-s*0.32); g.stroke();
+  g.fillStyle = '#3a1414';
+  g.fillRect(-s*0.5,s*0.32,s*0.16,s*0.4);
+  g.fillRect(-s*0.15,s*0.38,s*0.16,s*0.42);
+  g.fillRect(s*0.2,s*0.38,s*0.16,s*0.42);
+  g.fillRect(s*0.5,s*0.32,s*0.16,s*0.4);
+  g.fillStyle = '#e8d8c0';
+  [-0.5,-0.15,0.2,0.5].forEach(dx=>{
+    g.beginPath(); g.moveTo(dx*s,s*0.76); g.lineTo(dx*s-s*0.06,s*0.9); g.lineTo(dx*s+s*0.1,s*0.9); g.closePath(); g.fill();
+  });
+  g.fillStyle = '#7a1f2a';
+  g.beginPath(); g.ellipse(0,0,s*0.62,s*0.42,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#4a1a1a';
+  for (let i=-2;i<=2;i++){
+    g.beginPath(); g.moveTo(i*s*0.2,-s*0.34); g.lineTo(i*s*0.2-s*0.06,-s*0.56); g.lineTo(i*s*0.2+s*0.06,-s*0.56); g.closePath(); g.fill();
+  }
+  g.fillStyle = '#8a2733';
+  g.beginPath(); g.ellipse(-s*0.6,-s*0.12,s*0.32,s*0.28,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#ffdd33';
+  g.beginPath(); g.arc(-s*0.72,-s*0.2,s*0.06,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(-s*0.58,-s*0.24,s*0.06,0,Math.PI*2); g.fill();
+  g.fillStyle = '#f0e8d8';
+  g.beginPath(); g.moveTo(-s*0.85,-s*0.02); g.lineTo(-s*0.78,s*0.1); g.lineTo(-s*0.7,-s*0.02); g.closePath(); g.fill();
+  g.restore();
+}
+// cloaked bounty hunter tracking Duo and Astro through the restaurant
+function drawAlienHunter(g,x,y,s){
+  g.save(); g.translate(x,y);
+  g.fillStyle = '#1a1a24';
+  g.beginPath(); g.moveTo(0,-s*0.9); g.lineTo(s*0.5,s*0.85); g.lineTo(-s*0.5,s*0.85); g.closePath(); g.fill();
+  g.fillStyle = '#2a2a3a';
+  g.beginPath(); g.ellipse(-s*0.42,-s*0.35,s*0.18,s*0.24,0.3,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.42,-s*0.35,s*0.18,s*0.24,-0.3,0,Math.PI*2); g.fill();
+  g.fillStyle = '#20202c';
+  g.beginPath(); g.arc(0,-s*0.62,s*0.28,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,47,74,0.4)';
+  g.beginPath(); g.ellipse(0,-s*0.62,s*0.26,s*0.12,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#ff2f4a';
+  g.beginPath(); g.ellipse(0,-s*0.62,s*0.18,s*0.07,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#555'; g.lineWidth = s*0.06;
+  g.beginPath(); g.moveTo(s*0.5,s*0.5); g.lineTo(s*0.75,-s*0.35); g.stroke();
+  g.fillStyle = '#ff5f7a'; g.beginPath(); g.arc(s*0.75,-s*0.35,s*0.07,0,Math.PI*2); g.fill();
+  g.restore();
+}
+// floating turret construct guarding the bunker's locked room
+function drawArmaGuardia(g,x,y,s){
+  g.save(); g.translate(x,y);
+  const bob = Math.sin(Date.now()/200)*s*0.04;
+  g.translate(0,bob);
+  g.strokeStyle = '#55555f'; g.lineWidth = s*0.12; g.lineCap = 'round';
+  for (let i=0;i<4;i++){
+    const a = i*Math.PI/2 + Math.PI/4;
+    g.beginPath(); g.moveTo(Math.cos(a)*s*0.3,Math.sin(a)*s*0.3); g.lineTo(Math.cos(a)*s*0.7,Math.sin(a)*s*0.7); g.stroke();
+  }
+  g.fillStyle = '#ffaa3a';
+  for (let i=0;i<4;i++){
+    const a = i*Math.PI/2 + Math.PI/4;
+    g.beginPath(); g.arc(Math.cos(a)*s*0.72,Math.sin(a)*s*0.72,s*0.09,0,Math.PI*2); g.fill();
+  }
+  g.fillStyle = '#3a3a44';
+  g.beginPath(); g.ellipse(0,0,s*0.4,s*0.4,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#ff5f3a';
+  g.beginPath(); g.arc(0,0,s*0.15,0,Math.PI*2); g.fill();
+  g.restore();
+}
+// hulking magma-cracked titan guarding the castle exit — gray stone body, glowing orange fissures
+function drawTitan(g,x,y,s){
+  g.save(); g.translate(x,y);
+  const bob = Math.sin(Date.now()/300)*s*0.02;
+  g.translate(0,bob);
+  g.fillStyle = '#5a5a5a';
+  g.fillRect(-s*0.32,s*0.3,s*0.26,s*0.55);
+  g.fillRect(s*0.06,s*0.3,s*0.26,s*0.55);
+  g.strokeStyle = '#ff8a3a'; g.lineWidth = s*0.03; g.lineCap='round';
+  g.beginPath(); g.moveTo(-s*0.22,s*0.35); g.lineTo(-s*0.15,s*0.55); g.lineTo(-s*0.24,s*0.75); g.stroke();
+  g.beginPath(); g.moveTo(s*0.2,s*0.4); g.lineTo(s*0.28,s*0.6); g.lineTo(s*0.18,s*0.78); g.stroke();
+  g.fillStyle = '#6a6a6a';
+  g.beginPath();
+  g.moveTo(-s*0.55,-s*0.1); g.lineTo(s*0.55,-s*0.1);
+  g.lineTo(s*0.42,s*0.34); g.lineTo(-s*0.42,s*0.34);
+  g.closePath(); g.fill();
+  g.fillStyle = 'rgba(255,140,60,0.35)';
+  g.beginPath(); g.arc(0,s*0.1,s*0.2,0,Math.PI*2); g.fill();
+  g.fillStyle = '#ff6a2a';
+  g.beginPath(); g.moveTo(0,-s*0.02); g.lineTo(s*0.12,s*0.1); g.lineTo(0,s*0.22); g.lineTo(-s*0.12,s*0.1); g.closePath(); g.fill();
+  g.fillStyle = '#5a5a5a';
+  g.beginPath(); g.arc(-s*0.62,s*0.05,s*0.24,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.62,s*0.05,s*0.24,0,Math.PI*2); g.fill();
+  g.fillStyle = '#7a7a7a';
+  g.beginPath(); g.arc(-s*0.66,s*0.42,s*0.22,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.66,s*0.42,s*0.22,0,Math.PI*2); g.fill();
+  g.fillStyle = '#6a6a6a';
+  g.beginPath(); g.ellipse(0,-s*0.36,s*0.26,s*0.24,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#ff8a3a'; g.lineWidth = s*0.025;
+  g.beginPath(); g.moveTo(-s*0.3,-s*0.05); g.lineTo(-s*0.2,s*0.15); g.stroke();
+  g.beginPath(); g.moveTo(s*0.28,-s*0.08); g.lineTo(s*0.18,s*0.1); g.stroke();
+  g.fillStyle = '#ffaa3a';
+  g.beginPath(); g.arc(-s*0.1,-s*0.38,s*0.055,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.1,-s*0.38,s*0.055,0,Math.PI*2); g.fill();
+  g.restore();
+}
+function drawElementalEmerald(g,x,y,s,found){
+  if (found) return;
+  const pulse = 0.6 + 0.4*Math.sin(Date.now()/200);
+  g.save(); g.translate(x,y);
+  g.fillStyle = `rgba(255,150,60,${0.3*pulse})`; g.beginPath(); g.arc(0,0,s*0.85,0,Math.PI*2); g.fill();
+  g.fillStyle = '#3a2a10';
+  g.beginPath(); g.moveTo(0,-s*0.42); g.lineTo(s*0.3,0); g.lineTo(0,s*0.42); g.lineTo(-s*0.3,0); g.closePath(); g.fill();
+  g.fillStyle = `rgba(255,170,80,${0.75+0.25*pulse})`;
+  g.beginPath(); g.moveTo(0,-s*0.24); g.lineTo(s*0.15,0); g.lineTo(0,s*0.24); g.lineTo(-s*0.15,0); g.closePath(); g.fill();
+  g.restore();
+}
+function drawTeleportGem(g,x,y,s,found){
+  if (found) return;
+  const pulse = 0.6 + 0.4*Math.sin(Date.now()/180);
+  g.save(); g.translate(x,y);
+  g.fillStyle = `rgba(150,120,255,${0.32*pulse})`; g.beginPath(); g.arc(0,0,s*0.9,0,Math.PI*2); g.fill();
+  g.fillStyle = '#3a2a6a';
+  g.beginPath(); g.moveTo(0,-s*0.45); g.lineTo(s*0.32,0); g.lineTo(0,s*0.45); g.lineTo(-s*0.32,0); g.closePath(); g.fill();
+  g.fillStyle = `rgba(190,160,255,${0.7+0.3*pulse})`;
+  g.beginPath(); g.moveTo(0,-s*0.25); g.lineTo(s*0.16,0); g.lineTo(0,s*0.25); g.lineTo(-s*0.16,0); g.closePath(); g.fill();
+  g.restore();
+}
+function drawChest(g,x,y,s,opened){
+  g.save(); g.translate(x,y);
+  g.fillStyle = '#5a3d20'; g.fillRect(-s*0.6,-s*0.05,s*1.2,s*0.65);
+  g.fillStyle = '#7a5a30'; g.fillRect(-s*0.6,-s*0.05,s*1.2,s*0.1);
+  if (opened){
+    g.fillStyle = '#3a2810'; g.fillRect(-s*0.62,-s*0.5,s*1.24,s*0.24);
+    g.fillStyle = '#9a5fe0';
+    g.beginPath(); g.moveTo(0,-s*0.85); g.lineTo(s*0.16,-s*0.6); g.lineTo(0,-s*0.42); g.lineTo(-s*0.16,-s*0.6); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(154,95,224,0.35)';
+    g.beginPath(); g.arc(0,-s*0.6,s*0.3,0,Math.PI*2); g.fill();
+  } else {
+    g.fillStyle = '#3a2810'; g.fillRect(-s*0.62,-s*0.34,s*1.24,s*0.3);
+  }
+  g.fillStyle = '#ffd54a'; g.fillRect(-s*0.08,-s*0.1,s*0.16,s*0.3);
+  g.strokeStyle = '#2a1c10'; g.lineWidth = 2; g.strokeRect(-s*0.6,-s*0.34,s*1.2,s*0.94);
+  g.restore();
+}
+function drawEnergyCell(g,x,y,s,found){
+  if (found) return;
+  const pulse = 0.6 + 0.4*Math.sin(Date.now()/200);
+  g.save(); g.translate(x,y);
+  g.fillStyle = `rgba(125,255,176,${0.28*pulse})`; g.beginPath(); g.arc(0,0,s*0.85,0,Math.PI*2); g.fill();
+  g.fillStyle = '#274a3a'; g.beginPath(); g.ellipse(0,0,s*0.28,s*0.42,0,0,Math.PI*2); g.fill();
+  g.fillStyle = `rgba(125,255,176,${0.6+0.4*pulse})`; g.beginPath(); g.ellipse(0,0,s*0.14,s*0.3,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#122a1f'; g.lineWidth = 2; g.beginPath(); g.ellipse(0,0,s*0.28,s*0.42,0,0,Math.PI*2); g.stroke();
+  g.restore();
+}
+function drawCrate(g,x,y,s){
+  s = s || 48;
+  g.fillStyle = '#3a3a2a'; g.fillRect(x-s/2,y-s/2,s,s);
+  g.strokeStyle = '#1a1a10'; g.lineWidth = 3; g.strokeRect(x-s/2,y-s/2,s,s);
+  g.beginPath(); g.moveTo(x-s/2,y-s/2); g.lineTo(x+s/2,y+s/2); g.moveTo(x+s/2,y-s/2); g.lineTo(x-s/2,y+s/2); g.stroke();
+}
+function drawBazookaDecor(g,x,y,s){
+  g.save(); g.translate(x,y); g.rotate(-0.3);
+  g.fillStyle = '#3a3a2a'; g.fillRect(-s*0.7,-s*0.14,s*1.4,s*0.28);
+  g.fillStyle = '#222'; g.fillRect(s*0.5,-s*0.22,s*0.3,s*0.44);
+  g.fillStyle = '#7dffb0'; g.beginPath(); g.arc(s*0.65,0,s*0.07,0,Math.PI*2); g.fill();
+  g.restore();
+}
+// boxy combat mecha — reused for the powered-down hangar decoration and both battle portraits (player vs enemy pilot)
+function drawMechaBase(g,x,y,s,torso,accent,powered,dark){
+  dark = dark || '#1a1a24';
+  g.save(); g.translate(x,y);
+  // legs + feet
+  g.fillStyle = dark;
+  g.fillRect(-s*0.22,s*0.42,s*0.16,s*0.5);
+  g.fillRect(s*0.06,s*0.42,s*0.16,s*0.5);
+  g.fillStyle = torso;
+  g.fillRect(-s*0.27,s*0.88,s*0.25,s*0.12);
+  g.fillRect(s*0.02,s*0.88,s*0.25,s*0.12);
+  // hip block
+  g.fillStyle = dark;
+  g.fillRect(-s*0.3,s*0.28,s*0.6,s*0.18);
+  // angular torso, wide at the shoulders
+  g.fillStyle = torso;
+  g.beginPath();
+  g.moveTo(-s*0.46,-s*0.28); g.lineTo(s*0.46,-s*0.28);
+  g.lineTo(s*0.38,s*0.34); g.lineTo(-s*0.38,s*0.34);
+  g.closePath(); g.fill();
+  // shoulder armor plates
+  g.fillStyle = dark;
+  g.beginPath(); g.moveTo(-s*0.46,-s*0.3); g.lineTo(-s*0.72,-s*0.16); g.lineTo(-s*0.56,s*0.1); g.lineTo(-s*0.4,-s*0.04); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(s*0.46,-s*0.3); g.lineTo(s*0.72,-s*0.16); g.lineTo(s*0.56,s*0.1); g.lineTo(s*0.4,-s*0.04); g.closePath(); g.fill();
+  // arms
+  g.fillStyle = torso;
+  g.fillRect(-s*0.66,-s*0.08,s*0.16,s*0.4);
+  g.fillRect(s*0.5,-s*0.08,s*0.16,s*0.4);
+  // chest core
+  g.fillStyle = powered ? accent : '#2a2a2a';
+  g.beginPath(); g.arc(0,s*0.0,s*0.13,0,Math.PI*2); g.fill();
+  g.strokeStyle = dark; g.lineWidth = s*0.03; g.beginPath(); g.arc(0,s*0.0,s*0.13,0,Math.PI*2); g.stroke();
+  // head + antenna
+  g.fillStyle = dark;
+  g.beginPath(); g.ellipse(0,-s*0.5,s*0.25,s*0.23,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = dark; g.lineWidth = s*0.045;
+  g.beginPath(); g.moveTo(0,-s*0.72); g.lineTo(0,-s*0.88); g.stroke();
+  g.fillStyle = powered ? accent : dark;
+  g.beginPath(); g.arc(0,-s*0.9,s*0.055,0,Math.PI*2); g.fill();
+  // glowing visor
+  g.fillStyle = powered ? accent : '#333';
+  g.fillRect(-s*0.17,-s*0.56,s*0.34,s*0.1);
+  if (powered){
+    g.fillStyle = 'rgba(255,255,255,0.55)';
+    g.fillRect(-s*0.14,-s*0.545,s*0.1,s*0.04);
+  }
+  g.restore();
+}
+function drawMechaOff(g,x,y,s){ drawMechaBase(g,x,y,s,'#3a3a48','#3a3a3a',false); }
+function drawMechaPlayer(g,x,y,s){
+  drawMechaBase(g,x,y,s,'#2a3a52','#7dffb0',true);
+  g.save(); g.translate(x,y);
+  g.fillStyle = '#233047';
+  g.fillRect(s*0.48,s*0.0,s*0.52,s*0.22);
+  g.fillStyle = '#18202f';
+  g.fillRect(s*0.9,-s*0.05,s*0.14,s*0.32);
+  g.fillStyle = '#7dffb0';
+  g.beginPath(); g.arc(s*1.0,s*0.11,s*0.07,0,Math.PI*2); g.fill();
+  g.restore();
+}
+function drawMechaEnemy(g,x,y,s){
+  drawMechaBase(g,x,y,s,'#5a1f2a','#ff5f7a',true,'#2a0f14');
+  g.save(); g.translate(x,y);
+  g.fillStyle = '#2a0f14';
+  g.beginPath(); g.moveTo(-s*0.68,-s*0.16); g.lineTo(-s*0.88,-s*0.36); g.lineTo(-s*0.58,-s*0.2); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(s*0.68,-s*0.16); g.lineTo(s*0.88,-s*0.36); g.lineTo(s*0.58,-s*0.2); g.closePath(); g.fill();
+  g.restore();
+}
+function roundedBody(g,s){
+  g.beginPath(); g.ellipse(0,0,s*0.62,s*0.78,0,0,Math.PI*2); g.fill();
+}
+function eyesBig(g,s,white,pupil,yOff){
+  yOff = yOff===undefined ? -0.12 : yOff;
+  const cy = s*yOff;
+  g.fillStyle = white;
+  g.beginPath(); g.ellipse(-s*0.24,cy,s*0.2,s*0.24,0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.24,cy,s*0.2,s*0.24,0,0,Math.PI*2); g.fill();
+  g.fillStyle = pupil;
+  g.beginPath(); g.arc(-s*0.24,cy+s*0.04,s*0.09,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.24,cy+s*0.04,s*0.09,0,Math.PI*2); g.fill();
+}
+const DRAW = { duo:drawDuo, astro:drawAstro, plant:drawEyePlant, drone:drawDrone, huggy:drawHuggy, father:drawFatherOwl, mother:drawMotherOwl, villager:drawVillagerOwl, predator:drawVulcromPredator, chest:drawChest, weapon:drawAlienWeapon, energyCell:drawEnergyCell, mechaOff:drawMechaOff, mechaPlayer:drawMechaPlayer, mechaEnemy:drawMechaEnemy, rocket:drawRocketShip, hunter:drawAlienHunter, armaGuardia:drawArmaGuardia, teleportGem:drawTeleportGem, astroDown:drawAstroDown, huggyDown:drawHuggyDown, titan:drawTitan, elementalEmerald:drawElementalEmerald, cueio:drawCueio,
+  shadowPredator:drawShadowPredator, king:drawKing, disguiseEmerald:drawDisguiseEmerald };
+
+/* ---------------- dialogue system ---------------- */
+let dialogueQueue = [], dialogueIdx = 0, dialogueActive = false, dialogueOnEnd = null;
+const dialogueBox = document.getElementById('dialogueBox');
+const dialogueSpeaker = document.getElementById('dialogueSpeaker');
+const dialogueText = document.getElementById('dialogueText');
+
+function startDialogue(lines, onEnd){
+  dialogueQueue = lines; dialogueIdx = 0; dialogueActive = true; dialogueOnEnd = onEnd || null;
+  dialogueBox.style.display = 'flex';
+  showDialogueLine();
+}
+function showDialogueLine(){
+  const line = dialogueQueue[dialogueIdx];
+  dialogueSpeaker.textContent = line.speaker;
+  dialogueSpeaker.style.color = line.color || '#7ef9ff';
+  dialogueText.textContent = line.text;
+}
+function advanceDialogue(){
+  if (!dialogueActive) return;
+  dialogueIdx++;
+  if (dialogueIdx >= dialogueQueue.length){
+    dialogueActive = false;
+    dialogueBox.style.display = 'none';
+    const cb = dialogueOnEnd; dialogueOnEnd = null;
+    if (cb) cb();
+  } else {
+    showDialogueLine();
+  }
+}
+
+/* ---------------- scenes / exploration ---------------- */
+const player = { x:100, y:300, w:34, h:44, speed:220, type:'duo', talkTarget:null };
+const PLAYER_SCALE = { mechaPlayer: 58 };
+
+// party members trailing behind the player during exploration (e.g. Astro/Huggy/Cueio in chapter 4)
+let followers = [];
+const followerTrail = [];
+const FOLLOWER_SPACING = 14;
+let currentScene = null;
+let sceneLocked = false; // true while dialogue/battle/cutscene owns control
+const hintEl = document.getElementById('hint');
+const chapterBanner = document.getElementById('chapterBanner');
+const actionBtn = document.getElementById('actionBtn');
+actionBtn.addEventListener('click', ()=> handleInteractKey());
+const battleAttackBtn = document.getElementById('battleAttackBtn');
+battleAttackBtn.addEventListener('click', ()=> battleAttack());
+
+function showBanner(text){
+  chapterBanner.textContent = text;
+  chapterBanner.style.opacity = '1';
+  setTimeout(()=>{ chapterBanner.style.opacity = '0'; }, 2200);
+}
+function flash(color){
+  if (settings.quality === 'baixa') return;
+  const f = document.getElementById('flash');
+  f.style.background = color || '#ff2244';
+  f.style.opacity = '0.55';
+  setTimeout(()=>{ f.style.opacity = '0'; }, 90);
+  if (settings.quality !== 'media'){
+    setTimeout(()=>{ f.style.opacity = '0.4'; }, 220);
+    setTimeout(()=>{ f.style.opacity = '0'; }, 320);
+  }
+}
+
+function rectsOverlap(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+function expand(r,pad){ return {x:r.x-pad,y:r.y-pad,w:r.w+pad*2,h:r.h+pad*2}; }
+
+function goToScene(scene, spawn){
+  currentScene = scene;
+  player.x = spawn.x; player.y = spawn.y;
+  sceneLocked = false;
+  if (scene.onEnter) scene.onEnter();
+  if (scene.banner) showBanner(scene.banner);
+}
+
+function updateActionButton(){
+  const menuVisible = !menuOverlay.classList.contains('hidden');
+  const endVisible = !endOverlay.classList.contains('hidden');
+  const battleVisible = battleOverlay.style.display === 'flex';
+  if (menuVisible || endVisible || battleVisible){
+    actionBtn.style.display = 'none';
+    return;
+  }
+  if (dialogueActive){
+    actionBtn.style.display = 'flex';
+    actionBtn.textContent = 'Continuar';
+    return;
+  }
+  if (sceneLocked || !currentScene){
+    actionBtn.style.display = 'none';
+    return;
+  }
+  const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
+  const near = (currentScene.npcs||[]).some(npc => rectsOverlap(expand(pRect,14), npc));
+  actionBtn.style.display = near ? 'flex' : 'none';
+  actionBtn.textContent = 'Interagir';
+}
+
+const inventoryHud = document.getElementById('inventoryHud');
+const invJewel = document.getElementById('invJewel');
+const invEmerald = document.getElementById('invEmerald');
+const invWeapon = document.getElementById('invWeapon');
+const invTeleport = document.getElementById('invTeleport');
+const invElemental = document.getElementById('invElemental');
+const invDisguise = document.getElementById('invDisguise');
+function updateInventoryHud(){
+  const menuVisible = !menuOverlay.classList.contains('hidden');
+  const endVisible = !endOverlay.classList.contains('hidden');
+  inventoryHud.style.display = (menuVisible || endVisible) ? 'none' : 'flex';
+  invJewel.classList.toggle('owned', upgrades.jewelOfLife);
+  invEmerald.classList.toggle('owned', upgrades.emeraldOfPower);
+  invWeapon.classList.toggle('owned', upgrades.alienWeapon);
+  invTeleport.classList.toggle('owned', upgrades.teleportGem);
+  invElemental.classList.toggle('owned', upgrades.elementalEmerald);
+  invDisguise.classList.toggle('owned', upgrades.disguiseEmerald);
+}
+
+function handleInteractKey(){
+  if (battle){ battleAttack(); return; }
+  if (dialogueActive){ advanceDialogue(); return; }
+  if (sceneLocked || !currentScene) return;
+  const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
+  for (const npc of (currentScene.npcs||[])){
+    if (rectsOverlap(expand(pRect,14), npc)){
+      npc.onInteract && npc.onInteract();
+      return;
+    }
+  }
+}
+
+let stepTimer = 0;
+function updateExploration(dt){
+  if (dialogueActive || sceneLocked || !currentScene) return;
+  let dx=0, dy=0;
+  if (keys['arrowleft']||keys['a']) dx -= 1;
+  if (keys['arrowright']||keys['d']) dx += 1;
+  if (keys['arrowup']||keys['w']) dy -= 1;
+  if (keys['arrowdown']||keys['s']) dy += 1;
+  if (dx||dy){
+    const len = Math.hypot(dx,dy); dx/=len; dy/=len;
+    player.facing = dx < 0 ? -1 : (dx>0 ? 1 : (player.facing||1));
+    const nx = player.x + dx*player.speed*dt;
+    const ny = player.y + dy*player.speed*dt;
+    const tryRect = {x:nx, y:player.y, w:player.w, h:player.h};
+    let moved = false;
+    if (!(currentScene.obstacles||[]).some(o=>rectsOverlap(tryRect,o))){ player.x = clampX(nx); moved = true; }
+    const tryRect2 = {x:player.x, y:ny, w:player.w, h:player.h};
+    if (!(currentScene.obstacles||[]).some(o=>rectsOverlap(tryRect2,o))){ player.y = clampY(ny); moved = true; }
+    if (moved){
+      stepTimer -= dt;
+      if (stepTimer <= 0){ sfxStep(); stepTimer = 0.28; }
+    }
+  } else {
+    stepTimer = 0;
+  }
+  if (followers.length){
+    followerTrail.unshift({x:player.x, y:player.y});
+    const maxLen = (followers.length+1)*FOLLOWER_SPACING + 4;
+    if (followerTrail.length > maxLen) followerTrail.length = maxLen;
+  }
+  if (battle) return; // fighting on top of this room — exits/interact stay off until the battle ends
+  // exits
+  const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
+  for (const ex of (currentScene.exits||[])){
+    if (rectsOverlap(pRect, ex)){ ex.onEnter(); return; }
+  }
+  // interact hint
+  let showHint = false;
+  for (const npc of (currentScene.npcs||[])){
+    if (rectsOverlap(expand(pRect,14), npc)){ showHint = true; break; }
+  }
+  hintEl.style.display = showHint ? 'block' : 'none';
+  hintEl.textContent = '␣ interagir';
+}
+function clampX(v){ return Math.max(20, Math.min(W-20-player.w, v)); }
+function clampY(v){ return Math.max(70, Math.min(H-20-player.h, v)); }
+
+function renderScene(){
+  ctx.clearRect(0,0,W,H);
+  if (!currentScene) return;
+  currentScene.draw(ctx);
+  for (const npc of (currentScene.npcs||[])){
+    const draw = DRAW[npc.type];
+    if (draw) draw(ctx, npc.x+npc.w/2, npc.y+npc.h/2, npc.scale||34, npc.talking);
+    if (npc.label){
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(npc.label, npc.x+npc.w/2, npc.y - 8);
+    }
+  }
+  if (!battle){
+    followers.forEach((type,i)=>{
+      const sample = followerTrail[Math.min(followerTrail.length-1, (i+1)*FOLLOWER_SPACING)];
+      if (!sample) return;
+      const draw = DRAW[type];
+      if (draw) draw(ctx, sample.x+player.w/2, sample.y+player.h/2, PLAYER_SCALE[type]||34, false);
+    });
+  }
+  DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
+  if (battle){
+    DRAW[battle.enemy.type](ctx, battle.enemyPos.x, battle.enemyPos.y, battle.enemy.scale||52);
+    battle.projectiles.forEach(pr=>{
+      ctx.fillStyle = pr.color; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r*0.5,0,Math.PI*2); ctx.fill();
+    });
+  }
+}
+
+/* ---------------- battle system (real-time arena) ---------------- */
+const battleOverlay = document.getElementById('battleOverlay');
+const battleTitle = document.getElementById('battleTitle');
+const battleToastEl = document.getElementById('battleToast');
+const battleActions = document.getElementById('battleActions');
+
+let battle = null;
+let toastTimer = null;
+
+function toast(msg){
+  battleToastEl.textContent = msg;
+  battleToastEl.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ battleToastEl.style.opacity = '0'; }, 2200);
+}
+function refreshHpUI(){
+  const p = battle.player, e = battle.enemy;
+  document.getElementById('battlePlayerName').textContent = p.name;
+  document.getElementById('battlePlayerHpText').textContent = `${Math.max(0,p.hp)}/${p.maxHp}`;
+  document.getElementById('battlePlayerHpBar').style.width = Math.max(0,p.hp/p.maxHp*100)+'%';
+  document.getElementById('battleEnemyName').textContent = e.name;
+  document.getElementById('battleEnemyHpText').textContent = `${Math.max(0,e.hp)}/${e.maxHp}`;
+  document.getElementById('battleEnemyHpBar').style.width = Math.max(0,e.hp/e.maxHp*100)+'%';
+}
+function rnd(a,b){ return Math.round(a + Math.random()*(b-a)); }
+
+// config: title, intro, player, enemy, secondary?, allyAssist?, fleeChance?, ranged?,
+//         guaranteedDefeatAfterTurns? (now: force defeat after taking this many hits), scriptedDefeatMsg?,
+//         onVictory, onDefeat, onFlee?
+// The fight plays out on top of whatever room is already on screen — no separate arena backdrop.
+function startBattle(config){
+  battle = config;
+  const dm = DIFFICULTY_MULT[settings.difficulty] || DIFFICULTY_MULT.normal;
+  battle.enemy.hp = Math.round(battle.enemy.hp * dm.hp);
+  battle.enemy.maxHp = Math.round(battle.enemy.maxHp * dm.hp);
+  battle.enemy.atk = Math.round(battle.enemy.atk * dm.atk);
+  battle.hitsTaken = 0;
+  battle.secondaryUsed = false;
+  battle.projectiles = [];
+  battle.playerAtkCd = 0;
+  battle.allyCd = 0;
+  battle.fleeCd = 0;
+  battle.enemyAtkCd = 0.9;
+
+  player.type = battle.player.type;
+  const px = player.x+player.w/2, py = player.y+player.h/2;
+  const ex = Math.max(80, Math.min(W-80, px + (px < W/2 ? 220 : -220)));
+  const ey = Math.max(100, Math.min(H-80, py));
+  battle.enemyPos = { x: ex, y: ey };
+  sceneLocked = false;
+
+  battleTitle.textContent = config.title;
+  toast(config.intro);
+  refreshHpUI();
+  battleActions.innerHTML = '';
+  const mkBtn = (label, fn) => {
+    const b = document.createElement('button');
+    b.className = 'battleBtn'; b.textContent = label;
+    b.onclick = fn; battleActions.appendChild(b); return b;
+  };
+  mkBtn(config.playerRanged ? '🚀 Atirar' : '⚔ Atacar', battleAttack);
+  if (config.allyAssist) mkBtn('🤝 Huggy ajuda!', battleAllyAssist);
+  mkBtn('🏃 Fugir', battleFlee);
+  document.getElementById('battleHint').textContent = config.playerRanged
+    ? 'setas/WASD pra andar · espaço pra atirar (mira automática)'
+    : 'setas/WASD pra andar · espaço pra atacar de perto';
+
+  battleOverlay.style.display = 'flex';
+  battleAttackBtn.style.display = 'flex';
+  battleAttackBtn.textContent = config.playerRanged ? '🚀' : '⚔';
+}
+
+function endBattleArena(outcome){
+  battleOverlay.style.display = 'none';
+  battleAttackBtn.style.display = 'none';
+  const cfg = battle; battle = null;
+  sceneLocked = false;
+  if (outcome === 'victory'){ sfxVictory(); if (cfg.onVictory) cfg.onVictory(); }
+  else if (outcome === 'fled') (cfg.onFlee || cfg.onDefeat) && (cfg.onFlee || cfg.onDefeat)();
+  else if (outcome === 'defeat'){ sfxDefeat(); if (cfg.onDefeat) cfg.onDefeat(); }
+}
+
+function battleAttack(){
+  if (!battle || battle.playerAtkCd > 0) return;
+  const px = player.x+player.w/2, py = player.y+player.h/2;
+  const dmg = rnd(battle.player.atk-3, battle.player.atk+3);
+  if (battle.playerRanged){
+    battle.playerAtkCd = 0.55;
+    const dx = battle.enemyPos.x-px, dy = battle.enemyPos.y-py;
+    const d = Math.hypot(dx,dy) || 1;
+    battle.projectiles.push({
+      x:px, y:py, vx:(dx/d)*520, vy:(dy/d)*520, r:6,
+      color: battle.playerProjColor || '#7dffb0', life:2, target:'enemy', dmg
+    });
+    sfxAttack();
+    return;
+  }
+  battle.playerAtkCd = 0.42;
+  const dist = Math.hypot(px-battle.enemyPos.x, py-battle.enemyPos.y);
+  if (dist > 95){ toast('Chegue mais perto pra atacar!'); return; }
+  battle.enemy.hp -= dmg;
+  sfxAttack();
+  refreshHpUI();
+  if (battle.enemy.hp <= 0){ toast(`${battle.enemy.name} foi derrotado!`); endBattleArena('victory'); }
+}
+function battleAllyAssist(){
+  if (!battle || battle.allyCd > 0) return;
+  battle.allyCd = 3.2;
+  const dmg = rnd(battle.player.atk+8, battle.player.atk+14);
+  battle.enemy.hp -= dmg;
+  sfxAllyAssist();
+  toast(`Huggy ajuda! ${battle.enemy.name} sofre ${dmg} de dano.`);
+  refreshHpUI();
+  if (battle.enemy.hp <= 0){ endBattleArena('victory'); }
+}
+function battleFlee(){
+  if (!battle || battle.fleeCd > 0) return;
+  battle.fleeCd = 1;
+  const chance = battle.fleeChance != null ? battle.fleeChance : 0.5;
+  if (Math.random() < chance){ toast('Você conseguiu fugir!'); endBattleArena('fled'); }
+  else toast('Não deu pra fugir dessa vez!');
+}
+function battleTakeDamage(dmg){
+  if (!battle) return;
+  battle.player.hp -= dmg;
+  battle.hitsTaken++;
+  sfxEnemyHit();
+  refreshHpUI();
+
+  if (battle.guaranteedDefeatAfterTurns && battle.hitsTaken >= battle.guaranteedDefeatAfterTurns){
+    toast(battle.scriptedDefeatMsg || 'A situação piora rapidamente...');
+    endBattleArena('defeat');
+    return;
+  }
+  if (battle.player.hp <= 0){
+    if (battle.secondary && !battle.secondaryUsed){
+      battle.secondaryUsed = true;
+      battle.player = battle.secondary;
+      player.type = battle.player.type;
+      toast(`${battle.player.name} entra na luta!`);
+      refreshHpUI();
+      return;
+    }
+    toast(`${battle.player.name} foi derrotado...`);
+    endBattleArena('defeat');
+  }
+}
+function updateBattle(dt){
+  if (!battle) return;
+  battle.playerAtkCd = Math.max(0, battle.playerAtkCd - dt);
+  battleAttackBtn.disabled = battle.playerAtkCd > 0;
+  battle.allyCd = Math.max(0, battle.allyCd - dt);
+  battle.fleeCd = Math.max(0, battle.fleeCd - dt);
+  battle.enemyAtkCd -= dt;
+
+  const px = player.x+player.w/2, py = player.y+player.h/2;
+  const ex = battle.enemyPos.x, ey = battle.enemyPos.y;
+  const dx = px-ex, dy = py-ey;
+  const dist = Math.hypot(dx,dy) || 1;
+
+  if (battle.ranged){
+    if (dist < 230){ battle.enemyPos.x -= (dx/dist)*55*dt; battle.enemyPos.y -= (dy/dist)*55*dt; }
+    battle.enemyPos.x = Math.max(70, Math.min(W-70, battle.enemyPos.x));
+    battle.enemyPos.y = Math.max(100, Math.min(H-70, battle.enemyPos.y));
+    if (battle.enemyAtkCd <= 0){
+      battle.enemyAtkCd = 1.35;
+      battle.projectiles.push({
+        x:ex, y:ey, vx:(dx/dist)*270, vy:(dy/dist)*270, r:7,
+        color: battle.enemy.projColor || '#ff5f3a', life:3,
+        dmg: rnd(battle.enemy.atk-2, battle.enemy.atk+2)
+      });
+    }
+  } else {
+    if (dist > 58){
+      const spd = battle.enemy.speed || 105;
+      battle.enemyPos.x += (dx/dist)*spd*dt;
+      battle.enemyPos.y += (dy/dist)*spd*dt;
+    } else if (battle.enemyAtkCd <= 0){
+      battle.enemyAtkCd = 1.15;
+      battleTakeDamage(rnd(battle.enemy.atk-2, battle.enemy.atk+2));
+      if (!battle) return;
+    }
+  }
+
+  for (let i = battle.projectiles.length-1; i >= 0; i--){
+    const pr = battle.projectiles[i];
+    pr.x += pr.vx*dt; pr.y += pr.vy*dt; pr.life -= dt;
+    if (pr.target === 'enemy'){
+      if (Math.hypot(pr.x-battle.enemyPos.x, pr.y-battle.enemyPos.y) < 30){
+        battle.enemy.hp -= pr.dmg;
+        refreshHpUI();
+        battle.projectiles.splice(i,1);
+        if (battle.enemy.hp <= 0){ toast(`${battle.enemy.name} foi derrotado!`); endBattleArena('victory'); return; }
+        continue;
+      }
+    } else if (Math.hypot(pr.x-px, pr.y-py) < 24){
+      battleTakeDamage(pr.dmg);
+      if (!battle) return;
+      battle.projectiles.splice(i,1);
+      continue;
+    }
+    if (pr.life <= 0 || pr.x<-20 || pr.x>W+20 || pr.y<-20 || pr.y>H+20) battle.projectiles.splice(i,1);
+  }
+}
+
+/* ---------------- decor helpers ---------------- */
+// Duo's own home — a cozy woven owl nest, visually distinct from Astro's house
+function drawDuoHouse(g){
+  g.fillStyle = '#4a2f1c'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#5c3f26'; g.fillRect(20,70,W-40,H-90);
+  g.fillStyle = '#341f10'; g.fillRect(20,70,W-40,10);
+  // round rug
+  g.fillStyle = '#3f7a4a'; g.beginPath(); g.ellipse(W/2,H-150,150,44,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#265530'; g.lineWidth = 4; g.beginPath(); g.ellipse(W/2,H-150,150,44,0,0,Math.PI*2); g.stroke();
+  // round window
+  g.fillStyle = '#274a6e'; g.beginPath(); g.arc(W/2,135,66,0,Math.PI*2); g.fill();
+  g.fillStyle = '#8fd0ff'; g.beginPath(); g.arc(W/2,135,58,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#2a1f15'; g.lineWidth=6; g.beginPath(); g.arc(W/2,135,66,0,Math.PI*2); g.stroke();
+  g.beginPath(); g.moveTo(W/2,69); g.lineTo(W/2,201); g.moveTo(W/2-66,135); g.lineTo(W/2+66,135); g.stroke();
+  // wooden staircase up to the 2nd floor, where Duo's nest is now
+  g.fillStyle = '#2a1a10'; g.fillRect(50,70,130,110);
+  g.fillStyle = '#6a4a28';
+  for (let i=0;i<5;i++){ g.fillRect(56+i*4, 168-i*20, 118-i*8, 16); }
+  g.fillStyle = '#e8d8b8'; g.font='12px sans-serif'; g.textAlign='center';
+  g.fillText('↑ Andar de cima', 115, 84);
+  // nightstand + lamp
+  g.fillStyle = '#5a4022'; g.fillRect(212,158,34,32);
+  g.fillStyle = '#ffd54a'; g.beginPath(); g.arc(229,150,10,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,213,74,0.18)'; g.beginPath(); g.arc(229,150,30,0,Math.PI*2); g.fill();
+  // table
+  g.fillStyle = '#8a6a3f'; g.fillRect(W-220,120,120,70);
+  g.fillStyle = '#6a4a24'; g.fillRect(W-220,120,120,10);
+  // bookshelf
+  g.fillStyle = '#4a341c'; g.fillRect(W-140,60,110,70);
+  const shelfBooks = ['#c0392b','#2980b9','#27ae60','#f1c40f','#8e44ad'];
+  shelfBooks.forEach((c,i)=>{ g.fillStyle=c; g.fillRect(W-134+i*20,70,16,50); });
+  // potted plant
+  g.fillStyle = '#8a4a2a'; g.fillRect(W-260,H-110,36,30);
+  g.fillStyle = '#2e6b1f';
+  g.beginPath(); g.arc(W-242,H-118,26,0,Math.PI*2); g.fill();
+  // wall picture frame (moved clear of the round nest)
+  g.strokeStyle = '#3a2a16'; g.lineWidth=5; g.strokeRect(W-320,90,70,50);
+  g.fillStyle = '#cfe8ff'; g.fillRect(W-317,93,64,44);
+  // door
+  g.fillStyle = '#1a120a'; g.fillRect(W/2-40, H-70, 80, 60);
+  g.strokeStyle = '#ffd54a'; g.lineWidth=2; g.strokeRect(W/2-40,H-70,80,60);
+}
+// Astro's house — same footprint as Duo's but with its own square window and bed, kept apart from chapter 1
+// upstairs bedroom — Duo's nest lives here now, next to a fallen alien and its weapon
+function drawDuoUpstairs(g){
+  g.fillStyle = '#3a2818'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#4a3420'; g.fillRect(20,70,W-40,H-90);
+  g.fillStyle = '#2a1a10'; g.fillRect(20,70,W-40,10);
+  g.fillStyle = '#1a1030'; g.beginPath(); g.arc(W-140,130,46,0,Math.PI*2); g.fill();
+  g.fillStyle = '#4a3a7a'; g.beginPath(); g.arc(W-140,130,40,0,Math.PI*2); g.fill();
+  // twig nest — Duo hides under here in the cowardly ending
+  for (let i=0;i<3;i++){
+    g.strokeStyle = i%2 ? '#6a4a24' : '#9a7a4a'; g.lineWidth = 6;
+    g.beginPath(); g.ellipse(160,150,74-i*10,50-i*8,0,0,Math.PI*2); g.stroke();
+  }
+  g.fillStyle = '#c9e8ff'; g.beginPath(); g.ellipse(160,142,42,22,0,0,Math.PI*2); g.fill();
+  // a dead alien sprawled on the floor, its weapon within reach
+  drawDeadAlien(g, 420, H-180, 60);
+  // stairs back down
+  g.fillStyle = '#2a1a10'; g.fillRect(W-190,70,130,110);
+  g.fillStyle = '#6a4a28';
+  for (let i=0;i<5;i++){ g.fillRect(W-184+i*4, 168-i*20, 118-i*8, 16); }
+  g.fillStyle = '#e8d8b8'; g.font='12px sans-serif'; g.textAlign='center';
+  g.fillText('↓ Andar de baixo', W-125, 84);
+}
+function drawDeadAlien(g,x,y,s){
+  g.save(); g.translate(x,y); g.rotate(0.12);
+  g.fillStyle = '#4a6a4a';
+  g.beginPath(); g.ellipse(0,0,s*0.6,s*0.3,0,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(s*0.68,-s*0.02,s*0.3,s*0.24,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#152015'; g.lineWidth = s*0.05; g.lineCap='round';
+  g.beginPath(); g.moveTo(s*0.56,-s*0.14); g.lineTo(s*0.76,s*0.06); g.moveTo(s*0.76,-s*0.14); g.lineTo(s*0.56,s*0.06); g.stroke();
+  g.beginPath(); g.moveTo(-s*0.3,s*0.16); g.lineTo(-s*0.62,s*0.36); g.moveTo(-s*0.05,s*0.22); g.lineTo(-s*0.15,s*0.52); g.stroke();
+  g.restore();
+}
+function impactStars(g,x,y,s){
+  g.fillStyle = 'rgba(255,213,74,0.8)';
+  [[-0.5,-0.9],[0.3,-1.1],[0.7,-0.7]].forEach(([dx,dy])=>{
+    g.save(); g.translate(x+dx*s,y+dy*s); g.rotate(0.3);
+    g.beginPath();
+    for (let i=0;i<4;i++){ const a=i*Math.PI/2; g.lineTo(Math.cos(a)*s*0.09,Math.sin(a)*s*0.09); g.lineTo(Math.cos(a+Math.PI/4)*s*0.03,Math.sin(a+Math.PI/4)*s*0.03); }
+    g.closePath(); g.fill();
+    g.restore();
+  });
+}
+// knocked to the ground — same character drawing, just rotated flat with a few impact stars
+function drawAstroDown(g,x,y,s){
+  g.save();
+  g.translate(x,y); g.rotate(1.45); g.translate(-x,-y);
+  drawAstro(g,x,y,s,1);
+  g.restore();
+  impactStars(g,x,y-s*0.3,s);
+}
+function drawHuggyDown(g,x,y,s){
+  g.save();
+  g.translate(x,y); g.rotate(-1.3); g.translate(-x,-y);
+  drawHuggy(g,x,y,s,false);
+  g.restore();
+  impactStars(g,x,y-s*0.3,s);
+}
+function drawAlienWeapon(g,x,y,s,found){
+  if (found) return;
+  const pulse = 0.5 + 0.5*Math.sin(Date.now()/260);
+  g.save(); g.translate(x,y);
+  g.fillStyle = `rgba(125,255,176,${0.18+0.1*pulse})`; g.beginPath(); g.arc(0,0,s*0.7,0,Math.PI*2); g.fill();
+  g.fillStyle = '#2a4a3a'; g.fillRect(-s*0.5,-s*0.08,s*1.0,s*0.16);
+  g.fillStyle = '#3a6a4a'; g.fillRect(-s*0.1,-s*0.2,s*0.3,s*0.12);
+  g.fillStyle = '#7dffb0'; g.beginPath(); g.arc(s*0.42,0,s*0.08,0,Math.PI*2); g.fill();
+  g.restore();
+}
+function drawAstroHouse(g){
+  g.fillStyle = '#3a2c1e'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#4d3a26'; g.fillRect(20,70,W-40,H-90);
+  g.fillStyle = '#2a1f15'; g.fillRect(20,70,W-40,10);
+  g.fillStyle = '#7a2f3a'; g.beginPath(); g.ellipse(W/2,H-150,150,44,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#5a1f28'; g.lineWidth = 4; g.beginPath(); g.ellipse(W/2,H-150,150,44,0,0,Math.PI*2); g.stroke();
+  g.fillStyle = '#274a6e'; g.fillRect(W/2-70,90,140,90);
+  g.fillStyle = '#8fd0ff'; g.fillRect(W/2-64,96,128,78);
+  g.strokeStyle = '#2a1f15'; g.lineWidth=6;
+  g.strokeRect(W/2-70,90,140,90);
+  g.beginPath(); g.moveTo(W/2,90); g.lineTo(W/2,180); g.moveTo(W/2-70,135); g.lineTo(W/2+70,135); g.stroke();
+  g.fillStyle = '#7a4ad0'; g.fillRect(60,110,140,80);
+  g.fillStyle = '#c9c9ff'; g.fillRect(60,110,140,20);
+  g.fillStyle = '#5a4022'; g.fillRect(212,158,34,32);
+  g.fillStyle = '#ffd54a'; g.beginPath(); g.arc(229,150,10,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,213,74,0.18)'; g.beginPath(); g.arc(229,150,30,0,Math.PI*2); g.fill();
+  g.fillStyle = '#8a6a3f'; g.fillRect(W-220,120,120,70);
+  g.fillStyle = '#6a4a24'; g.fillRect(W-220,120,120,10);
+  g.fillStyle = '#4a341c'; g.fillRect(W-140,60,110,70);
+  const shelfBooks2 = ['#c0392b','#2980b9','#27ae60','#f1c40f','#8e44ad'];
+  shelfBooks2.forEach((c,i)=>{ g.fillStyle=c; g.fillRect(W-134+i*20,70,16,50); });
+  g.fillStyle = '#8a4a2a'; g.fillRect(W-260,H-110,36,30);
+  g.fillStyle = '#2e6b1f';
+  g.beginPath(); g.arc(W-242,H-118,26,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#3a2a16'; g.lineWidth=5; g.strokeRect(90,90,70,50);
+  g.fillStyle = '#cfe8ff'; g.fillRect(93,93,64,44);
+  g.fillStyle = '#1a120a'; g.fillRect(W/2-40, H-70, 80, 60);
+  g.strokeStyle = '#ffd54a'; g.lineWidth=2; g.strokeRect(W/2-40,H-70,80,60);
+}
+function drawVillage(g){
+  g.fillStyle = '#241d2e'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#2f2a3d'; g.fillRect(0,0,W,H*0.55);
+  // dirt path running top to bottom
+  g.fillStyle = '#4a3a24'; g.fillRect(W/2-70,0,140,H);
+  g.strokeStyle = '#3a2c1a'; g.lineWidth=2;
+  for (let py=10; py<H; py+=34){ g.beginPath(); g.moveTo(W/2-70,py); g.lineTo(W/2-40,py); g.moveTo(W/2+40,py); g.lineTo(W/2+70,py); g.stroke(); }
+  // huts
+  drawHut(g,150,150,100);
+  drawHut(g,740,150,110);
+  drawHut(g,790,340,80);
+  drawHut(g,110,360,80);
+  // a faint purple glow around the secret hut's door hints something is off about it
+  const pulse = 0.5 + 0.5*Math.sin(Date.now()/400);
+  g.fillStyle = `rgba(160,95,224,${0.12 + 0.1*pulse})`;
+  g.beginPath(); g.ellipse(110,404,26,22,0,0,Math.PI*2); g.fill();
+  // well
+  g.fillStyle = '#555a66'; g.beginPath(); g.arc(340,300,30,0,Math.PI*2); g.fill();
+  g.fillStyle = '#22262e'; g.beginPath(); g.arc(340,300,20,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#8a6a3f'; g.lineWidth=6; g.beginPath(); g.moveTo(316,280); g.lineTo(316,250); g.moveTo(364,280); g.lineTo(364,250); g.moveTo(316,250); g.lineTo(364,250); g.stroke();
+  // lamp posts
+  drawLamp(g,270,230);
+  drawLamp(g,630,260);
+  // a crashed alien ship half-buried at the edge of the village
+  drawCrashedShip(g,860,460,70);
+  // signpost pointing to the forest
+  g.strokeStyle = '#5a3d20'; g.lineWidth=6; g.beginPath(); g.moveTo(W/2+110,H-60); g.lineTo(W/2+110,H-140); g.stroke();
+  g.fillStyle = '#8a6a3f'; g.fillRect(W/2+90,H-158,80,26);
+  g.fillStyle = '#1a1a1a'; g.font='11px sans-serif'; g.textAlign='center';
+  g.fillText('Bosque ↓', W/2+130, H-141);
+  // hint of trees ahead at the bottom edge
+  g.fillStyle = '#132b16'; g.fillRect(0,H-30,W,30);
+}
+function drawHut(g,x,y,s){
+  g.fillStyle = '#6b4a2a'; g.fillRect(x-s*0.5,y,s,s*0.7);
+  g.fillStyle = '#3a2816';
+  g.beginPath(); g.moveTo(x-s*0.65,y); g.lineTo(x+s*0.65,y); g.lineTo(x,y-s*0.55); g.closePath(); g.fill();
+  g.fillStyle = '#2a1c10'; g.fillRect(x-s*0.12,y+s*0.35,s*0.24,s*0.35);
+  g.fillStyle = 'rgba(255,213,74,0.35)'; g.fillRect(x+s*0.18,y+s*0.15,s*0.18,s*0.18);
+}
+function drawLamp(g,x,y){
+  g.strokeStyle = '#333'; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(x,y); g.lineTo(x,y-70); g.stroke();
+  g.fillStyle = 'rgba(255,213,74,0.9)';
+  g.beginPath(); g.arc(x,y-78,10,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,213,74,0.15)';
+  g.beginPath(); g.arc(x,y-78,32,0,Math.PI*2); g.fill();
+}
+function drawCrashedShip(g,x,y,s){
+  g.save(); g.translate(x,y); g.rotate(-0.12);
+  g.fillStyle = '#3a3a4a'; g.beginPath(); g.ellipse(0,0,s*1.1,s*0.5,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#55556a'; g.beginPath(); g.ellipse(0,-s*0.18,s*0.55,s*0.32,0,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(125,255,176,0.6)'; g.beginPath(); g.arc(0,-s*0.18,s*0.16,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#22222e'; g.lineWidth = 4; g.beginPath(); g.ellipse(0,0,s*1.1,s*0.5,0,0,Math.PI*2); g.stroke();
+  g.fillStyle = '#0a0a12'; g.beginPath(); g.ellipse(-s*0.3,s*0.3,s*0.28,s*0.16,0,0,Math.PI*2); g.fill();
+  g.restore();
+  g.fillStyle = '#1a1a1a'; g.font='11px sans-serif'; g.textAlign='center';
+  g.fillText('Nave Alienígena', x, y+s*0.85);
+}
+// shared with buildChapter1 so the trees drawn here are the same ones that block movement
+const FOREST_TREES = [[90,180],[250,120],[430,200],[620,140],[800,190],[150,320],[720,320],[500,340],[330,90],[650,90]];
+const FOREST_EYEPLANTS = [[190,220],[350,260],[550,200],[300,400],[480,120],[680,240],[850,300],[220,440],[600,400],[760,120]];
+function drawForest(g){
+  g.fillStyle = '#0d1f10'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#132b16'; g.fillRect(0,H-140,W,140);
+  // path continuing down from the village
+  g.fillStyle = '#3a3020'; g.fillRect(W/2-45,0,90,110);
+  // a second, narrower trail breaking off to the right — the way to keep running without looking back
+  g.fillStyle = '#241f14'; g.fillRect(W-70,H/2-50,70,100);
+  g.fillStyle = '#8a6a3f'; g.font='11px sans-serif'; g.textAlign='center';
+  g.fillText('continuar fugindo →', W-95, H/2-58);
+  for (const [px,py] of FOREST_EYEPLANTS){ drawEyePlant(g,px,py,20,false); }
+  for (const [tx,ty] of FOREST_TREES){
+    g.fillStyle = '#3a2416'; g.fillRect(tx-8,ty+20,16,60);
+    g.fillStyle = '#1e4a24'; g.beginPath(); g.arc(tx,ty,42,0,Math.PI*2); g.fill();
+  }
+}
+function drawSecretRoom(g){
+  g.fillStyle = '#12101a'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#1c1826'; g.fillRect(30,60,W-60,H-100);
+  g.strokeStyle = 'rgba(210,200,230,0.25)'; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(30,60); g.lineTo(90,60); g.lineTo(30,110); g.closePath(); g.stroke();
+  g.beginPath(); g.moveTo(W-30,60); g.lineTo(W-90,60); g.lineTo(W-30,110); g.closePath(); g.stroke();
+  drawLamp(g,90,260);
+  drawLamp(g,W-90,260);
+  g.fillStyle = '#1a120a'; g.fillRect(W/2-40,H-46,80,40);
+  g.strokeStyle = '#8a6a3f'; g.lineWidth = 3; g.strokeRect(W/2-40,H-46,80,40);
+}
+function drawAlienShipInterior(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#14141c'); grad.addColorStop(1,'#242430');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.strokeStyle = 'rgba(125,255,176,0.12)'; g.lineWidth = 2;
+  for (let gx=40; gx<W; gx+=70){ g.beginPath(); g.moveTo(gx,0); g.lineTo(gx,H); g.stroke(); }
+  drawCrate(g,220,400,48);
+  drawCrate(g,270,420,48);
+  drawCrate(g,700,190,48);
+  drawBazookaDecor(g,W/2+90,H/2+30,70);
+  g.fillStyle = '#0a0a12'; g.fillRect(W/2-40,H-46,80,40);
+  g.strokeStyle = 'rgba(125,255,176,0.4)'; g.lineWidth = 3; g.strokeRect(W/2-40,H-46,80,40);
+}
+function drawVulcromLandscape(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1a0a2e'); grad.addColorStop(1,'#3a1050');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#e8d8ff';
+  [[100,60,10],[300,40,5],[500,80,7],[750,50,6],[850,100,4]].forEach(([x,y,r])=>{
+    g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
+  });
+  g.fillStyle = '#c9a0e0'; g.beginPath(); g.arc(830,90,34,0,Math.PI*2); g.fill();
+  g.fillStyle = '#9a6bc4'; g.beginPath(); g.arc(880,70,20,0,Math.PI*2); g.fill();
+  g.fillStyle = '#2d1140'; g.fillRect(0,H-150,W,150);
+  const rocks = [[120,340],[300,300],[480,360],[660,310],[820,350]];
+  for (const [rx,ry] of rocks){
+    g.fillStyle = '#4a2568';
+    g.beginPath(); g.ellipse(rx,ry,44,26,0,0,Math.PI*2); g.fill();
+    g.fillStyle = '#5f3480';
+    g.beginPath(); g.ellipse(rx-8,ry-14,20,16,0,0,Math.PI*2); g.fill();
+  }
+}
+function drawSpaceTravel(g,t){
+  g.fillStyle = '#000010'; g.fillRect(0,0,W,H);
+  for (let i=0;i<120;i++){
+    const seed = i*137.5;
+    const x = (seed*3 - t*300) % W; const xx = x<0? x+W : x;
+    const y = (seed*7.3) % H;
+    g.fillStyle = 'rgba(255,255,255,'+(0.3+0.7*((i%5)/5))+')';
+    g.fillRect(xx,y,2,2);
+  }
+}
+// classic rocket silhouette — reused for both chapters' launch scenes
+function drawRocketShip(g,x,y,s,launching){
+  g.save(); g.translate(x,y);
+  if (launching){
+    const flick = 0.6 + 0.4*Math.sin(Date.now()/40);
+    g.fillStyle = `rgba(255,150,60,${0.7*flick})`;
+    g.beginPath(); g.moveTo(-s*0.3,s*0.78); g.lineTo(0,s*1.3+s*0.5*flick); g.lineTo(s*0.3,s*0.78); g.closePath(); g.fill();
+    g.fillStyle = `rgba(255,220,120,${0.8*flick})`;
+    g.beginPath(); g.moveTo(-s*0.14,s*0.78); g.lineTo(0,s*1.05+s*0.3*flick); g.lineTo(s*0.14,s*0.78); g.closePath(); g.fill();
+  }
+  g.fillStyle = '#8a3a3a';
+  g.beginPath(); g.moveTo(-s*0.4,s*0.5); g.lineTo(-s*0.75,s*0.9); g.lineTo(-s*0.25,s*0.75); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(s*0.4,s*0.5); g.lineTo(s*0.75,s*0.9); g.lineTo(s*0.25,s*0.75); g.closePath(); g.fill();
+  g.fillStyle = '#e8e8ec';
+  g.beginPath();
+  g.moveTo(0,-s*1.0);
+  g.quadraticCurveTo(s*0.42,-s*0.6,s*0.42,s*0.3);
+  g.lineTo(s*0.42,s*0.78);
+  g.lineTo(-s*0.42,s*0.78);
+  g.lineTo(-s*0.42,s*0.3);
+  g.quadraticCurveTo(-s*0.42,-s*0.6,0,-s*1.0);
+  g.closePath(); g.fill();
+  g.fillStyle = '#c94040';
+  g.beginPath();
+  g.moveTo(0,-s*1.0); g.quadraticCurveTo(s*0.42,-s*0.6,s*0.42,-s*0.2);
+  g.lineTo(-s*0.42,-s*0.2); g.quadraticCurveTo(-s*0.42,-s*0.6,0,-s*1.0);
+  g.closePath(); g.fill();
+  g.fillStyle = '#7dd8ff';
+  g.beginPath(); g.arc(0,-s*0.05,s*0.16,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#334'; g.lineWidth = 3; g.beginPath(); g.arc(0,-s*0.05,s*0.16,0,Math.PI*2); g.stroke();
+  g.fillStyle = '#c94040'; g.fillRect(-s*0.42,s*0.55,s*0.84,s*0.1);
+  g.restore();
+}
+function drawUndergroundPassage(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1a140e'); grad.addColorStop(1,'#0d0a06');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#241c12'; g.fillRect(0,H*0.15,W,H*0.7);
+  g.strokeStyle = 'rgba(255,213,74,0.08)'; g.lineWidth = 2;
+  for (let i=0;i<8;i++){
+    g.beginPath(); g.moveTo(i*130+40, H*0.15); g.lineTo(i*130+10, H*0.85); g.stroke();
+  }
+  const rocks = [[120,220],[300,420],[500,200],[700,440],[860,260]];
+  for (const [rx,ry] of rocks){
+    g.fillStyle = '#33281a'; g.beginPath(); g.ellipse(rx,ry,34,22,0,0,Math.PI*2); g.fill();
+  }
+  g.fillStyle = 'rgba(255,213,74,0.7)'; g.font='12px sans-serif'; g.textAlign='center';
+  g.fillText('Foguete →', W-70, H/2-70);
+}
+function drawRocketClearing(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#0a1420'); grad.addColorStop(1,'#16231c');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#16231c'; g.fillRect(0,H-120,W,120);
+  for (let i=0;i<40;i++){
+    const sx = (i*197)%W, sy = (i*97)%(H-140);
+    g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(sx,sy,2,2);
+  }
+  const trees = [[80,H-160],[200,H-190],[760,H-170],[880,H-200]];
+  for (const [tx,ty] of trees){
+    g.fillStyle = '#2a1608'; g.fillRect(tx-6,ty+14,12,44);
+    g.fillStyle = '#0f2a16'; g.beginPath(); g.arc(tx,ty,32,0,Math.PI*2); g.fill();
+  }
+}
+function drawBackyard(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1a2440'); grad.addColorStop(1,'#243a2a');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#1c3020'; g.fillRect(0,H-140,W,140);
+  for (let i=0;i<30;i++){
+    const sx = (i*211)%W, sy = (i*83)%(H-160);
+    g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(sx,sy,2,2);
+  }
+  const fence = [];
+  for (let fx=20; fx<W-20; fx+=60) fence.push(fx);
+  g.fillStyle = '#3a2c1e';
+  fence.forEach(fx=> g.fillRect(fx,H-160,8,50));
+}
+function drawRestaurant(g){
+  g.fillStyle = '#3a2418'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#4a3020'; g.fillRect(20,60,W-40,H-90);
+  g.fillStyle = '#2a1810'; g.fillRect(20,60,W-40,10);
+  g.fillStyle = '#5a3f28'; g.fillRect(40,90,200,60);
+  g.fillStyle = '#3a2818'; g.fillRect(40,90,200,10);
+  const tables = [[300,220],[650,180],[750,380],[420,440]];
+  tables.forEach(([tx,ty])=>{
+    g.fillStyle = '#6a4a2a'; g.beginPath(); g.ellipse(tx,ty,40,26,0,0,Math.PI*2); g.fill();
+    g.fillStyle = '#3a2a1a';
+    g.beginPath(); g.ellipse(tx-50,ty+18,12,16,0,0,Math.PI*2); g.fill();
+    g.beginPath(); g.ellipse(tx+50,ty+18,12,16,0,0,Math.PI*2); g.fill();
+  });
+  g.fillStyle = '#1a120a'; g.fillRect(W/2-40,H-70,80,60);
+  g.strokeStyle = '#ffd54a'; g.lineWidth = 2; g.strokeRect(W/2-40,H-70,80,60);
+}
+function drawBunker(g){
+  g.fillStyle = '#1a1a20'; g.fillRect(0,0,W,H);
+  g.fillStyle = '#242430'; g.fillRect(20,60,W-40,H-90);
+  g.fillStyle = '#141418'; g.fillRect(20,60,W-40,10);
+  const racks = [[120,150],[120,340],[840,150],[840,340]];
+  racks.forEach(([rx,ry])=>{
+    g.fillStyle = '#3a3a44'; g.fillRect(rx-50,ry,100,140);
+    g.strokeStyle = '#55555f'; g.lineWidth = 3; g.strokeRect(rx-50,ry,100,140);
+    for (let i=0;i<3;i++){
+      g.strokeStyle = '#7dd8ff'; g.lineWidth = 4;
+      g.beginPath(); g.moveTo(rx-35,ry+30+i*40); g.lineTo(rx+35,ry+20+i*40); g.stroke();
+    }
+  });
+  g.fillStyle = '#0a0a12'; g.fillRect(W/2-40,60,80,20);
+  g.strokeStyle = 'rgba(255,95,58,0.5)'; g.lineWidth = 3; g.strokeRect(W/2-40,60,80,20);
+  g.fillStyle = 'rgba(255,95,58,0.85)'; g.font='11px sans-serif'; g.textAlign='center';
+  g.fillText('Sala Trancada', W/2, 50);
+  g.fillStyle = '#1a120a'; g.fillRect(W/2-40,H-70,80,60);
+  g.strokeStyle = '#ffd54a'; g.lineWidth = 2; g.strokeRect(W/2-40,H-70,80,60);
+}
+function drawArmaRoom(g){
+  const grad = g.createRadialGradient(W/2,H/2,40,W/2,H/2,420);
+  grad.addColorStop(0,'#3a1414'); grad.addColorStop(1,'#0d0606');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.strokeStyle = 'rgba(255,95,58,0.2)'; g.lineWidth = 3;
+  g.strokeRect(60,60,W-120,H-120);
+}
+function drawBunkerOutside(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1a1420'); grad.addColorStop(1,'#2a2018');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#1c1710'; g.fillRect(0,H-140,W,140);
+  // the bunker's hatch, half-buried in the hillside
+  g.fillStyle = '#3a3a44'; g.beginPath(); g.ellipse(140,H-160,120,70,0,Math.PI,0); g.fill();
+  g.fillStyle = '#0a0a12'; g.fillRect(105,H-190,70,60);
+  g.strokeStyle = '#55555f'; g.lineWidth = 3; g.strokeRect(105,H-190,70,60);
+  const rocks = [[300,H-120],[420,H-150],[600,H-110]];
+  rocks.forEach(([rx,ry])=>{ g.fillStyle = '#33281a'; g.beginPath(); g.ellipse(rx,ry,30,18,0,0,Math.PI*2); g.fill(); });
+  g.fillStyle = 'rgba(255,140,60,0.6)'; g.font='11px sans-serif'; g.textAlign='center';
+  g.fillText('Castelo →', W-90, H/2-80);
+  g.fillStyle = 'rgba(200,200,220,0.55)'; g.fillText('bunker ↓', 140, H-200);
+}
+function drawPathToCastle(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#241c14'); grad.addColorStop(1,'#150f0a');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#3a2c1a'; g.fillRect(0,H*0.15,W,H*0.7);
+  g.strokeStyle = 'rgba(255,140,60,0.1)'; g.lineWidth = 2;
+  for (let i=0;i<8;i++){ g.beginPath(); g.moveTo(i*130+40, H*0.15); g.lineTo(i*130+10, H*0.85); g.stroke(); }
+  const rocks = [[120,220],[300,420],[500,200],[700,440],[860,260]];
+  rocks.forEach(([rx,ry])=>{ g.fillStyle = '#241a10'; g.beginPath(); g.ellipse(rx,ry,34,22,0,0,Math.PI*2); g.fill(); });
+  g.fillStyle = 'rgba(255,140,60,0.7)'; g.font='12px sans-serif'; g.textAlign='center';
+  g.fillText('Castelo →', W-70, H/2-70);
+}
+function drawCastle(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1a1420'); grad.addColorStop(1,'#0d0a12');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#2a2438'; g.fillRect(20,60,W-40,H-90);
+  g.fillStyle = '#181420'; g.fillRect(20,60,W-40,10);
+  // stone columns
+  for (let cx=90; cx<W-60; cx+=220){
+    g.fillStyle = '#332c44'; g.fillRect(cx,70,26,H-140);
+    g.fillStyle = '#221c30'; g.fillRect(cx,70,26,10);
+  }
+  // a cage where Cueio is held
+  g.strokeStyle = '#4a4258'; g.lineWidth = 4;
+  for (let i=0;i<5;i++){ g.beginPath(); g.moveTo(W/2-70+i*35,H/2-60); g.lineTo(W/2-70+i*35,H/2+60); g.stroke(); }
+  g.beginPath(); g.moveTo(W/2-70,H/2-60); g.lineTo(W/2+70,H/2-60); g.stroke();
+  g.beginPath(); g.moveTo(W/2-70,H/2+60); g.lineTo(W/2+70,H/2+60); g.stroke();
+  // exit door
+  g.fillStyle = '#0a0812'; g.fillRect(W/2-40,H-70,80,60);
+  g.strokeStyle = 'rgba(255,140,60,0.5)'; g.lineWidth = 2; g.strokeRect(W/2-40,H-70,80,60);
+}
+function drawCrossroads(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1c1626'); grad.addColorStop(1,'#100b16');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#241c1a'; g.fillRect(0,H*0.6,W,H*0.4);
+  g.strokeStyle = 'rgba(200,180,150,0.18)'; g.lineWidth = 60;
+  g.beginPath(); g.moveTo(0,H/2); g.lineTo(W,H/2); g.stroke();
+  g.strokeStyle = 'rgba(150,120,180,0.12)'; g.lineWidth = 34;
+  g.beginPath(); g.moveTo(W/2,H/2); g.lineTo(W/2,H); g.stroke();
+  g.font='12px sans-serif'; g.textAlign='center';
+  g.fillStyle = 'rgba(255,140,60,0.6)'; g.fillText('← Bunker', 70, H/2-80);
+  g.fillText('Castelo Maior →', W-90, H/2-80);
+  g.fillStyle = 'rgba(200,180,220,0.4)'; g.fillText('trilha esquecida ↓', W/2, H-50);
+}
+function drawBigCastleGate(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#241636'); grad.addColorStop(0.6,'#160f26'); grad.addColorStop(1,'#0a0714');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  // distant starlight so the huge silhouette actually reads against the sky
+  for (let i=0;i<40;i++){
+    const sx = (i*137)%W, sy = (i*71)%(H*0.5);
+    g.fillStyle = `rgba(220,210,255,${0.15+0.25*((i*53)%10)/10})`;
+    g.fillRect(sx,sy,2,2);
+  }
+  g.fillStyle = '#241a30'; g.fillRect(0,H-120,W,120);
+  // two massive towers, much taller and wider than anything seen so far
+  [W/2-260,W/2+170].forEach(tx=>{
+    g.fillStyle = '#4a3f66'; g.fillRect(tx,20,90,H-140);
+    g.fillStyle = '#2e2444'; g.fillRect(tx,20,90,14);
+    // conical roof
+    g.beginPath(); g.moveTo(tx-14,20); g.lineTo(tx+45,-40); g.lineTo(tx+104,20); g.closePath();
+    g.fillStyle = '#6a2fb0'; g.fill();
+    // glowing windows running up the tower
+    for (let wy=60; wy<H-160; wy+=70){
+      g.fillStyle = 'rgba(255,200,90,0.9)'; g.fillRect(tx+34,wy,22,30);
+      g.fillStyle = 'rgba(255,200,90,0.3)'; g.fillRect(tx+24,wy-6,42,42);
+    }
+  });
+  // grand central archway
+  g.fillStyle = '#1a1428'; g.beginPath();
+  g.moveTo(W/2-110,H-40); g.lineTo(W/2-110,10); g.quadraticCurveTo(W/2,-70,W/2+110,10); g.lineTo(W/2+110,H-40); g.closePath(); g.fill();
+  g.strokeStyle = '#a06fe0'; g.lineWidth = 5; g.stroke();
+  g.fillStyle = '#050308'; g.fillRect(W/2-70,H-140,140,100);
+  // twin banners flanking the arch
+  ['#a020f0','#ff9a5c'].forEach((c,i)=>{
+    const bx = W/2 + (i===0? -160:120);
+    g.fillStyle = c; g.fillRect(bx,40,26,150);
+    g.beginPath(); g.moveTo(bx,190); g.lineTo(bx+13,215); g.lineTo(bx+26,190); g.closePath(); g.fill();
+  });
+  g.fillStyle = '#e8d8ff'; g.font='bold 15px sans-serif'; g.textAlign='center';
+  g.fillText('O GRANDE CASTELO', W/2, H-160);
+  g.fillStyle = 'rgba(255,140,150,0.75)'; g.font='12px sans-serif';
+  g.fillText('← Encruzilhada', 90, H-30);
+}
+function drawSecretForest(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#0e1a10'); grad.addColorStop(1,'#070d08');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#0a140b'; g.fillRect(0,H-100,W,100);
+  const trees = [[80,180],[220,120],[400,220],[620,140],[880,160]];
+  trees.forEach(([tx,ty])=>{
+    g.fillStyle = '#1a2a16'; g.fillRect(tx-8,ty,16,H-ty-90);
+    g.fillStyle = '#152a18'; g.beginPath(); g.ellipse(tx,ty-10,44,58,0,0,Math.PI*2); g.fill();
+  });
+  g.fillStyle = '#3a2a1a'; g.fillRect(W-90,H/2-70,50,140);
+  g.strokeStyle = '#6a4a2a'; g.lineWidth = 3; g.strokeRect(W-90,H/2-70,50,140);
+  g.fillStyle = '#ffd54a'; g.beginPath(); g.arc(W-50,H/2,5,0,Math.PI*2); g.fill();
+  g.font='11px sans-serif'; g.textAlign='center';
+  g.fillStyle = 'rgba(200,180,220,0.5)'; g.fillText('← Encruzilhada', 90, H/2-90);
+  g.fillStyle = 'rgba(255,213,74,0.7)'; g.fillText('porta trancada →', W-65, H/2-90);
+}
+function drawBigCastleInterior(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#201a2c'); grad.addColorStop(1,'#120e1a');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#2a2438'; g.fillRect(20,60,W-40,H-90);
+  for (let cx=300; cx<=620; cx+=320){
+    g.fillStyle = '#3a3250'; g.fillRect(cx,70,26,H-140);
+  }
+  [140,460,780].forEach(tx=>{
+    g.fillStyle = '#ffaa3a'; g.beginPath(); g.arc(tx,120,7,0,Math.PI*2); g.fill();
+    g.fillStyle = 'rgba(255,170,58,0.25)'; g.beginPath(); g.arc(tx,120,22,0,Math.PI*2); g.fill();
+  });
+  g.font='11px sans-serif'; g.textAlign='center';
+  g.fillStyle = 'rgba(255,120,120,0.55)'; g.fillText('↑ Sala do Rei (precisa da Esmeralda do Disfarce)', W/2, 50);
+  g.fillStyle = 'rgba(150,255,180,0.5)'; g.fillText('Câmara escondida ↓', 420, H-24);
+}
+function drawTreasureRoom(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#1a1428'); grad.addColorStop(1,'#0e0a18');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#241c34'; g.fillRect(40,80,W-80,H-140);
+  g.fillStyle = '#3a2c4a';
+  for (let i=0;i<5;i++) g.fillRect(70+i*170,H-100,100,20);
+  // exit doorway, left wall
+  g.fillStyle = '#0a0812'; g.fillRect(0,H/2-60,40,120);
+  g.strokeStyle = 'rgba(154,95,224,0.6)'; g.lineWidth = 3; g.strokeRect(0,H/2-60,40,120);
+  g.fillStyle = 'rgba(154,95,224,0.8)'; g.font='12px sans-serif'; g.textAlign='center';
+  g.fillText('← Saída', 70, H/2-70);
+}
+function drawKingRoom(g){
+  const grad = g.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'#2a1638'); grad.addColorStop(1,'#160a20');
+  g.fillStyle = grad; g.fillRect(0,0,W,H);
+  g.fillStyle = '#3a1f52'; g.fillRect(0,H-120,W,120);
+  g.fillStyle = '#7a1f2a'; g.fillRect(W/2-50,H-260,100,260);
+  g.fillStyle = '#4a1f6e'; g.fillRect(W/2-70,H/2-100,140,120);
+  g.fillStyle = '#ffd54a'; g.fillRect(W/2-70,H/2-100,140,14);
+  g.strokeStyle = '#ffd54a'; g.lineWidth = 3; g.strokeRect(W/2-70,H/2-100,140,120);
+  g.font='11px sans-serif'; g.textAlign='center';
+  g.fillStyle = 'rgba(200,180,220,0.6)'; g.fillText('← Sair', 70, H/2-90);
+}
+
+/* ---------------- CHAPTER 1 ---------------- */
+function buildChapter1(){
+  followers = []; followerTrail.length = 0;
+  const house = {
+    banner: 'CAPÍTULO 1 — O ATAQUE',
+    draw: drawDuoHouse,
+    obstacles: [ {x:W-220,y:120,w:120,h:70} ],
+    npcs: [
+      { x:W-190,y:200,w:42,h:60, type:'father', scale:36, label:'Pai',
+        onInteract: ()=> startDialogue([
+          {speaker:'Pai', text:'Filho, tome cuidado. O céu anda estranho ultimamente.', color:'#9fd88a'},
+        ]) },
+      { x:110,y:205,w:42,h:60, type:'mother', scale:36, label:'Mãe',
+        onInteract: ()=> startDialogue([
+          {speaker:'Mãe', text:'Volte antes do anoitecer, ouviu?', color:'#7fe8d0'},
+          {speaker:'Mãe', text:'...Ah, quem eu quero enganar. Vá com cuidado, meu amor.', color:'#7fe8d0'},
+        ]) }
+    ],
+    exits: [
+      {x:W/2-40,y:H-66,w:80,h:56, onEnter: ()=> triggerAttackCutscene()},
+      {x:50,y:70,w:130,h:110, onEnter: ()=> goToScene(upstairs, {x:W/2-17,y:H-110})}
+    ]
+  };
+
+  const upstairs = {
+    banner: 'SEU QUARTO',
+    draw: drawDuoUpstairs,
+    obstacles: [],
+    npcs: [
+      { x:390,y:H-190,w:56,h:50, type:'weapon', scale:34, label:'Arma Alienígena',
+        onInteract: ()=>{
+          if (upgrades.alienWeapon){
+            startDialogue([{speaker:'Duo', text:'Já peguei essa arma.', color:'#7ef9ff'}]);
+            return;
+          }
+          upstairs.npcs[0].talking = true;
+          upgrades.alienWeapon = true;
+          sfxPickup();
+          startDialogue([
+            {speaker:'Duo', text:'Um alienígena... morto? Caído aqui faz tempo, pelo jeito.', color:'#7ef9ff'},
+            {speaker:'???', text:'Você encontrou uma Arma Alienígena!', color:'#7dffb0'},
+            {speaker:'Duo', text:'Ainda funciona... isso vai me dar bem mais força daqui pra frente. (+20 de ataque em batalhas futuras)', color:'#7ef9ff'},
+          ]);
+        }
+      },
+      { x:85,y:100,w:150,h:100, label:'Seu ninho',
+        onInteract: ()=>{
+          startDialogue([
+            {speaker:'Duo', text:'Talvez eu não precise enfrentar nada disso...', color:'#7ef9ff'},
+            {speaker:'Duo', text:'Vou me esconder aqui embaixo até tudo passar.', color:'#7ef9ff'},
+          ], ()=> endingCowardCh1());
+        }
+      }
+    ],
+    exits: [ {x:W-190,y:70,w:130,h:110, onEnter: ()=> goToScene(house, {x:W-140,y:H-140})} ]
+  };
+  function triggerAttackCutscene(){
+    sceneLocked = true;
+    flash('#ff2244');
+    startDialogue([
+      {speaker:'???', text:'ALERTA! Uma nave alienígena apareceu no céu!', color:'#ff5577'},
+      {speaker:'Duo', text:'Ah não... preciso me defender!', color:'#7ef9ff'},
+    ], ()=>{
+      startBattle({
+        title:'Um drone alienígena bloqueia sua saída!',
+        intro:'O drone dispara um raio de energia!',
+        fleeChance:0.5,
+        ranged:true,
+        player:{ name:'Duo', type:'duo',
+          hp: 40 + (upgrades.jewelOfLife?15:0), maxHp: 40 + (upgrades.jewelOfLife?15:0),
+          atk: 9 + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) },
+        enemy:{ name:'Drone Alienígena', type:'drone', hp:32, maxHp:32, atk:7, projColor:'#8a5fd0' },
+        onVictory: ()=>{
+          startDialogue([
+            {speaker:'Duo', text:'Consegui! Mas tenho que fugir antes que mais deles apareçam!', color:'#7ef9ff'},
+          ], ()=> goToScene(village, {x:W/2-17,y:60}));
+        },
+        onDefeat: ()=>{
+          startDialogue([
+            {speaker:'Duo', text:'Não... não consigo continuar...', color:'#ff8899'},
+          ], ()=> endingDeathCh1());
+        },
+        onFlee: ()=>{
+          startDialogue([
+            {speaker:'Duo', text:'Não vou arriscar! Vou correr o quanto der!', color:'#7ef9ff'},
+          ], ()=> endingEscapistCh1());
+        }
+      });
+    });
+  }
+
+  const secretHouse = {
+    banner: 'CÂMARA SECRETA',
+    draw: drawSecretRoom,
+    obstacles: [],
+    npcs: [
+      { x:W/2-30,y:H/2-30,w:60,h:60, type:'chest', scale:40, label:'Baú Antigo',
+        onInteract: ()=>{
+          if (upgrades.emeraldOfPower){
+            startDialogue([{speaker:'Duo', text:'O baú já está vazio. Só resta poeira.', color:'#7ef9ff'}]);
+            return;
+          }
+          secretHouse.npcs[0].talking = true;
+          upgrades.emeraldOfPower = true;
+          sfxPickup();
+          startDialogue([
+            {speaker:'Duo', text:'Um baú empoeirado, escondido embaixo da casa... o que será que tem aqui dentro?', color:'#7ef9ff'},
+            {speaker:'???', text:'Você encontrou a Esmeralda do Poder!', color:'#c9a0ff'},
+            {speaker:'Duo', text:'Sinto uma energia estranha correndo por mim... isso vai me deixar mais forte no futuro. (+10 de ataque em batalhas futuras)', color:'#7ef9ff'},
+          ]);
+        }
+      }
+    ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:95,y:430})} ]
+  };
+
+  const village = {
+    banner: 'A VILA',
+    draw: drawVillage,
+    obstacles: [],
+    npcs: [
+      { x:420,y:230,w:40,h:56, type:'villager', scale:34, label:'Morador',
+        onInteract: ()=> startDialogue([
+          {speaker:'Morador', text:'Você viu aquela luz cortando o céu ontem? Não gostei nada disso...', color:'#e0b088'},
+        ]) },
+      { x:560,y:360,w:40,h:56, type:'villager', scale:34, label:'Moradora',
+        onInteract: ()=> startDialogue([
+          {speaker:'Moradora', text:'Dizem que o bosque mudou depois do que aconteceu. Tome cuidado por lá.', color:'#e0b088'},
+        ]) },
+      { x:95,y:385,w:30,h:40, label:'??? Uma entrada secreta',
+        onInteract: ()=> goToScene(secretHouse, {x:W/2-17,y:H-90}) },
+      { x:812,y:450,w:70,h:55, label:'Nave Alienígena',
+        onInteract: ()=> goToScene(alienShip, {x:W/2-17,y:H-90}) }
+    ],
+    exits: [ {x:W/2-60,y:H-26,w:120,h:22, onEnter: ()=> goToScene(forest, {x:W/2-17,y:50})} ]
+  };
+
+  const mechaState = { cellFound:false, defeated:false };
+  const alienShip = {
+    banner: 'NAVE ALIENÍGENA',
+    draw: drawAlienShipInterior,
+    obstacles: [ {x:196,y:376,w:48,h:48}, {x:246,y:396,w:48,h:48}, {x:676,y:166,w:48,h:48} ],
+    npcs: [
+      { x:582,y:H/2-20,w:40,h:40, type:'energyCell', scale:30, label:'Célula de Energia',
+        onInteract: ()=>{
+          if (mechaState.cellFound) return;
+          mechaState.cellFound = true;
+          alienShip.npcs[0].talking = true;
+          sfxPickup();
+          startDialogue([{speaker:'Duo', text:'Uma célula de energia! Isso deve servir para ligar aquele mecha abandonado.', color:'#7ef9ff'}]);
+        }
+      },
+      { x:W/2-50,y:H/2-50,w:100,h:100, type:'mechaOff', scale:64, label:'Mecha Abandonado',
+        onInteract: ()=>{
+          if (mechaState.defeated){
+            startDialogue([{speaker:'Duo', text:'O piloto alienígena já foi derrotado. Está tudo tranquilo por aqui agora.', color:'#7ef9ff'}]);
+            return;
+          }
+          if (!mechaState.cellFound){
+            startDialogue([{speaker:'Duo', text:'Este mecha está completamente sem energia. Preciso encontrar uma fonte de energia por aqui.', color:'#7ef9ff'}]);
+            return;
+          }
+          startDialogue([
+            {speaker:'Duo', text:'Vou instalar a célula de energia...', color:'#7ef9ff'},
+            {speaker:'???', text:'O mecha desperta com um rugido metálico, e a bazuca acoplada trava no lugar!', color:'#7dffb0'},
+          ], ()=>{
+            alienShip.npcs = alienShip.npcs.filter(n=> n.type !== 'mechaOff');
+            triggerMechaAmbush();
+          });
+        }
+      }
+    ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:812,y:530})} ]
+  };
+  function triggerMechaAmbush(){
+    sceneLocked = true;
+    flash('#ff5f7a');
+    startDialogue([
+      {speaker:'???', text:'Um piloto alienígena salta dos destroços e embarca no próprio mecha de combate!', color:'#ff9977'},
+    ], ()=>{
+      startBattle({
+        title:'Mecha contra mecha!',
+        intro:'Você assume os controles. A bazuca acoplada zumbe, carregada e pronta.',
+        fleeChance:0.3,
+        ranged:true,
+        playerRanged:true,
+        playerProjColor:'#7dffb0',
+        player:{ name:'Duo (no Mecha)', type:'mechaPlayer', hp:60, maxHp:60, atk:15 },
+        enemy:{ name:'Piloto Alienígena', type:'mechaEnemy', hp:55, maxHp:55, atk:11, projColor:'#ff5f7a' },
+        onVictory: ()=>{
+          mechaState.defeated = true;
+          startDialogue([
+            {speaker:'Duo', text:'Consegui! Nunca imaginei que ia pilotar um mecha alienígena um dia...', color:'#7ef9ff'},
+          ]);
+        },
+        onDefeat: ()=>{
+          startDialogue([
+            {speaker:'Duo', text:'O mecha desligou de novo... preciso me recompor antes de tentar de novo.', color:'#7ef9ff'},
+          ]);
+        }
+      });
+    });
+  }
+
+  let passageOpen = false;
+  const forest = {
+    banner: 'O BOSQUE MÁGICO',
+    draw: (g)=>{
+      drawForest(g);
+      if (passageOpen){
+        const pulse = 0.5 + 0.5*Math.sin(Date.now()/350);
+        g.fillStyle = `rgba(255,213,74,${0.15+0.12*pulse})`;
+        g.beginPath(); g.ellipse(340,340,34,22,0,0,Math.PI*2); g.fill();
+        g.fillStyle = '#0d0a06'; g.beginPath(); g.ellipse(340,340,24,14,0,0,Math.PI*2); g.fill();
+        g.fillStyle = '#ffd54a'; g.font='11px sans-serif'; g.textAlign='center';
+        g.fillText('Passagem ↓', 340, 305);
+      }
+    },
+    obstacles: FOREST_TREES.map(([tx,ty])=>({x:tx-30,y:ty-16,w:60,h:60})),
+    npcs: [
+      { x:250, y:H/2-30, w:50, h:70, type:'plant', scale:54, label:'Planta Antiga',
+        onInteract: ()=>{
+          forest.npcs[0].talking = true;
+          startDialogue([
+            {speaker:'Planta Antiga', text:'Shh... não tenha medo, pequeno viajante.', color:'#8fe08f'},
+            {speaker:'Planta Antiga', text:'Nós, as plantas do bosque, vimos tudo através das raízes.', color:'#8fe08f'},
+            {speaker:'Planta Antiga', text:'Aquelas naves não vieram por acaso. Elas voltarão.', color:'#8fe08f'},
+            {speaker:'Duo', text:'O que eu faço agora?', color:'#7ef9ff'},
+            {speaker:'Planta Antiga', text:'Tome isto: a Joia da Vida. Ela vai te dar mais vida daqui pra frente.', color:'#ffd54a'},
+            {speaker:'Planta Antiga', text:'Você vai se vingar.', color:'#ffd54a'},
+            {speaker:'Planta Antiga', text:'Agora vá — as raízes vão abrir uma passagem para você escapar deste mundo.', color:'#8fe08f'},
+          ], ()=>{ forest.npcs[0].talking = false; upgrades.jewelOfLife = true; passageOpen = true; });
+        }
+      }
+    ],
+    exits: [
+      {x:W-66,y:H/2-46,w:56,h:92, onEnter: ()=> endingEscapistCh1()},
+      {x:310,y:320,w:60,h:40, onEnter: ()=>{
+        if (!passageOpen) return;
+        goToScene(passage, {x:40,y:H/2-20});
+      }}
+    ]
+  };
+
+  const passage = {
+    banner: 'PASSAGEM SUBTERRÂNEA',
+    draw: drawUndergroundPassage,
+    obstacles: [],
+    npcs: [],
+    exits: [ {x:W-46,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(rocketClearing, {x:60,y:H/2-20})} ]
+  };
+
+  const rocketClearing = {
+    banner: 'O FOGUETE ESCONDIDO',
+    draw: drawRocketClearing,
+    obstacles: [],
+    npcs: [
+      { x:W/2-40,y:H/2-85,w:80,h:170, type:'rocket', scale:70, label:'Foguete',
+        onInteract: ()=> triggerLaunchCh1()
+      }
+    ],
+    exits: []
+  };
+  function triggerLaunchCh1(){
+    sceneLocked = true;
+    startDialogue([
+      {speaker:'Duo', text:'Um foguete? As plantas guardavam isso escondido o tempo todo...', color:'#7ef9ff'},
+      {speaker:'Duo', text:'Chegou a hora. Vou decolar.', color:'#7ef9ff'},
+    ], ()=> playLaunchCh1());
+  }
+  function playLaunchCh1(){
+    const liftoff = { banner:'', draw:(g)=>{ drawRocketClearing(g); drawRocketShip(g, W/2, H/2, 70, true); }, obstacles:[], npcs:[], exits:[] };
+    goToScene(liftoff, {x:-200,y:-200});
+    sceneLocked = true;
+    setTimeout(()=>{
+      const stars = { banner:'', draw:(g)=> drawSpaceTravel(g, (Date.now()%4000)/1000), obstacles:[], npcs:[], exits:[] };
+      goToScene(stars, {x:-200,y:-200});
+      setTimeout(()=> endingTrueCh1(), 1400);
+    }, 1400);
+  }
+
+  return { start: ()=> goToScene(house, {x:80,y:H-140}) };
+}
+
+/* ---------------- CHAPTER 2 ---------------- */
+function buildChapter2(){
+  followers = []; followerTrail.length = 0;
+  const house = {
+    banner: 'CAPÍTULO 2 — VULCROM',
+    draw: drawAstroHouse,
+    obstacles: [ {x:60,y:110,w:140,h:80}, {x:W-220,y:120,w:120,h:70} ],
+    npcs: [],
+    exits: [ {x:W/2-40,y:H-66,w:80,h:56, onEnter: ()=> triggerAttackCutscene()} ]
+  };
+  function triggerAttackCutscene(){
+    sceneLocked = true;
+    flash('#ff2244');
+    startDialogue([
+      {speaker:'???', text:'ALERTA! Uma nave alienígena apareceu no céu!', color:'#ff5577'},
+      {speaker:'Astro', text:'Ah não... preciso me defender!', color:'#8fffb0'},
+    ], ()=>{
+      startBattle({
+        title:'Um drone alienígena aparece na sua frente!',
+        intro:'O drone gira as hélices e avança!',
+        fleeChance:0.5,
+        ranged:true,
+        player:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+        enemy:{ name:'Drone Alienígena', type:'drone', hp:34, maxHp:34, atk:8, projColor:'#8a5fd0' },
+        onVictory: ()=> afterFirstBattle(),
+        onDefeat: ()=> afterFirstBattle()
+      });
+    });
+  }
+  function afterFirstBattle(){
+    startDialogue([
+      {speaker:'Astro', text:'Não posso ficar aqui. Preciso fugir para outro lugar... para outro planeta!', color:'#8fffb0'},
+    ], ()=> goToScene(backyard, {x:W/2-17,y:H-90}));
+  }
+
+  const backyard = {
+    banner: 'O QUINTAL',
+    draw: drawBackyard,
+    obstacles: [],
+    npcs: [
+      { x:W/2-40,y:H/2-85,w:80,h:170, type:'rocket', scale:70, label:'Foguete',
+        onInteract: ()=>{
+          sceneLocked = true;
+          startDialogue([
+            {speaker:'Astro', text:'Meus pais guardavam um foguete velho aqui no quintal... será que ainda funciona?', color:'#8fffb0'},
+            {speaker:'Astro', text:'É agora ou nunca.', color:'#8fffb0'},
+          ], ()=> playLaunchCh2());
+        }
+      }
+    ],
+    exits: []
+  };
+  function playLaunchCh2(){
+    const liftoff = { banner:'', draw:(g)=>{ drawBackyard(g); drawRocketShip(g, W/2, H/2, 70, true); }, obstacles:[], npcs:[], exits:[] };
+    goToScene(liftoff, {x:-200,y:-200});
+    sceneLocked = true;
+    setTimeout(()=> playSpaceTravel(), 1400);
+  }
+
+  const travel = {
+    banner: '',
+    draw: (g)=> drawSpaceTravel(g, (Date.now()%4000)/1000),
+    obstacles: [], npcs: [], exits: []
+  };
+  function playSpaceTravel(){
+    goToScene(travel, {x:-100,y:-100});
+    sceneLocked = true;
+    setTimeout(()=>{
+      startDialogue([
+        {speaker:'Astro', text:'Coordenadas travadas... Planeta Vulcrom.', color:'#8fffb0'},
+      ], ()=> goToScene(vulcrom, {x:60,y:H/2}));
+    }, 1600);
+  }
+
+  const vulcrom = {
+    banner: 'PLANETA VULCROM',
+    draw: drawVulcromLandscape,
+    obstacles: [ {x:280,y:280,w:88,h:52}, {x:600,y:250,w:88,h:52} ],
+    npcs: [
+      { x:W/2+60, y:H/2-30, w:60, h:76, type:'huggy', scale:46, label:'Huggy',
+        onInteract: ()=>{
+          vulcrom.npcs[0].talking = true;
+          startDialogue([
+            {speaker:'???', text:'...Você não é de aqui, é?', color:'#a9c9ff'},
+            {speaker:'Astro', text:'Quem... quem está falando?', color:'#8fffb0'},
+            {speaker:'Huggy', text:'Relaxa! Eu sou o Huggy. Aqui em Vulcrom eu sou basicamente inofensivo, prometo.', color:'#a9c9ff'},
+            {speaker:'Huggy', text:'Vi você cair do céu. Deve ter fugido de alguma coisa feia, né?', color:'#a9c9ff'},
+            {speaker:'Astro', text:'Alienígenas atacaram meu planeta. Não sei o que fazer agora.', color:'#8fffb0'},
+            {speaker:'Huggy', text:'Então a gente resolve isso junto. Eu conheço esse lugar — e ele não é tão pacífico quanto parece.', color:'#a9c9ff'},
+          ], ()=>{ vulcrom.npcs[0].talking = false; triggerPredatorAmbush(); });
+        }
+      }
+    ],
+    exits: []
+  };
+
+  function triggerPredatorAmbush(){
+    sceneLocked = true;
+    flash('#7a3fd0');
+    startDialogue([
+      {speaker:'???', text:'Um Predador de Vulcrom salta das rochas!', color:'#ff9977'},
+      {speaker:'Huggy', text:'Fica de olho! Eu te ajudo nessa!', color:'#a9c9ff'},
+    ], ()=>{
+      startBattle({
+        title:'Predador de Vulcrom ataca!',
+        intro:'O predador rosna e prepara o bote.',
+        fleeChance:0.4,
+        allyAssist: true,
+        player:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+        enemy:{ name:'Predador de Vulcrom', type:'predator', hp:46, maxHp:46, atk:9, speed:130 },
+        onVictory: ()=>{
+          startDialogue([
+            {speaker:'Huggy', text:'Boa! Time bom, hein?', color:'#a9c9ff'},
+            {speaker:'Astro', text:'Obrigado, Huggy. Acho que não vou enfrentar isso sozinho.', color:'#8fffb0'},
+            {speaker:'Huggy', text:'Nunca mais. A partir de agora, somos parceiros.', color:'#a9c9ff'},
+          ], ()=> endChapter(2));
+        },
+        onDefeat: ()=>{
+          startDialogue([
+            {speaker:'Huggy', text:'Foge! Eu seguro ele!', color:'#a9c9ff'},
+          ], ()=> endChapter(2));
+        }
+      });
+    });
+  }
+
+  return { start: ()=> goToScene(house, {x:80,y:H-140}) };
+}
+
+/* ---------------- CHAPTER 3 ---------------- */
+function buildChapter3(){
+  followers = []; followerTrail.length = 0;
+  let bunkerDecorated = false;
+  const restaurant = {
+    banner: 'CAPÍTULO 3 — O ENCONTRO',
+    draw: drawRestaurant,
+    obstacles: [ {x:40,y:90,w:200,h:60} ],
+    npcs: [
+      { x:250,y:190,w:70,h:40, type:'astroDown', scale:34, label:'Astro' },
+      { x:330,y:200,w:70,h:40, type:'huggyDown', scale:34, label:'Huggy' },
+      { x:420,y:150,w:42,h:60, type:'hunter', scale:40, label:'??? ' }
+    ],
+    exits: []
+  };
+
+  const bunker = {
+    banner: 'BUNKER ABANDONADO',
+    draw: (g)=>{
+      drawBunker(g);
+      if (bunkerDecorated){
+        drawHut(g,360,470,90);
+        drawRocketShip(g,560,460,45,false);
+      }
+    },
+    obstacles: [ {x:70,y:150,w:100,h:140}, {x:70,y:340,w:100,h:140}, {x:790,y:150,w:100,h:140}, {x:790,y:340,w:100,h:140} ],
+    npcs: [
+      { x:280,y:250,w:42,h:60, type:'astro', scale:36, label:'Astro',
+        onInteract: ()=> startDialogue([
+          {speaker:'Astro', text:'Ainda dói um pouco, mas vou ficar bem. Obrigado por vir, Duo.', color:'#8fffb0'},
+        ]) },
+      { x:600,y:250,w:60,h:76, type:'huggy', scale:40, label:'Huggy',
+        onInteract: ()=> startDialogue([
+          {speaker:'Huggy', text:'Esse bunker é meio empoeirado, mas serve. Dá uma olhada nessas estantes.', color:'#a9c9ff'},
+        ]) },
+      { x:W/2-20,y:H/2-20,w:40,h:40, type:'teleportGem', scale:32, label:'Joia do Teleporte',
+        onInteract: ()=>{
+          if (upgrades.teleportGem){
+            startDialogue([{speaker:'Duo', text:'Já peguei a joia.', color:'#7ef9ff'}]);
+            return;
+          }
+          bunker.npcs[2].talking = true;
+          upgrades.teleportGem = true;
+          sfxPickup();
+          startDialogue([
+            {speaker:'Duo', text:'Uma joia estranha, pulsando com uma luz roxa...', color:'#7ef9ff'},
+            {speaker:'Huggy', text:'Isso é uma Joia do Teleporte! Rara até em Vulcrom.', color:'#a9c9ff'},
+            {speaker:'Astro', text:'Vai ser útil pra fugir de novo, se precisar.', color:'#8fffb0'},
+          ]);
+        }
+      }
+    ],
+    exits: [ {x:W/2-40,y:70,w:80,h:20, onEnter: ()=> triggerArmaRoomEntry()} ]
+  };
+
+  const armaRoom = {
+    banner: 'SALA TRANCADA',
+    draw: drawArmaRoom,
+    obstacles: [],
+    npcs: [],
+    exits: []
+  };
+
+  function triggerRestaurantCutscene(){
+    sceneLocked = true;
+    flash('#ff2244');
+    startDialogue([
+      {speaker:'???', text:'*Um Caçador Alienígena está de pé sobre Astro e Huggy, os dois jogados no chão!*', color:'#ff9977'},
+      {speaker:'???', text:'Vocês dois não deviam ter fugido de mim.', color:'#ff5f7a'},
+      {speaker:'Huggy', text:'Ai... ele é rápido demais...', color:'#a9c9ff'},
+      {speaker:'Astro', text:'Não... consigo... me levantar...', color:'#8fffb0'},
+    ], ()=>{
+      player.type = 'duo';
+      player.x = W/2-17; player.y = H-90;
+      startDialogue([
+        {speaker:'Duo', text:'ASTRO! HUGGY!', color:'#7ef9ff'},
+        {speaker:'???', text:'Ah, olha só quem chegou. Mais um pra coleção.', color:'#ff5f7a'},
+        {speaker:'Duo', text:'Fica longe deles.', color:'#7ef9ff'},
+      ], ()=>{
+        restaurant.npcs = restaurant.npcs.filter(n=> n.type !== 'hunter');
+        startHunterBattle();
+      });
+    });
+  }
+
+  function fleeToBunker(){
+    startDialogue([
+      {speaker:'Duo', text:'Ele é forte demais... precisamos sair daqui AGORA!', color:'#7ef9ff'},
+      {speaker:'Huggy', text:'Conheço um lugar! Um bunker abandonado, vamos!', color:'#a9c9ff'},
+    ], ()=> goToScene(bunker, {x:W/2-17,y:H-90}));
+  }
+
+  function startHunterBattle(){
+    startBattle({
+      title:'O Caçador Alienígena ataca!',
+      intro:'Ele é rápido e implacável — nunca falha um alvo.',
+      fleeChance:0.2,
+      allyAssist:true,
+      guaranteedDefeatAfterTurns:3,
+      scriptedDefeatMsg:'Ele é forte demais! Vocês não têm chance sozinhos...',
+      player:{ name:'Duo', type:'duo',
+        hp:40+(upgrades.jewelOfLife?15:0), maxHp:40+(upgrades.jewelOfLife?15:0),
+        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
+      enemy:{ name:'Caçador Alienígena', type:'hunter', hp:80, maxHp:80, atk:12, speed:165 },
+      onDefeat: fleeToBunker,
+      onFlee: fleeToBunker
+    });
+  }
+
+  function triggerArmaRoomEntry(){
+    goToScene(armaRoom, {x:W/2-17,y:H-90});
+    sceneLocked = true;
+    flash('#ff5f3a');
+    startDialogue([
+      {speaker:'???', text:'Uma arma antiga desperta com o som de passos...', color:'#ff9977'},
+    ], ()=> startArmaGuardiaBattle());
+  }
+
+  function startArmaGuardiaBattle(){
+    startBattle({
+      title:'A Arma Guardiã desperta!',
+      intro:'Ela mira em vocês com todos os canhões ao mesmo tempo.',
+      fleeChance:0.25,
+      allyAssist:true,
+      ranged:true,
+      player:{ name:'Duo', type:'duo',
+        hp:40+(upgrades.jewelOfLife?15:0), maxHp:40+(upgrades.jewelOfLife?15:0),
+        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
+      secondary:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+      enemy:{ name:'Arma Guardiã', type:'armaGuardia', hp:90, maxHp:90, atk:10, projColor:'#ffaa3a' },
+      onVictory: ()=>{
+        bunkerDecorated = true;
+        goToScene(bunker, {x:W/2-17,y:H-90});
+        startDialogue([
+          {speaker:'Huggy', text:'Conseguimos! E olha só o que eu achei aqui atrás...', color:'#a9c9ff'},
+          {speaker:'Astro', text:'Uma cabana escondida — com um foguete dentro? Sério?', color:'#8fffb0'},
+          {speaker:'Duo', text:'Guarda isso aí. Pode ser útil um dia.', color:'#7ef9ff'},
+        ], ()=> endChapter3());
+      },
+      onDefeat: ()=> endingDefeatCh3()
+    });
+  }
+
+  return { start: ()=>{ goToScene(restaurant, {x:-200,y:-200}); triggerRestaurantCutscene(); } };
+}
+
+/* ---------------- CHAPTER 4 ---------------- */
+function buildChapter4(){
+  followers = ['astro','huggy']; followerTrail.length = 0;
+  let cueioFreed = false;
+  let titanDefeated = false;
+
+  // Astro/Huggy/Cueio already trail Duo as followers, so the bunker stays empty of static standees —
+  // walking in just shows them tagging along, no duplicate copies.
+  function enterBunkerInside(){
+    goToScene(bunkerInside, {x:W/2-17,y:H-150});
+  }
+
+  const bunkerInside = {
+    banner: 'BUNKER ABANDONADO',
+    draw: (g)=>{
+      drawBunker(g);
+      g.fillStyle = 'rgba(255,213,74,0.7)'; g.font='11px sans-serif'; g.textAlign='center';
+      g.fillText('↓ Saída', W/2, H-46);
+    },
+    obstacles: [ {x:70,y:150,w:100,h:140}, {x:70,y:340,w:100,h:140}, {x:790,y:150,w:100,h:140}, {x:790,y:340,w:100,h:140} ],
+    npcs: [],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(bunkerOutside, {x:60,y:H/2-20})} ]
+  };
+
+  const bunkerOutside = {
+    banner: 'CAPÍTULO 4 — O TITÃ',
+    draw: drawBunkerOutside,
+    obstacles: [],
+    npcs: [],
+    exits: [
+      {x:W-40,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(path, {x:40,y:H/2-20})},
+      {x:105,y:H-190,w:70,h:60, onEnter: enterBunkerInside},
+    ]
+  };
+
+  const path = {
+    banner: 'CAMINHO PARA O CASTELO',
+    draw: drawPathToCastle,
+    obstacles: [],
+    npcs: [],
+    exits: [ {x:W-46,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(castle, {x:60,y:H/2-20})} ]
+  };
+
+  const castle = {
+    banner: 'O CASTELO DO TITÃ',
+    draw: drawCastle,
+    obstacles: [ {x:90,y:70,w:26,h:H-140}, {x:310,y:70,w:26,h:H-140}, {x:530,y:70,w:26,h:H-140}, {x:750,y:70,w:26,h:H-140} ],
+    npcs: [
+      { x:W/2-25,y:H/2-40,w:50,h:70, type:'cueio', scale:44, label:'Cueio',
+        onInteract: ()=>{
+          if (cueioFreed){
+            startDialogue([{speaker:'Cueio', text:'Vamos sair daqui assim que der!', color:'#ffb066'}]);
+            return;
+          }
+          cueioFreed = true;
+          followers.push('cueio');
+          castle.npcs = castle.npcs.filter(n=> n.type !== 'cueio');
+          startDialogue([
+            {speaker:'Cueio', text:'Espera... vocês não são daqui. Vieram me tirar?', color:'#ffb066'},
+            {speaker:'Astro', text:'Cueio?! Você é do meu planeta... o que faz preso aqui?', color:'#8fffb0'},
+            {speaker:'Cueio', text:'Uma longa história. Esse titã de pedra me guarda há semanas. Tirem-me daqui, rápido!', color:'#ffb066'},
+            {speaker:'Duo', text:'Vamos indo. Fica perto da gente.', color:'#7ef9ff'},
+          ]);
+        }
+      }
+    ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=>{
+      if (!cueioFreed) return;
+      if (!titanDefeated){ triggerTitanAmbush(); return; }
+      goToScene(crossroads, {x:W/2-17,y:60});
+    }} ]
+  };
+
+  function triggerTitanAmbush(){
+    sceneLocked = true;
+    flash('#ff6a2a');
+    startDialogue([
+      {speaker:'???', text:'*O chão treme — um titã de pedra e magma bloqueia a saída!*', color:'#ff9977'},
+      {speaker:'Cueio', text:'Esse é o guardião! Cuidado, os punhos dele quebram pedra!', color:'#ffb066'},
+    ], ()=> startTitanBattle());
+  }
+
+  function startTitanBattle(){
+    startBattle({
+      title:'O Titã Batedor desperta!',
+      intro:'Ele avança pesado, pronto pra socar tudo no caminho.',
+      fleeChance:0.2,
+      allyAssist:true,
+      player:{ name:'Duo', type:'duo',
+        hp:40+(upgrades.jewelOfLife?15:0), maxHp:40+(upgrades.jewelOfLife?15:0),
+        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
+      secondary:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+      enemy:{ name:'Titã Batedor', type:'titan', hp:100, maxHp:100, atk:13, speed:70 },
+      onVictory: ()=>{
+        player.type = 'duo';
+        titanDefeated = true;
+        upgrades.elementalEmerald = true;
+        sfxPickup();
+        startDialogue([
+          {speaker:'Duo', text:'Conseguimos! Ele... ele estava guardando alguma coisa.', color:'#7ef9ff'},
+          {speaker:'???', text:'Vocês encontraram a Esmeralda dos Elementos!', color:'#ff9a5c'},
+          {speaker:'Cueio', text:'Essa pedra é rara até no meu planeta. Guardem bem.', color:'#ffb066'},
+        ]);
+      },
+      onDefeat: ()=>{
+        player.type = 'duo';
+        startDialogue([
+          {speaker:'Duo', text:'Ele é forte demais... precisamos nos recompor antes de tentar de novo!', color:'#7ef9ff'},
+        ]);
+      }
+    });
+  }
+
+  /* -------- beyond the titan: a fork toward a much bigger castle -------- */
+  let predatorTriggered = false;
+  let predatorDefeated = false;
+  let hasCastleKey = false;
+  let metKing = false;
+
+  const crossroads = {
+    banner: 'ENCRUZILHADA',
+    draw: drawCrossroads,
+    obstacles: [],
+    npcs: [],
+    exits: [
+      {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(bunkerOutside, {x:W-80,y:H/2-20})},
+      {x:W-40,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(bigCastleGate, {x:40,y:H/2-20})},
+      {x:W/2-30,y:H-40,w:60,h:34, onEnter: ()=> goToScene(secretForest, {x:40,y:H/2-20})},
+    ]
+  };
+
+  const bigCastleGate = {
+    banner: 'PORTÃO DO GRANDE CASTELO',
+    draw: drawBigCastleGate,
+    obstacles: [],
+    npcs: [
+      { x:W/2-25,y:H/2-40,w:50,h:70, type:'hunter', scale:46, label:'Segurança',
+        onInteract: ()=> startDialogue([
+          {speaker:'Segurança', text:'Vocês não são permitidos aqui. Deem meia-volta.', color:'#ff8f9e'},
+        ]) }
+    ],
+    exits: [ {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(crossroads, {x:W-80,y:H/2-20})} ]
+  };
+
+  const secretForest = {
+    banner: 'CAMINHO ESQUECIDO',
+    draw: drawSecretForest,
+    obstacles: [],
+    npcs: [],
+    onEnter: ()=>{
+      if (predatorDefeated || predatorTriggered) return;
+      predatorTriggered = true;
+      sceneLocked = true;
+      startDialogue([
+        {speaker:'???', text:'*Algo se move nas sombras entre as árvores...*', color:'#c9a8ff'},
+      ], ()=> startPredatorBattle());
+    },
+    exits: [
+      {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(crossroads, {x:W/2-17,y:H-150})},
+      {x:W-40,y:H/2-60,w:40,h:120, onEnter: ()=>{
+        if (!hasCastleKey){
+          startDialogue([{speaker:'Duo', text:'Tem uma porta trancada aqui... preciso achar uma chave.', color:'#7ef9ff'}]);
+          return;
+        }
+        goToScene(bigCastleInterior, {x:40,y:H/2-20});
+      }}
+    ]
+  };
+
+  function startPredatorBattle(){
+    startBattle({
+      title:'Um predador diferente ataca!',
+      intro:'Ele se move rápido pelas sombras da floresta esquecida.',
+      fleeChance:0.3,
+      allyAssist:true,
+      player:{ name:'Duo', type:'duo',
+        hp:40+(upgrades.jewelOfLife?15:0), maxHp:40+(upgrades.jewelOfLife?15:0),
+        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
+      secondary:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+      enemy:{ name:'Predador das Sombras', type:'shadowPredator', hp:50, maxHp:50, atk:10, speed:150 },
+      onVictory: ()=>{
+        player.type = 'duo';
+        predatorDefeated = true;
+        addForestChest();
+        startDialogue([
+          {speaker:'Duo', text:'Esse não era igual ao que enfrentamos antes... e olha, tem um baú ali!', color:'#7ef9ff'},
+        ]);
+      },
+      onDefeat: ()=>{
+        player.type = 'duo';
+        predatorTriggered = false;
+        startDialogue([
+          {speaker:'Duo', text:'Ele é rápido demais... vamos ter que tentar de novo.', color:'#7ef9ff'},
+        ]);
+      }
+    });
+  }
+
+  function addForestChest(){
+    secretForest.npcs.push({
+      x:W-150,y:H/2-35,w:50,h:50, type:'chest', scale:34, label:'Baú',
+      onInteract: function(){
+        if (hasCastleKey){
+          startDialogue([{speaker:'Duo', text:'Já peguei a chave desse baú.', color:'#7ef9ff'}]);
+          return;
+        }
+        hasCastleKey = true;
+        this.talking = true;
+        sfxPickup();
+        startDialogue([
+          {speaker:'Duo', text:'Uma chave antiga... deve abrir aquela porta escondida ali na floresta.', color:'#7ef9ff'},
+        ]);
+      }
+    });
+  }
+
+  const bigCastleInterior = {
+    banner: 'CORREDOR DO GRANDE CASTELO',
+    draw: drawBigCastleInterior,
+    obstacles: [ {x:300,y:70,w:26,h:H-140}, {x:620,y:70,w:26,h:H-140} ],
+    npcs: [
+      { x:150,y:H/2-35,w:50,h:60, type:'hunter', scale:44, label:'Guarda',
+        onInteract: ()=> startDialogue([{speaker:'Guarda', text:'Mantenha distância do Rei, forasteiro.', color:'#ff8f9e'}]) },
+      { x:460,y:H/2-35,w:50,h:60, type:'hunter', scale:44, label:'Guarda',
+        onInteract: ()=> startDialogue([{speaker:'Guarda', text:'Ninguém entra na sala do trono sem se anunciar.', color:'#ff8f9e'}]) },
+      { x:760,y:H/2-35,w:50,h:60, type:'hunter', scale:44, label:'Guarda',
+        onInteract: ()=> startDialogue([{speaker:'Guarda', text:'Esse castelo guarda segredos antigos... não é lugar pra curiosos.', color:'#ff8f9e'}]) },
+    ],
+    exits: [
+      {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(secretForest, {x:W-80,y:H/2-20})},
+      {x:390,y:H-40,w:60,h:34, onEnter: ()=> goToScene(treasureRoom, {x:W/2-17,y:H-70})},
+      {x:W/2-30,y:70,w:60,h:20, onEnter: ()=>{
+        if (!upgrades.disguiseEmerald){
+          startDialogue([{speaker:'Guarda', text:'Pare! Só quem tem a Esmeralda do Disfarce entra na sala do Rei.', color:'#ff8f9e'}]);
+          return;
+        }
+        goToScene(kingRoom, {x:W/2-17,y:H-70});
+      }},
+    ]
+  };
+
+  const treasureRoom = {
+    banner: 'CÂMARA ESCONDIDA',
+    draw: drawTreasureRoom,
+    obstacles: [],
+    npcs: [
+      { x:W/2-25,y:H/2-30,w:50,h:50, type:'disguiseEmerald', scale:40, label:'Esmeralda do Disfarce',
+        onInteract: function(){
+          if (upgrades.disguiseEmerald){
+            startDialogue([{speaker:'Duo', text:'Já está comigo.', color:'#7ef9ff'}]);
+            return;
+          }
+          upgrades.disguiseEmerald = true;
+          this.talking = true;
+          sfxPickup();
+          startDialogue([
+            {speaker:'Duo', text:'Uma esmeralda que muda a aparência de quem a segura... vai nos deixar passar pelos guardas!', color:'#7ef9ff'},
+          ]);
+        } }
+    ],
+    exits: [ {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(bigCastleInterior, {x:250,y:H-90})} ]
+  };
+
+  const kingRoom = {
+    banner: 'SALÃO DO REI',
+    draw: drawKingRoom,
+    obstacles: [],
+    npcs: [
+      { x:W/2-25,y:H/2-40,w:50,h:70, type:'king', scale:50, label:'Rei',
+        onInteract: ()=>{
+          if (metKing){
+            startDialogue([{speaker:'Rei', text:'Vão logo. E não voltem sem serem chamados.', color:'#ffd54a'}]);
+            return;
+          }
+          metKing = true;
+          startDialogue([
+            {speaker:'Rei', text:'Poucos chegam tão longe disfarçados... o que vieram buscar em meu reino?', color:'#ffd54a'},
+            {speaker:'Duo', text:'Só queríamos passagem segura. Não viemos causar problema.', color:'#7ef9ff'},
+            {speaker:'Rei', text:'Vocês trazem um titã derrotado nas costas e uma esmeralda proibida... isso já é problema o bastante.', color:'#ffd54a'},
+            {speaker:'Rei', text:'Mas sinto também o cheiro de outra coisa em vocês — algo que despertou lá fora. Fiquem atentos. Esse castelo tem mais olhos do que parece, e o mundo além dele guarda perigo bem maior.', color:'#ffd54a'},
+            {speaker:'Cueio', text:'Precisamos ir. Já arriscamos demais ficando aqui.', color:'#ffb066'},
+            {speaker:'Duo', text:'Vamos. Já temos o que viemos buscar.', color:'#7ef9ff'},
+          ], ()=> endChapter4());
+        } }
+    ],
+    exits: [ {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(bigCastleInterior, {x:W/2-17,y:110})} ]
+  };
+
+  return { start: ()=> goToScene(bunkerOutside, {x:40,y:H/2-20}) };
+}
+
+/* ---------------- chapter flow / menus ---------------- */
+const menuOverlay = document.getElementById('menuOverlay');
+const endOverlay = document.getElementById('endOverlay');
+const endTitle = document.getElementById('endTitle');
+const endText = document.getElementById('endText');
+const endButtons = document.getElementById('endButtons');
+
+let ch1 = null, ch2 = null, ch3 = null, ch4 = null;
+
+function startChapter(n){
+  menuOverlay.classList.add('hidden');
+  endOverlay.classList.add('hidden');
+  if (n===1){ player.type = 'duo'; ch1 = buildChapter1(); ch1.start(); }
+  if (n===2){ player.type = 'astro'; ch2 = buildChapter2(); ch2.start(); }
+  if (n===3){ player.type = 'duo'; ch3 = buildChapter3(); ch3.start(); }
+  if (n===4){ player.type = 'duo'; ch4 = buildChapter4(); ch4.start(); }
+}
+function endChapter(){
+  unlocked.ch3 = true;
+  showEndingScreen({
+    title: 'Fim do Capítulo 2',
+    text: 'Astro encontrou um aliado inesperado em Vulcrom. Mas o destino ainda vai colocá-lo no caminho de alguém conhecido...',
+    buttons: [ {label:'Capítulo 3 →', fn:()=> startChapter(3)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function endChapter3(){
+  unlocked.ch4 = true;
+  showEndingScreen({
+    title: 'Fim do Capítulo 3 — Aliados',
+    text: 'Duo, Astro e Huggy derrotaram a Arma Guardiã e agora têm um arsenal e uma Joia do Teleporte em mãos. Juntos, talvez tenham uma chance real contra o que vem por aí.',
+    buttons: [ {label:'Capítulo 4 →', fn:()=> startChapter(4)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function endChapter4(){
+  showEndingScreen({
+    title: 'Fim do Capítulo 4 — O Grande Castelo',
+    text: 'Duo, Astro, Huggy e Cueio escaparam do olhar do Rei com a Esmeralda do Disfarce e a Esmeralda dos Elementos em mãos. O Titã Batedor foi só o começo — e o aviso do Rei ecoa: tem algo maior se movendo lá fora. Continua em breve, no mundo aberto...',
+    buttons: [ {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function endingDefeatCh3(){
+  showEndingScreen({
+    title: 'Final: Superados',
+    text: 'A Arma Guardiã provou ser forte demais para os três. Talvez precisem se preparar melhor antes de tentar de novo.',
+    buttons: [ {label:'Tentar novamente', fn:()=> startChapter(3)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function showEndingScreen(opts){
+  currentScene = null;
+  sceneLocked = true;
+  endOverlay.classList.remove('hidden');
+  endButtons.innerHTML = '';
+  endTitle.textContent = opts.title;
+  endText.textContent = opts.text;
+  (opts.buttons||[]).forEach(b=> mkEndBtn(b.label, b.fn, b.secondary));
+}
+function endingTrueCh1(){
+  unlocked.ch2 = true;
+  showEndingScreen({
+    title: 'Fim do Capítulo 1 — A Vingança Desperta',
+    text: 'As plantas antigas confiaram a Duo a Joia da Vida e um aviso: aquelas naves voltarão. Essa não é mais uma fuga — é o início de uma vingança.',
+    buttons: [ {label:'Capítulo 2 →', fn:()=> startChapter(2)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function endingEscapistCh1(){
+  unlocked.ch2 = true;
+  showEndingScreen({
+    title: 'Final Escapista',
+    text: 'Duo não olhou para trás. Correu sem parar, ignorando os sussurros das plantas de olho aberto. Escapou... mas sem a Joia da Vida, sem respostas, e sem saber ao certo para onde esse caminho vai realmente dar.',
+    buttons: [ {label:'Capítulo 2 →', fn:()=> startChapter(2)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function endingDeathCh1(){
+  showEndingScreen({
+    title: 'Final: Caído em Combate',
+    text: 'O drone foi rápido demais dessa vez. Duo lutou com tudo o que tinha, mas não foi suficiente... Talvez uma nova tentativa mude o destino.',
+    buttons: [ {label:'Tentar novamente', fn:()=> startChapter(1)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function endingCowardCh1(){
+  unlocked.ch2 = true;
+  showEndingScreen({
+    title: 'Final Covarde',
+    text: 'Duo se enfiou debaixo do próprio ninho e ficou lá, quietinho, o coração disparado. Nenhuma luta, nenhuma fuga pela vila — só o barulho da nave lá fora, sumindo aos poucos. Ele sobreviveu... mas vai ter que conviver com essa escolha.',
+    buttons: [ {label:'Capítulo 2 →', fn:()=> startChapter(2)}, {label:'Menu', fn:showMenu, secondary:true} ]
+  });
+}
+function mkEndBtn(label, fn, secondary){
+  const b = document.createElement('button');
+  b.className = 'gameBtn' + (secondary ? ' secondary' : '');
+  b.textContent = label; b.onclick = fn;
+  endButtons.appendChild(b);
+}
+function showMenu(){
+  currentScene = null;
+  endOverlay.classList.add('hidden');
+  menuOverlay.classList.remove('hidden');
+  document.getElementById('btnCh2').classList.toggle('locked', false);
+}
+document.getElementById('btnCh1').onclick = ()=> startChapter(1);
+document.getElementById('btnCh2').onclick = ()=> startChapter(2);
+document.getElementById('btnCh3').onclick = ()=> startChapter(3);
+document.getElementById('btnCh4').onclick = ()=> startChapter(4);
+
+/* ---------------- pause / settings menu ---------------- */
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsOverlay = document.getElementById('settingsOverlay');
+const segDifficulty = document.getElementById('segDifficulty');
+const segQuality = document.getElementById('segQuality');
+const selLanguage = document.getElementById('selLanguage');
+const rangeScale = document.getElementById('rangeScale');
+const rangeSafe = document.getElementById('rangeSafe');
+let settingsOpen = false;
+
+function applyScale(){
+  document.documentElement.style.setProperty('--ui-scale', settings.scale/100);
+  document.getElementById('valScale').textContent = settings.scale + '%';
+}
+function applySafeArea(){
+  document.documentElement.style.setProperty('--safe', settings.safe + 'px');
+  document.getElementById('valSafe').textContent = settings.safe + 'px';
+}
+function applyQuality(){
+  document.body.classList.toggle('lowfx', settings.quality === 'baixa');
+}
+function refreshSettingsUI(){
+  [...segDifficulty.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.difficulty));
+  [...segQuality.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.quality));
+  selLanguage.value = settings.language;
+  rangeScale.value = settings.scale;
+  rangeSafe.value = settings.safe;
+  applyScale(); applySafeArea(); applyQuality();
+}
+function toggleSettings(){ settingsOpen ? closeSettings() : openSettings(); }
+function openSettings(){
+  settingsOpen = true;
+  refreshSettingsUI();
+  settingsOverlay.classList.add('open');
+}
+function closeSettings(){
+  settingsOpen = false;
+  settingsOverlay.classList.remove('open');
+}
+function forceStopEverything(){
+  if (battle){ battleOverlay.style.display = 'none'; battleAttackBtn.style.display = 'none'; battle = null; }
+  dialogueActive = false; dialogueQueue = []; dialogueIdx = 0; dialogueOnEnd = null;
+  document.getElementById('dialogueBox').style.display = 'none';
+  sceneLocked = false;
+}
+
+settingsBtn.addEventListener('click', toggleSettings);
+document.getElementById('btnResume').addEventListener('click', closeSettings);
+document.getElementById('btnCloseSettings').addEventListener('click', closeSettings);
+document.getElementById('btnGoWorld').addEventListener('click', ()=>{
+  forceStopEverything();
+  closeSettings();
+  showMenu();
+});
+document.getElementById('btnRestart').addEventListener('click', ()=>{
+  forceStopEverything();
+  unlocked = { ch2:false, ch3:false, ch4:false };
+  upgrades = { jewelOfLife:false, emeraldOfPower:false, alienWeapon:false, teleportGem:false, elementalEmerald:false, disguiseEmerald:false };
+  closeSettings();
+  showMenu();
+});
+segDifficulty.addEventListener('click', e=>{
+  const b = e.target.closest('.segBtn'); if (!b) return;
+  settings.difficulty = b.dataset.val;
+  refreshSettingsUI();
+});
+segQuality.addEventListener('click', e=>{
+  const b = e.target.closest('.segBtn'); if (!b) return;
+  settings.quality = b.dataset.val;
+  refreshSettingsUI();
+});
+selLanguage.addEventListener('change', ()=>{ settings.language = selLanguage.value; });
+rangeScale.addEventListener('input', ()=>{ settings.scale = +rangeScale.value; applyScale(); });
+rangeSafe.addEventListener('input', ()=>{ settings.safe = +rangeSafe.value; applySafeArea(); });
+refreshSettingsUI();
+
+/* ---------------- main loop ---------------- */
+let lastT = performance.now();
+function loop(t){
+  const dt = Math.min(0.05,(t-lastT)/1000); lastT = t;
+  if (!settingsOpen){
+    updateExploration(dt);
+    updateBattle(dt);
+  }
+  updateActionButton();
+  updateInventoryHud();
+  renderScene();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
