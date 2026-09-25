@@ -28,6 +28,7 @@
     --btn-sm: clamp(28px, 7vmin, 38px);
     --btn-md: clamp(46px, 15vmin, 78px);
     --btn-lg: clamp(50px, 18vmin, 86px);
+    --dlg-h: clamp(60px, 24vmin, 110px);
   }
   /* repeated taps on game buttons (attack!) must never be read as double-tap-to-zoom */
   button { touch-action:manipulation; -webkit-user-select:none; user-select:none; }
@@ -90,7 +91,7 @@
   /* dialogue box */
   #dialogueBox {
     position:absolute; left:calc(var(--sp-3) + var(--safe)); right:calc(var(--sp-3) + var(--safe)); bottom:calc(var(--sp-2) + var(--safe));
-    min-height:clamp(60px, 24vmin, 110px);
+    min-height:var(--dlg-h);
     background:rgba(8,10,20,0.92); border:2px solid #4a5a8a; border-radius:10px;
     padding:var(--sp-2) var(--sp-3); display:none; flex-direction:column; gap:var(--sp-1);
     box-shadow:0 0 30px rgba(0,0,0,0.6);
@@ -108,9 +109,10 @@
     display:none; align-items:center; justify-content:center; text-align:center; line-height:1.2;
   }
   #actionBtn:active { filter:brightness(0.9); transform:scale(0.96); }
-  /* tapping the dialogue box itself already advances it — the corner button is just redundant
-     clutter on touch, and would otherwise sit on top of the dialogue text on short screens */
-  @media (pointer:coarse){ #actionBtn.duringDialogue { display:none !important; } }
+  /* while a dialogue is open, lift the button clear above the dialogue box instead of
+     overlapping its text — this must always stay clickable, it's the only way to advance
+     if a tap on the box itself doesn't register */
+  #actionBtn.duringDialogue { bottom:calc(var(--dlg-h) + var(--sp-2) + var(--safe)); }
 
   #battleAttackBtn {
     position:absolute; right:calc(var(--sp-3) + var(--safe)); bottom:calc(var(--sp-3) + var(--safe)); z-index:20; pointer-events:auto;
@@ -2991,13 +2993,19 @@ refreshSettingsUI();
 let lastT = performance.now();
 function loop(t){
   const dt = Math.min(0.05,(t-lastT)/1000); lastT = t;
-  if (!settingsOpen){
-    updateExploration(dt);
-    updateBattle(dt);
+  try {
+    if (!settingsOpen){
+      updateExploration(dt);
+      updateBattle(dt);
+    }
+    updateActionButton();
+    updateInventoryHud();
+    renderScene();
+  } catch(err){
+    // a bug in one frame must never permanently freeze the whole game —
+    // log it and keep the loop alive so the player can still act next frame
+    console.error('loop error', err);
   }
-  updateActionButton();
-  updateInventoryHud();
-  renderScene();
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
