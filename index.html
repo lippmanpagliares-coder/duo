@@ -2647,7 +2647,8 @@ function buildChapter4(){
   const castle = {
     banner: 'O CASTELO DO TITÃ',
     draw: drawCastle,
-    obstacles: [ {x:90,y:70,w:26,h:H-140}, {x:310,y:70,w:26,h:H-140}, {x:530,y:70,w:26,h:H-140}, {x:750,y:70,w:26,h:H-140} ],
+    // only each pillar's base blocks movement — a full-height collision left just a 6px gap to walk through
+    obstacles: [ {x:90,y:490,w:26,h:40}, {x:310,y:490,w:26,h:40}, {x:530,y:490,w:26,h:40}, {x:750,y:490,w:26,h:40} ],
     npcs: [
       { x:W/2-25,y:H/2-40,w:50,h:70, type:'cueio', scale:44, label:'Cueio',
         onInteract: ()=>{
@@ -2820,7 +2821,7 @@ function buildChapter4(){
   const bigCastleInterior = {
     banner: 'CORREDOR DO GRANDE CASTELO',
     draw: drawBigCastleInterior,
-    obstacles: [ {x:300,y:70,w:26,h:H-140}, {x:620,y:70,w:26,h:H-140} ],
+    obstacles: [ {x:300,y:490,w:26,h:40}, {x:620,y:490,w:26,h:40} ],
     npcs: [
       { x:150,y:H/2-35,w:50,h:60, type:'hunter', scale:44, label:'Guarda',
         onInteract: ()=> startDialogue([{speaker:'Guarda', text:'Mantenha distância do Rei, forasteiro.', color:'#ff8f9e'}]) },
