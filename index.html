@@ -29,6 +29,12 @@
     box-shadow:0 0 50px rgba(80,140,255,0.25);
     transform:scale(var(--ui-scale)); transition:transform 0.15s ease;
   }
+  /* iOS Safari's 100vh includes the collapsible toolbar area, overflowing the real screen —
+     dvh reflects what's actually visible, so prefer it wherever it's supported */
+  @supports (height: 100dvh) {
+    #wrap { height:100dvh; }
+    #stage { width:min(960px, 100vw, calc(100dvh * 8 / 5)); max-height:100dvh; }
+  }
   body.lowfx * { box-shadow:none !important; text-shadow:none !important; }
   canvas { display:block; background:#123; image-rendering:pixelated; width:100%; height:100%; }
 
