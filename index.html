@@ -14,7 +14,21 @@
 <meta name="apple-mobile-web-app-title" content="Duo">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  :root { --ui-scale:1; --safe:0px; }
+  :root {
+    --ui-scale:1; --safe:0px;
+    /* HUD scales with the smaller screen dimension so nothing overflows or hides the game on small/short phones */
+    --sp-1: clamp(3px, 1vmin, 6px);
+    --sp-2: clamp(6px, 2vmin, 12px);
+    --sp-3: clamp(10px, 3vmin, 20px);
+    --font-xs: clamp(9px, 2.6vmin, 12px);
+    --font-sm: clamp(11px, 3vmin, 14px);
+    --font-md: clamp(13px, 3.6vmin, 16px);
+    --font-lg: clamp(16px, 5vmin, 22px);
+    --font-xl: clamp(20px, 7vmin, 38px);
+    --btn-sm: clamp(28px, 7vmin, 38px);
+    --btn-md: clamp(46px, 15vmin, 78px);
+    --btn-lg: clamp(50px, 18vmin, 86px);
+  }
   /* repeated taps on game buttons (attack!) must never be read as double-tap-to-zoom */
   button { touch-action:manipulation; -webkit-user-select:none; user-select:none; }
   html,body {
@@ -43,12 +57,15 @@
   #hint {
     position:absolute; left:50%; bottom:calc(96px + var(--safe)); transform:translateX(-50%);
     background:rgba(10,14,26,0.75); border:1px solid #4a5a8a; border-radius:6px;
-    padding:6px 14px; font-size:13px; color:#ffd54a; letter-spacing:1px;
+    padding:var(--sp-1) var(--sp-2); font-size:var(--font-sm); color:#ffd54a; letter-spacing:1px;
     pointer-events:none; display:none; white-space:nowrap;
   }
+  /* on touch devices the tappable buttons (D-pad, Interagir, Atacar) already show the controls —
+     keyboard-only text hints are just clutter that can overlap them */
+  @media (pointer:coarse){ #hint, .kbdHint { display:none !important; } }
   #chapterBanner {
     position:absolute; top:calc(26px + var(--safe)); left:50%; transform:translateX(-50%);
-    font-size:28px; letter-spacing:3px; color:#7ef9ff;
+    font-size:var(--font-xl); letter-spacing:3px; color:#7ef9ff;
     text-shadow:0 0 16px rgba(126,249,255,0.8);
     opacity:0; transition:opacity 0.6s; pointer-events:none; text-align:center;
   }
@@ -58,12 +75,12 @@
   }
 
   #inventoryHud {
-    position:absolute; top:calc(14px + var(--safe)); left:calc(14px + var(--safe)); z-index:15;
-    display:flex; gap:8px; pointer-events:none;
+    position:absolute; top:calc(var(--sp-2) + var(--safe)); left:calc(var(--sp-2) + var(--safe)); z-index:15;
+    display:flex; gap:var(--sp-1); pointer-events:none;
   }
   .invSlot {
-    width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center;
-    font-size:19px; background:rgba(10,14,26,0.7); border:1px solid #3a4a70;
+    width:var(--btn-sm); height:var(--btn-sm); border-radius:8px; display:flex; align-items:center; justify-content:center;
+    font-size:var(--font-lg); background:rgba(10,14,26,0.7); border:1px solid #3a4a70;
     filter:grayscale(1) brightness(0.35); opacity:0.55; transition:filter 0.3s, opacity 0.3s, box-shadow 0.3s;
   }
   .invSlot.owned {
@@ -72,30 +89,31 @@
 
   /* dialogue box */
   #dialogueBox {
-    position:absolute; left:calc(24px + var(--safe)); right:calc(24px + var(--safe)); bottom:calc(20px + var(--safe)); min-height:110px;
+    position:absolute; left:calc(var(--sp-3) + var(--safe)); right:calc(var(--sp-3) + var(--safe)); bottom:calc(var(--sp-2) + var(--safe));
+    min-height:clamp(60px, 24vmin, 110px);
     background:rgba(8,10,20,0.92); border:2px solid #4a5a8a; border-radius:10px;
-    padding:14px 20px; display:none; flex-direction:column; gap:6px;
+    padding:var(--sp-2) var(--sp-3); display:none; flex-direction:column; gap:var(--sp-1);
     box-shadow:0 0 30px rgba(0,0,0,0.6);
   }
-  #dialogueSpeaker { font-weight:bold; font-size:15px; letter-spacing:1px; }
-  #dialogueText { font-size:15px; line-height:1.5; color:#dfe8ff; min-height:44px; }
-  #dialogueAdvance { align-self:flex-end; font-size:12px; color:#8fa; opacity:0.85; }
+  #dialogueSpeaker { font-weight:bold; font-size:var(--font-md); letter-spacing:1px; }
+  #dialogueText { font-size:var(--font-md); line-height:1.4; color:#dfe8ff; min-height:clamp(24px, 9vmin, 44px); }
+  #dialogueAdvance { align-self:flex-end; font-size:var(--font-xs); color:#8fa; opacity:0.85; }
 
   #actionBtn {
-    position:absolute; right:calc(22px + var(--safe)); bottom:calc(140px + var(--safe)); z-index:20;
-    width:78px; height:78px; border-radius:50%; border:none; cursor:pointer;
+    position:absolute; right:calc(var(--sp-3) + var(--safe)); bottom:calc(var(--sp-3) + var(--safe)); z-index:20;
+    width:var(--btn-md); height:var(--btn-md); border-radius:50%; border:none; cursor:pointer;
     background:linear-gradient(180deg,#ffd54a,#b8860b); color:#2a1a00;
-    font-family:inherit; font-weight:bold; font-size:13px; letter-spacing:0.5px;
+    font-family:inherit; font-weight:bold; font-size:var(--font-sm); letter-spacing:0.5px;
     box-shadow:0 0 20px rgba(255,213,74,0.55);
     display:none; align-items:center; justify-content:center; text-align:center; line-height:1.2;
   }
   #actionBtn:active { filter:brightness(0.9); transform:scale(0.96); }
 
   #battleAttackBtn {
-    position:absolute; right:calc(22px + var(--safe)); bottom:calc(70px + var(--safe)); z-index:20; pointer-events:auto;
-    width:86px; height:86px; border-radius:50%; border:none; cursor:pointer;
+    position:absolute; right:calc(var(--sp-3) + var(--safe)); bottom:calc(var(--sp-3) + var(--safe)); z-index:20; pointer-events:auto;
+    width:var(--btn-lg); height:var(--btn-lg); border-radius:50%; border:none; cursor:pointer;
     background:linear-gradient(180deg,#c9a0ff,#7a3fd0); color:#1a0a2e;
-    font-family:inherit; font-weight:bold; font-size:26px;
+    font-family:inherit; font-weight:bold; font-size:var(--font-lg);
     box-shadow:0 0 22px rgba(154,95,224,0.6);
     display:none; align-items:center; justify-content:center;
   }
@@ -122,15 +140,16 @@
   /* overlays: menu / chapter end */
   .fullOverlay {
     position:absolute; inset:0; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:16px; text-align:center;
+    align-items:center; justify-content:center; gap:var(--sp-2); text-align:center;
     background:radial-gradient(ellipse at center, #10182e 0%, #05070f 100%);
+    padding:var(--sp-2); overflow-y:auto;
   }
-  .fullOverlay h1 { font-size:38px; color:#7ef9ff; text-shadow:0 0 20px #00c8ff; letter-spacing:3px; }
-  .fullOverlay h2 { font-size:24px; color:#ffd54a; text-shadow:0 0 14px rgba(255,213,74,0.6); }
-  .fullOverlay p { max-width:520px; font-size:14px; line-height:1.7; color:#9fb; }
-  .btnRow { display:flex; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .fullOverlay h1 { font-size:var(--font-xl); color:#7ef9ff; text-shadow:0 0 20px #00c8ff; letter-spacing:3px; }
+  .fullOverlay h2 { font-size:clamp(16px, 6vmin, 24px); color:#ffd54a; text-shadow:0 0 14px rgba(255,213,74,0.6); }
+  .fullOverlay p { max-width:90%; font-size:var(--font-sm); line-height:1.5; color:#9fb; }
+  .btnRow { display:flex; gap:var(--sp-2); flex-wrap:wrap; justify-content:center; }
   .gameBtn {
-    padding:12px 26px; font-size:15px; font-family:inherit; letter-spacing:1px;
+    padding:var(--sp-2) var(--sp-3); font-size:var(--font-sm); font-family:inherit; letter-spacing:1px;
     border:none; border-radius:8px; cursor:pointer; font-weight:bold;
     background:linear-gradient(180deg,#1fd0ff,#0088cc); color:#001622;
     box-shadow:0 0 18px rgba(0,200,255,0.5);
@@ -143,24 +162,27 @@
   /* battle — slim real-time HUD; the arena itself renders on the game canvas underneath */
   #battleOverlay {
     position:absolute; inset:0; display:none; flex-direction:column; justify-content:space-between;
-    padding:calc(14px + var(--safe)) calc(18px + var(--safe)); pointer-events:none; z-index:12;
+    padding:calc(var(--sp-2) + var(--safe)) calc(var(--sp-3) + var(--safe)); pointer-events:none; z-index:12;
   }
-  #battleTitle { text-align:center; font-size:15px; letter-spacing:2px; color:#c9a8ff; text-shadow:0 0 10px rgba(201,168,255,0.6); }
-  #battleHudTop { display:flex; justify-content:space-between; gap:16px; margin-top:6px; }
-  .battleHpCard { width:260px; background:rgba(10,6,18,0.72); border:1px solid #3a2a4a; border-radius:8px; padding:8px 12px; }
+  #battleTitle { text-align:center; font-size:var(--font-md); letter-spacing:2px; color:#c9a8ff; text-shadow:0 0 10px rgba(201,168,255,0.6); }
+  #battleHudTop { display:flex; justify-content:space-between; gap:var(--sp-2); margin-top:var(--sp-1); }
+  .battleHpCard { flex:1 1 0; min-width:0; max-width:260px; background:rgba(10,6,18,0.72); border:1px solid #3a2a4a; border-radius:8px; padding:var(--sp-1) var(--sp-2); }
   .battleHpCard.enemy { align-self:flex-end; }
-  .hpLabel { font-size:13px; color:#dfe8ff; margin-bottom:5px; display:flex; justify-content:space-between; }
-  .hpBarBg { width:100%; height:11px; background:#241a30; border:1px solid #55406a; border-radius:6px; overflow:hidden; }
+  .hpLabel { font-size:var(--font-sm); color:#dfe8ff; margin-bottom:5px; display:flex; justify-content:space-between; gap:6px; }
+  .hpLabel span:first-child { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hpLabel span:last-child { flex:0 0 auto; white-space:nowrap; }
+  .hpBarBg { width:100%; height:clamp(6px, 2.2vmin, 11px); background:#241a30; border:1px solid #55406a; border-radius:6px; overflow:hidden; }
   .hpBarFill { height:100%; background:linear-gradient(90deg,#5cff9a,#1e9955); transition:width 0.35s ease; }
   .hpBarFill.enemy { background:linear-gradient(90deg,#ff6a6a,#a01e1e); }
   #battleToast {
     align-self:center; background:rgba(10,6,18,0.8); border:1px solid #3a2a4a; border-radius:8px;
-    padding:8px 16px; font-size:13.5px; color:#e8d8ff; opacity:0; transition:opacity 0.3s; text-align:center; max-width:70%;
+    padding:var(--sp-1) var(--sp-2); font-size:var(--font-sm); color:#e8d8ff; opacity:0; transition:opacity 0.3s; text-align:center; max-width:86%;
   }
-  #battleHint { align-self:center; font-size:12px; color:#c9a8ff; opacity:0.8; margin-bottom:4px; }
-  #battleActions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; pointer-events:auto; }
+  #battleHint { align-self:center; font-size:var(--font-xs); color:#c9a8ff; opacity:0.8; margin-bottom:4px; }
+  @media (pointer:coarse){ #battleHint { display:none !important; } }
+  #battleActions { display:flex; gap:var(--sp-1); justify-content:center; flex-wrap:wrap; pointer-events:auto; }
   .battleBtn {
-    padding:10px 18px; font-family:inherit; font-size:14px; font-weight:bold; letter-spacing:0.5px;
+    padding:var(--sp-1) var(--sp-2); font-family:inherit; font-size:var(--font-sm); font-weight:bold; letter-spacing:0.5px;
     border:none; border-radius:8px; cursor:pointer; color:#fff;
     background:linear-gradient(180deg,#7a4ad0,#4a2a90); box-shadow:0 0 12px rgba(120,80,220,0.5);
   }
@@ -169,9 +191,9 @@
 
   /* pause / settings */
   #settingsBtn {
-    position:absolute; top:calc(14px + var(--safe)); right:calc(14px + var(--safe)); z-index:30; pointer-events:auto;
-    width:38px; height:38px; border-radius:8px; border:1px solid #3a4a70; cursor:pointer;
-    background:rgba(10,14,26,0.75); color:#cfe0ff; font-size:19px;
+    position:absolute; top:calc(var(--sp-2) + var(--safe)); right:calc(var(--sp-2) + var(--safe)); z-index:30; pointer-events:auto;
+    width:var(--btn-sm); height:var(--btn-sm); border-radius:8px; border:1px solid #3a4a70; cursor:pointer;
+    background:rgba(10,14,26,0.75); color:#cfe0ff; font-size:var(--font-lg);
     display:flex; align-items:center; justify-content:center;
   }
   #settingsBtn:hover { background:rgba(30,40,70,0.92); }
@@ -324,7 +346,7 @@
         <button class="gameBtn" id="btnCh3" style="background:linear-gradient(180deg,#c98fff,#7a3fd0);">Capítulo 3: O Encontro</button>
         <button class="gameBtn" id="btnCh4" style="background:linear-gradient(180deg,#ff9a5c,#b8480f);">Capítulo 4: O Titã</button>
       </div>
-      <p style="font-size:12px;opacity:0.6;">Mover: setas / WASD &nbsp;·&nbsp; Interagir: espaço/enter</p>
+      <p class="kbdHint" style="font-size:var(--font-xs);opacity:0.6;">Mover: setas / WASD &nbsp;·&nbsp; Interagir: espaço/enter</p>
     </div>
 
     <div id="endOverlay" class="fullOverlay hidden">
