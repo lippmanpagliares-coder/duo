@@ -132,6 +132,13 @@
     background:rgba(40,30,8,0.8); color:#ffe27a; font-size:var(--font-lg); align-items:center; justify-content:center;
   }
   #packBtn.show { display:flex; }
+  #mapBtn {
+    position:absolute; top:calc(var(--sp-2) + var(--safe)); right:calc(var(--sp-2)*3 + var(--btn-sm)*2 + var(--safe)); z-index:30; pointer-events:auto;
+    width:var(--btn-sm); height:var(--btn-sm); border-radius:8px; border:1px solid #3a5a90; cursor:pointer; display:none;
+    background:rgba(10,20,44,0.8); color:#9fd0ff; font-size:var(--font-lg); align-items:center; justify-content:center;
+  }
+  #mapBtn.show { display:flex; }
+  #mapBtn.solo { right:calc(var(--sp-2)*2 + var(--btn-sm) + var(--safe)); }
   #panelOverlay { position:absolute; inset:0; z-index:45; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.86); }
   #panelOverlay.open { display:flex; }
   #panelBox {
@@ -314,6 +321,7 @@
       <button class="dpadBtn" id="dpadDown" type="button">▼</button>
     </div>
 
+    <button id="mapBtn" type="button" title="Mapa (M)">🗺</button>
     <button id="packBtn" type="button" title="Mochila: melhorias, personagens e conquistas">🎒</button>
     <div id="panelOverlay">
       <div id="panelBox">
@@ -454,6 +462,9 @@ const ROSTER = {
   king:  { name:'Rei',     hp:1.25, atk:1.25, spGain:0.9,  dashMul:1.0,  crit:0,    desc:'Realeza: +25% de vida e ataque.', unlock:'Colete 3 esmeraldas de desafio' },
   totoziho:{ name:'Totoziho', hp:1.10, atk:1.05, spGain:1.35, dashMul:0.9, crit:0.03, desc:'Alegre e cheio de energia: +35% de carga do especial.', unlock:'Derrote 20 monstros' },
   ice:   { name:'Ice',     hp:1.05, atk:1.15, spGain:1.0,  dashMul:0.85, crit:0.08, desc:'O Duo de gelo: ataque afiado, dash mais rápido, +8% de crítico.', unlock:'Colete 2 esmeraldas de desafio' },
+  raphidash:{ name:'Raphidash', hp:0.95, atk:1.25, spGain:1.05, dashMul:1.0, crit:0.06, desc:'Coruja de fogo do planeta do Duo: +25% de ataque, +6% de crítico.', unlock:'Derrote 40 monstros' },
+  zapi:  { name:'Zapi',    hp:0.90, atk:1.10, spGain:1.10, dashMul:0.7,  crit:0.04, desc:'Coruja elétrica do planeta do Duo: dash 30% mais rápido, +10% de especial.', unlock:'Chegue ao nível 10' },
+  naia:  { name:'Naia',    hp:1.20, atk:1.00, spGain:1.25, dashMul:0.95, crit:0,    desc:'Coruja da água do planeta do Duo: +20% de vida, +25% de carga do especial.', unlock:'Colete 4 esmeraldas de desafio' },
   glard: { name:'Glard',   hp:1.30, atk:1.30, spGain:1.0,  dashMul:1.15, crit:0,    desc:'Dinossauro de fogo: +30% de vida e ataque, dash mais lento.', unlock:'Conquiste a Esmeralda da Precisão' }
 };
 const UPGRADE_DEFS = {
@@ -474,7 +485,7 @@ const EMERALD_DEFS = {   // permanent bonuses earned from open-world challenges
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
-    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totoziho:false, ice:false, glard:false },
+    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totoziho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
     main:'duo', sub:'astro', visited:{}, achievements:{} };
 }
 let progress = freshProgress();
@@ -542,7 +553,8 @@ function sfxSpecial(){ [392,523,659,784,1047].forEach((f,i)=> beep(f,0.12,'trian
 /* ---------------- input ---------------- */
 const keys = {};
 window.addEventListener('keydown', e=>{
-  if (e.key === 'Escape'){ if (panelOpen) closePanel(); else toggleSettings(); return; }
+  if (e.key === 'Escape'){ if (mapOpen) mapOpen = false; else if (panelOpen) closePanel(); else toggleSettings(); return; }
+  if ((e.key === 'm' || e.key === 'M') && !e.repeat && !settingsOpen && !panelOpen){ toggleMap(); return; }
   if (settingsOpen || panelOpen) return;
   if (!e.repeat){
     if (e.key === 'Shift' || e.key === 'j' || e.key === 'J') tryDash();
@@ -644,6 +656,32 @@ function drawOwlAdult(g,x,y,s,facing,opts){
       g.beginPath(); g.moveTo(s*a-s*0.05,s*b); g.lineTo(s*c,s*d); g.lineTo(s*e,s*f); g.closePath(); g.fill(); });
     g.fillStyle = 'rgba(255,255,255,0.8)';
     for (let i=0;i<4;i++){ const a = tt*1.2+i*1.6; g.beginPath(); g.arc(Math.cos(a)*s*0.78,Math.sin(a)*s*0.55-s*0.1,s*0.03,0,Math.PI*2); g.fill(); }
+  } else if (opts.accessory === 'flameCrest'){         // Raphidash: a live flame crest and drifting embers
+    const tt = Date.now()/1000;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.fillStyle = `rgba(255,110,30,${0.16+0.06*Math.sin(tt*5)})`; g.beginPath(); g.arc(0,-s*0.1,s*0.98,0,Math.PI*2); g.fill();
+    [[-0.26,0.34],[0,0.5],[0.26,0.34]].forEach(([fx,fh],i)=>{ const k = Math.sin(tt*9+i*2)*s*0.05, top = -s*(0.98+fh);
+      [['rgba(255,80,20,0.85)',1],['rgba(255,190,60,0.9)',0.66],['rgba(255,250,200,0.95)',0.34]].forEach(([c,sc])=>{
+        g.fillStyle = c; g.beginPath(); g.moveTo(s*fx-s*0.11*sc,-s*0.9); g.quadraticCurveTo(s*fx-s*0.1*sc+k,-s*0.95-s*fh*0.5*sc,s*fx+k,top*sc-s*0.9*(1-sc)); g.quadraticCurveTo(s*fx+s*0.1*sc+k,-s*0.95-s*fh*0.5*sc,s*fx+s*0.11*sc,-s*0.9); g.closePath(); g.fill(); }); });
+    for (let i=0;i<5;i++){ const u = (tt*0.7+i*0.2)%1; g.fillStyle = `rgba(255,${150+i*20},60,${1-u})`; g.beginPath(); g.arc(Math.sin(i*2.3+tt)*s*0.7,-s*0.2-u*s*1.1,s*0.03,0,Math.PI*2); g.fill(); }
+    g.restore();
+  } else if (opts.accessory === 'boltCrest'){          // Zapi: a crackling lightning bolt crest and sparks
+    const tt = Date.now()/1000, flick = 0.7+0.3*Math.sin(tt*20);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.fillStyle = `rgba(255,230,80,${0.12+0.06*Math.sin(tt*7)})`; g.beginPath(); g.arc(0,-s*0.1,s*0.98,0,Math.PI*2); g.fill();
+    g.fillStyle = `rgba(255,240,120,${flick})`; g.beginPath();
+    g.moveTo(s*0.06,-s*1.5); g.lineTo(-s*0.14,-s*1.16); g.lineTo(-s*0.02,-s*1.16); g.lineTo(-s*0.1,-s*0.88); g.lineTo(s*0.16,-s*1.2); g.lineTo(s*0.03,-s*1.2); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,255,200,0.8)'; g.lineWidth = s*0.025;
+    for (let i=0;i<3;i++){ const a = tt*4+i*2.1; if (Math.sin(a*3) > 0.2){ g.beginPath(); g.moveTo(Math.cos(a)*s*0.7,Math.sin(a)*s*0.5-s*0.1); g.lineTo(Math.cos(a)*s*0.85+s*0.06,Math.sin(a)*s*0.6-s*0.1-s*0.06); g.lineTo(Math.cos(a)*s*0.95,Math.sin(a)*s*0.7-s*0.1); g.stroke(); } }
+    g.restore();
+  } else if (opts.accessory === 'waveCrest'){          // Naia: a water-drop crest and rising bubbles
+    const tt = Date.now()/1000;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.fillStyle = `rgba(80,190,255,${0.14+0.06*Math.sin(tt*3)})`; g.beginPath(); g.arc(0,-s*0.1,s*0.98,0,Math.PI*2); g.fill(); g.restore();
+    g.fillStyle = 'rgba(120,220,255,0.95)'; g.beginPath(); g.moveTo(0,-s*1.42); g.quadraticCurveTo(s*0.22,-s*1.1,s*0.14,-s*0.98); g.quadraticCurveTo(0,-s*0.9,-s*0.14,-s*0.98); g.quadraticCurveTo(-s*0.22,-s*1.1,0,-s*1.42); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(-s*0.05,-s*1.1,s*0.03,s*0.06,0.3,0,Math.PI*2); g.fill();
+    g.strokeStyle = 'rgba(200,240,255,0.8)'; g.lineWidth = s*0.02;
+    for (let i=0;i<4;i++){ const u = (tt*0.5+i*0.25)%1; g.beginPath(); g.arc(Math.sin(i*1.9)*s*0.6,s*0.5-u*s*1.3,s*(0.03+0.02*(i%2)),0,Math.PI*2); g.stroke(); }
   } else if (opts.accessory === 'bow'){
     g.fillStyle = opts.bowColor || '#ff5fa0';
     g.beginPath(); g.moveTo(0,-s*0.96); g.lineTo(-s*0.18,-s*1.12); g.lineTo(-s*0.02,-s*0.98); g.closePath(); g.fill();
@@ -833,6 +871,10 @@ function drawKing(g,x,y,s,facing){
 function drawIce(g,x,y,s,facing){       // Duo's frozen counterpart: same owl body, icy palette, floating crystal crown
   drawOwlAdult(g,x,y,s,facing,{ body:'#7fd8ff', belly:'#f4ffff', wing:'#3a9ad0', beak:'#e8fbff', eyeWhite:'#ffffff', eyePupil:'#0a3a5a', accessory:'iceCrown' });
 }
+// more owls from Duo's home planet, one per element
+function drawRaphidash(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#ff6a2a', belly:'#ffe6b8', wing:'#c22a0a', beak:'#ffd54a', eyeWhite:'#fff8e0', eyePupil:'#5a0a00', accessory:'flameCrest' }); }
+function drawZapi(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#ffd23a', belly:'#fff6c8', wing:'#c9930a', beak:'#3a2a10', eyeWhite:'#ffffff', eyePupil:'#2a1a00', accessory:'boltCrest' }); }
+function drawNaia(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#2f7fe0', belly:'#d8f0ff', wing:'#1a4aa0', beak:'#ffd06a', eyeWhite:'#ffffff', eyePupil:'#062a5a', accessory:'waveCrest' }); }
 function drawTotoziho(g,x,y,s,facing){  // cheerful round critter with big orange ears, a blue scarf and a star on the forehead
   facing = facing || 1;
   g.save(); g.translate(x,y);
@@ -989,6 +1031,60 @@ function drawBugGem(g,x,y,s,found){      // a corrupted gem: cyan/magenta channe
   g.fillStyle = 'rgba(0,255,120,0.9)';
   for (let i=0;i<4;i++){ g.fillRect((fxRand(i,82+Math.floor(t*10))-0.5)*s*1.4,(fxRand(i,83+Math.floor(t*10))-0.5)*s*1.2,s*0.14,s*0.05); }
   if (jit > 0.85){ g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(-s*0.7,(jit-0.85)*s*4-s*0.3,s*1.4,s*0.06); }
+  g.restore();
+}
+/* ---- Backrooms entities ---- */
+function drawSmiler(g,x,y,s){            // a floating grin in the dark: two glowing eyes and a wide jagged smile
+  const t = Date.now()/1000, jit = fxRand(Math.floor(t*10),110) > 0.9 ? (fxRand(Math.floor(t*10),111)-0.5)*s*0.3 : 0;
+  g.save(); g.translate(x+jit,y+Math.sin(t*2.2)*s*0.06);
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(0,s*0.95-Math.sin(t*2.2)*s*0.06,s*0.5,s*0.1,0,0,Math.PI*2); g.fill();
+  g.save(); g.globalCompositeOperation = 'lighter'; const ag = g.createRadialGradient(0,0,s*0.1,0,0,s*1.2); ag.addColorStop(0,`rgba(255,255,200,${0.18+0.14*fxRage})`); ag.addColorStop(1,'rgba(255,255,200,0)'); g.fillStyle = ag; g.beginPath(); g.arc(0,0,s*1.2,0,Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = '#07050a';
+  g.beginPath(); for (let i=0;i<=12;i++){ const a = i/12*Math.PI*2, r = s*(0.86+0.1*Math.sin(t*2+i*1.7)); g.lineTo(Math.cos(a)*r,Math.sin(a)*r*0.95); } g.closePath(); g.fill();
+  g.fillStyle = '#f8f4d8';
+  [-1,1].forEach(sd=>{ g.beginPath(); g.ellipse(sd*s*0.3,-s*0.28,s*0.1,s*0.14,sd*0.15,0,Math.PI*2); g.fill(); });
+  g.strokeStyle = '#f8f4d8'; g.lineWidth = s*0.06; g.lineCap = 'round'; g.beginPath(); g.arc(0,s*0.02,s*0.52,0.15,Math.PI-0.15); g.stroke();
+  g.fillStyle = '#f8f4d8'; for (let i=0;i<9;i++){ const a = 0.25+i*(Math.PI-0.5)/8, px = Math.cos(a)*s*0.52, py = s*0.02+Math.sin(a)*s*0.52; g.beginPath(); g.moveTo(px-s*0.03,py-s*0.01); g.lineTo(px,py-s*0.12*(i%2?0.8:1)); g.lineTo(px+s*0.03,py-s*0.01); g.closePath(); g.fill(); }
+  g.restore();
+}
+function drawFaceless(g,x,y,s){          // a too-tall pale figure in a dark suit with a smooth, blank face
+  const t = Date.now()/1000, sway = Math.sin(t*1.3)*s*0.05;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.98);
+  g.strokeStyle = '#1a1a22'; g.lineWidth = s*0.11; g.lineCap = 'round';                       // long dangling arms
+  g.beginPath(); g.moveTo(-s*0.2,-s*0.1); g.quadraticCurveTo(-s*0.5+sway,s*0.3,-s*0.42+sway*1.5,s*0.78); g.stroke();
+  g.beginPath(); g.moveTo(s*0.2,-s*0.1); g.quadraticCurveTo(s*0.5+sway,s*0.3,s*0.42+sway*1.5,s*0.78); g.stroke();
+  g.fillStyle = '#e8e2d6'; [-1,1].forEach(sd=>{ g.beginPath(); g.ellipse(sd*s*0.42+sway*1.5,s*0.82,s*0.06,s*0.1,0,0,Math.PI*2); g.fill(); });
+  g.fillStyle = '#1a1a22'; g.beginPath(); g.moveTo(-s*0.26,-s*0.2); g.lineTo(s*0.26,-s*0.2); g.lineTo(s*0.2,s*0.7); g.lineTo(-s*0.2,s*0.7); g.closePath(); g.fill();   // suit
+  g.fillStyle = '#f2ece0'; g.beginPath(); g.moveTo(-s*0.06,-s*0.2); g.lineTo(s*0.06,-s*0.2); g.lineTo(0,s*0.15); g.closePath(); g.fill();
+  g.fillStyle = '#7a1a22'; g.beginPath(); g.moveTo(-s*0.03,-s*0.14); g.lineTo(s*0.03,-s*0.14); g.lineTo(s*0.02,s*0.3); g.lineTo(-s*0.02,s*0.3); g.closePath(); g.fill();   // tie
+  g.fillStyle = volumeGrad(g,0,-s*0.5,s*0.3,'#fffaf0','#d8d0c0'); g.beginPath(); g.ellipse(sway*0.5,-s*0.5,s*0.2,s*0.28,0,0,Math.PI*2); g.fill();  // blank head
+  g.strokeStyle = `rgba(0,0,0,${0.10+0.08*fxRage})`; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-s*0.08,-s*0.5); g.lineTo(s*0.08,-s*0.5); g.stroke();
+  if (fxRage > 0.2 || fxRand(Math.floor(t*8),112) > 0.94){ g.fillStyle = '#000'; g.beginPath(); g.ellipse(sway*0.5,-s*0.42,s*0.09,s*0.05,0,0,Math.PI*2); g.fill(); }
+  g.restore();
+}
+function drawCrawler(g,x,y,s){           // a low, many-legged shape: black spindly limbs and a cluster of glowing yellow eyes
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.7);
+  g.strokeStyle = '#0c0a10'; g.lineWidth = s*0.06; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let i=0;i<8;i++){ const sd = i%2 ? 1 : -1, k = Math.floor(i/2), ph = Math.sin(t*7+i*1.3)*s*0.08;
+    g.beginPath(); g.moveTo(sd*s*0.2,s*0.15+k*s*0.04); g.lineTo(sd*s*(0.55+k*0.08),-s*0.25+k*s*0.1+ph); g.lineTo(sd*s*(0.85+k*0.06),s*0.55+ph*0.5); g.stroke(); }
+  g.fillStyle = volumeGrad(g,0,0,s*0.5,'#2a2430','#07050a'); g.beginPath(); g.ellipse(0,s*0.15,s*0.34,s*0.28,0,0,Math.PI*2); g.fill();
+  g.save(); g.globalCompositeOperation = 'lighter';
+  [[-0.14,0.05],[0.02,-0.02],[0.16,0.06],[-0.05,0.18],[0.1,0.2]].forEach(([ex,ey],i)=>{ g.fillStyle = fxRage>0 ? 'rgba(255,60,60,0.9)' : 'rgba(255,230,70,0.9)'; g.beginPath(); g.arc(ex*s,ey*s+s*0.05,s*(0.04+0.012*Math.sin(t*4+i)),0,Math.PI*2); g.fill(); });
+  g.restore();
+  g.restore();
+}
+function drawExitDoor(g,x,y,s){         // the Backrooms' hidden emergency exit: a plain door with a dim, flickering green sign
+  const t = Date.now()/1000, on = fxRand(Math.floor(t*6),96) > 0.18;
+  g.save(); g.translate(x,y);
+  g.fillStyle = '#4a4630'; g.fillRect(-s*0.34,-s*0.7,s*0.68,s*1.4);
+  g.fillStyle = '#2a2818'; g.fillRect(-s*0.28,-s*0.62,s*0.56,s*1.3);
+  g.fillStyle = '#c8b850'; g.beginPath(); g.arc(s*0.16,s*0.1,s*0.04,0,Math.PI*2); g.fill();
+  g.fillStyle = on ? '#1c6a34' : '#0e2a18'; g.fillRect(-s*0.3,-s*0.98,s*0.6,s*0.22);
+  g.fillStyle = on ? '#b8ffcc' : '#3a6a48'; g.font = `bold ${Math.round(s*0.17)}px sans-serif`; g.textAlign = 'center'; g.fillText('SAÍDA', 0, -s*0.81);
+  if (on){ g.save(); g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(0,-s*0.87,0,0,-s*0.87,s*0.9); rg.addColorStop(0,'rgba(90,255,150,0.35)'); rg.addColorStop(1,'rgba(90,255,150,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.87,s*0.9,0,Math.PI*2); g.fill(); g.restore(); }
   g.restore();
 }
 function drawSecretDoor(g,x,y,s,found){  // a barely-visible seam in the wall, shimmering; once found it becomes a glitching doorway
@@ -1530,7 +1626,7 @@ function eyesBig(g,s,white,pupil,yOff){
 const DRAW = { duo:drawDuo, astro:drawAstro, plant:drawEyePlant, drone:drawDrone, huggy:drawHuggy, father:drawFatherOwl, mother:drawMotherOwl, villager:drawVillagerOwl, predator:drawVulcromPredator, chest:drawChest, weapon:drawAlienWeapon, energyCell:drawEnergyCell, mechaOff:drawMechaOff, mechaPlayer:drawMechaPlayer, mechaEnemy:drawMechaEnemy, rocket:drawRocketShip, hunter:drawAlienHunter, armaGuardia:drawArmaGuardia, teleportGem:drawTeleportGem, astroDown:drawAstroDown, huggyDown:drawHuggyDown, titan:drawTitan, elementalEmerald:drawElementalEmerald, cueio:drawCueio,
   shadowPredator:drawShadowPredator, king:drawKing, disguiseEmerald:drawDisguiseEmerald,
   giant:drawGiant, monsterEmerald:drawMonsterEmerald,
-  totoziho:drawTotoziho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor };
+  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totoziho:drawTotoziho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler };
 
 /* ---------------- dialogue system ---------------- */
 let dialogueQueue = [], dialogueIdx = 0, dialogueActive = false, dialogueOnEnd = null;
@@ -1625,6 +1721,7 @@ function rectsOverlap(a,b){
 function expand(r,pad){ return {x:r.x-pad,y:r.y-pad,w:r.w+pad*2,h:r.h+pad*2}; }
 
 function goToScene(scene, spawn){
+  mapEnter(scene);
   currentScene = scene;
   player.x = spawn.x; player.y = spawn.y;
   sceneLocked = false;
@@ -1639,6 +1736,8 @@ function updateActionButton(){
   dpad.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
   dashBtn.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
   packBtn.classList.toggle('show', !!(currentScene && currentScene.isOpenWorld) && !battleVisible && !dialogueActive && !menuVisible && !endVisible);
+  { const mv = !!currentScene && !battleVisible && !dialogueActive && !menuVisible && !endVisible && (currentScene.isOpenWorld || !!mapCur);
+    mapBtn.classList.toggle('show', mv); mapBtn.classList.toggle('solo', !(currentScene && currentScene.isOpenWorld)); }
   if (menuVisible || endVisible || battleVisible){
     actionBtn.style.display = 'none';
     return;
@@ -1734,7 +1833,7 @@ function updateExploration(dt){
   // exits
   const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
   for (const ex of (currentScene.exits||[])){
-    if (rectsOverlap(pRect, ex)){ ex.onEnter(); return; }
+    if (rectsOverlap(pRect, ex)){ mapExitDir = exitDir(ex); ex.onEnter(); mapExitDir = null; return; }
   }
   // interact hint
   let showHint = false;
@@ -2075,6 +2174,8 @@ function renderScene(){
   if (fxWhite > 0.01){ ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9,fxWhite).toFixed(3)})`; ctx.fillRect(0,0,W,H); }
   if (battle) drawBattleHud(ctx, tSec);
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
+  else drawChapterMiniMap(ctx);
+  if (mapOpen && !battle) drawBigMap(ctx);
 }
 
 /* ---------------- battle system (real-time arena) ---------------- */
@@ -2274,6 +2375,7 @@ const ENEMY_MOVES = {
   titan:['slam','charge'], drone:['fan','laser'], shadowPredator:['pounce','wisps'], hunter:['charge','fan'],
   armaGuardia:['ring','fan','laser'], predator:['pounce','slam'], mechaEnemy:['fan','ring'],
   giant:['slam','charge','ring','pounce'], hydra:['fan','wisps','laser'],
+  smiler:['wisps','fan','ring'], faceless:['charge','pounce','slam'], crawler:['pounce','wisps','fan'],
   ortsa:['pounce','fan','charge','wisps'], wordDevourer:['slam','ring','wisps','laser'], universeDevourer:['ring','laser','fan','slam','wisps']
 };
 const MOVE_NAMES = { slam:'ESMAGAR!', charge:'INVESTIDA!', fan:'DISPARO!', laser:'LASER!', ring:'ONDA!', pounce:'BOTE!', wisps:'ALMAS!' };
@@ -2608,7 +2710,7 @@ function updateBattle(dt){
   // ambient aura particles: embers off the titan, sparks off the turret, wisps off the shadow beast…
   const AURA = { titan:['255,140,50',16], armaGuardia:['255,170,60',12], shadowPredator:['160,110,255',14],
                  drone:['200,120,255',6], hunter:['255,60,80',5], predator:['255,90,60',8], giant:['255,110,40',22], hydra:['120,255,160',12],
-                 ortsa:['255,50,100',14], wordDevourer:['200,150,255',20], universeDevourer:['255,80,240',26] };
+                 smiler:['255,250,190',12], faceless:['200,200,210',7], crawler:['255,230,70',9], ortsa:['255,50,100',14], wordDevourer:['200,150,255',20], universeDevourer:['255,80,240',26] };
   const au = AURA[b.enemy.type];
   if (au && fxQuality() > 0 && Math.random() < au[1]*(rage?2:1)*dt && fxParticles.length < 300){
     fxParticles.push({ x:ex+(Math.random()-0.5)*44, y:ey+(Math.random()-0.5)*34, vx:(Math.random()-0.5)*34,
@@ -3532,12 +3634,26 @@ function drawDeco(g,k,x,y,w,h,t,st){
     g.strokeStyle = '#e8e0d0'; g.lineWidth = 3; g.lineCap = 'round'; g.beginPath(); g.moveTo(x+2,by-4); g.lineTo(x+w-2,by-4); g.stroke();
     for (let i=0;i<4;i++){ g.beginPath(); g.arc(x+8+i*8,by-4,7,Math.PI,Math.PI*2); g.stroke(); }
     break;
-  case 'bwall': {
-    g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(x+4,by-2,w,7);
-    g.fillStyle = '#b6a43c'; g.fillRect(x,y+10,w,h-10);
-    g.fillStyle = '#e4d472'; g.fillRect(x,y,w,12);
-    g.fillStyle = 'rgba(0,0,0,0.09)'; for (let sx=x+8;sx<x+w;sx+=16) g.fillRect(sx,y+12,6,h-12);
-    g.fillStyle = '#7a6c22'; g.fillRect(x,by-6,w,6);
+  case 'bwall': {       // a slab of moldy-yellow wallpaper; st.gk (0..1) = how close the player is → glitches harder
+    const gk = st.gk || 0, slot = Math.floor(t*14);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const halo = g.createRadialGradient(cx,y+h*0.6,0,cx,y+h*0.6,w*0.7+30); halo.addColorStop(0,'rgba(255,240,110,0.16)'); halo.addColorStop(1,'rgba(255,240,110,0)');
+    g.fillStyle = halo; g.fillRect(x-40,y-40,w+80,h+80); g.restore();
+    g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(x+5,by-2,w,8);
+    g.fillStyle = '#d9c443'; g.fillRect(x,y+12,w,h-12);
+    g.fillStyle = '#efe07a'; g.fillRect(x,y,w,14);
+    g.fillStyle = 'rgba(120,100,10,0.28)'; for (let sx=x+8;sx<x+w-4;sx+=18) g.fillRect(sx,y+14,7,h-20);
+    g.fillStyle = '#8f7f1c'; g.fillRect(x,by-7,w,7);
+    g.strokeStyle = '#6a5c10'; g.lineWidth = 2; g.strokeRect(x+1,y+1,w-2,h-2);
+    if (gk > 0.02 && fxQuality() > 0){
+      g.save(); g.globalCompositeOperation = 'lighter';
+      g.fillStyle = `rgba(0,255,240,${0.4*gk})`; g.fillRect(x-3-fxRand(slot,97)*8*gk,y,w,h);
+      g.fillStyle = `rgba(255,0,200,${0.4*gk})`; g.fillRect(x+3+fxRand(slot,98)*8*gk,y,w,h);
+      g.restore();
+      for (let i=0;i<5;i++){ const sy = y+fxRand(slot+i,99)*(h-4), sh = 3+fxRand(slot+i,100)*9, off = (fxRand(slot+i,101)-0.5)*40*gk; g.drawImage(g.canvas,x,sy,w,sh,x+off,sy,w,sh); }
+      g.fillStyle = '#12ff9a'; for (let i=0;i<Math.ceil(6*gk);i++) g.fillRect(x+fxRand(slot+i,102)*w,y+fxRand(slot+i,103)*h,4+fxRand(slot+i,104)*10,2);
+      if (gk > 0.5 && fxRand(slot,105) > 0.6){ g.font = `bold ${Math.round(h*0.5)}px monospace`; g.textAlign = 'center'; g.fillStyle = 'rgba(0,255,150,0.55)'; g.fillText('ERRO', cx+(fxRand(slot,106)-0.5)*20, y+h*0.68); }
+    }
     break; }
   }
 }
@@ -3656,28 +3772,52 @@ function drawLandmark(g,k,x,y,w,h,t,st,alt){
 function brItems(bx,by){
   const key = 'br'+bx+','+by;
   if (OW_ITEM_CACHE[key]) return OW_ITEM_CACHE[key];
-  const dimFn = (k,i)=>[40+Math.floor(fxRand(bx*5+by+i,91)*90), 40+Math.floor(fxRand(bx+by*7+i,92)*36), 1];
+  const dimFn = (k,i)=>[70+Math.floor(fxRand(bx*5+by+i,91)*110), 54+Math.floor(fxRand(bx+by*7+i,92)*28), 1];
   const avoid = [{x:W/2-46,y:H/2-46,w:92,h:92}].concat(BR_AVOID[bx+','+by]||[]);
-  return OW_ITEM_CACHE[key] = scatterItems(bx+11,by+5,['bwall'],7,avoid,dimFn);
+  return OW_ITEM_CACHE[key] = scatterItems(bx+11,by+5,['bwall'],11,avoid,dimFn);
 }
-const BR_AVOID = { '1,1':[{x:W/2-70,y:H/2-90,w:140,h:180}], '2,0':[{x:W-260,y:96,w:200,h:150}], '0,0':[{x:80,y:96,w:140,h:130}] };
+const BR_AVOID = { '0,2':[{x:90,y:90,w:130,h:150}], '1,1':[{x:W/2-70,y:H/2-90,w:140,h:180}], '2,0':[{x:W-260,y:96,w:200,h:150}], '0,0':[{x:80,y:96,w:140,h:130}] };
 function brObstacles(bx,by){ return brItems(bx,by).map(o=>({x:o.x,y:o.y+8,w:o.w,h:o.h-8})); }
 function drawBackrooms(g,bx,by,t){
-  const flick = fxRand(Math.floor(t*9),bx*3+by+80) > 0.955;
-  g.fillStyle = '#d8c860'; g.fillRect(0,0,W,110);
-  g.fillStyle = '#c8b850'; for (let x=0;x<W;x+=28) g.fillRect(x,0,10,110);
+  const flick = fxRand(Math.floor(t*9),bx*3+by+80) > 0.955, slot = Math.floor(t*12);
+  const WALL = '#d9c443', WALL2 = '#c4ae30';
+  g.fillStyle = WALL; g.fillRect(0,0,W,110);
+  g.fillStyle = WALL2; for (let x=0;x<W;x+=28) g.fillRect(x,0,10,110);
+  g.fillStyle = 'rgba(255,255,220,0.10)'; g.fillRect(0,0,W,50);
   g.fillStyle = '#8a7a26'; g.fillRect(0,100,W,10);
-  const fg = g.createLinearGradient(0,110,0,H); fg.addColorStop(0,'#b0a040'); fg.addColorStop(1,'#8a7c2a'); g.fillStyle = fg; g.fillRect(0,110,W,H-110);
+  const fg = g.createLinearGradient(0,110,0,H); fg.addColorStop(0,'#bfae48'); fg.addColorStop(1,'#93832c'); g.fillStyle = fg; g.fillRect(0,110,W,H-110);
   g.fillStyle = 'rgba(0,0,0,0.07)'; for (let i=0;i<220;i++) g.fillRect(fxRand(i+bx*3,93+by)*W, 116+fxRand(i+by*3,94+bx)*(H-120), 3, 2);
   g.fillStyle = 'rgba(70,55,10,0.16)'; [[180,380,54],[700,190,40],[560,480,60]].forEach(([x,y,r],i)=>{ if ((i+bx+by)%2===0){ g.beginPath(); g.ellipse(x,y,r,r*0.4,0,0,Math.PI*2); g.fill(); } });
+  // enclosing yellow walls on the sides and bottom, with dark openings where the four exits are
+  const openL = H/2-60, openR = H/2+60, openB0 = W/2-60, openB1 = W/2+60;
+  g.fillStyle = WALL; g.fillRect(0,110,22,openL-110); g.fillRect(0,openR,22,H-openR); g.fillRect(W-22,110,22,openL-110); g.fillRect(W-22,openR,22,H-openR);
+  g.fillRect(0,H-22,openB0,22); g.fillRect(openB1,H-22,W-openB1,22);
+  g.fillStyle = WALL2; for (let y=120;y<H;y+=28){ g.fillRect(0,y,22,8); g.fillRect(W-22,y,22,8); }
+  g.fillStyle = '#5a4c10'; g.fillRect(22,110,3,openL-110); g.fillRect(22,openR,3,H-openR); g.fillRect(W-25,110,3,openL-110); g.fillRect(W-25,openR,3,H-openR); g.fillRect(0,H-25,openB0,3); g.fillRect(openB1,H-25,W-openB1,3);
+  g.fillStyle = '#2a2308'; g.fillRect(0,openL,22,120); g.fillRect(W-22,openL,22,120); g.fillRect(openB0,H-22,120,22); g.fillRect(W/2-60,70,120,30);
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,240,120,${0.16+0.08*Math.sin(t*3)})`;
+  [[6,H/2,-1,0],[W-6,H/2,1,0],[W/2,H-8,0,1],[W/2,86,0,-1]].forEach(([ax,ay,dx,dy])=>{ g.beginPath(); g.moveTo(ax+dx*4+dy*12,ay+dy*4+dx*12); g.lineTo(ax-dx*4,ay-dy*4); g.lineTo(ax+dx*4-dy*12,ay+dy*4-dx*12); g.closePath(); g.fill(); });
+  g.restore();
   const panels = [W*0.2,W*0.5,W*0.8];
   panels.forEach((px,i)=>{
     const on = !(flick && i===1);
     g.fillStyle = on ? '#fffbe0' : '#6a6220'; g.fillRect(px-44,18,88,16);
-    if (on){ const lg = g.createRadialGradient(px,150,0,px,150,190); lg.addColorStop(0,'rgba(255,250,200,0.30)'); lg.addColorStop(1,'rgba(255,250,200,0)'); g.fillStyle = lg; g.fillRect(px-190,110,380,H-110); }
+    if (on){ const lg = g.createRadialGradient(px,150,0,px,150,200); lg.addColorStop(0,'rgba(255,250,190,0.34)'); lg.addColorStop(1,'rgba(255,250,190,0)'); g.fillStyle = lg; g.fillRect(px-200,110,400,H-110); }
   });
-  brItems(bx,by).forEach(o=> drawDeco(g,'bwall',o.x,o.y,o.w,o.h,t,{}));
-  g.fillStyle = 'rgba(60,45,0,0.5)'; g.font = '11px monospace'; g.textAlign = 'center'; g.fillText(`NÍVEL 0 · sala ${bx}-${by}`, W/2, H-24);
+  // walls glitch harder the closer you get (RGB split, displaced slices, "ERRO")
+  const pcx = player.x+player.w/2, pcy = player.y+player.h/2;
+  let worst = 0;
+  brItems(bx,by).forEach(o=>{
+    const dx = Math.max(o.x-pcx, 0, pcx-(o.x+o.w)), dy = Math.max(o.y-pcy, 0, pcy-(o.y+o.h));
+    const gk = Math.max(0, 1-Math.hypot(dx,dy)/110); worst = Math.max(worst,gk);
+    drawDeco(g,'bwall',o.x,o.y,o.w,o.h,t,{gk});
+  });
+  if (worst > 0.25 && fxQuality() > 0){          // the whole room stutters a little when you're right next to a wall
+    const sy = 110+fxRand(slot,107)*(H-150), sh = 4+fxRand(slot,108)*14, off = (fxRand(slot,109)-0.5)*30*worst;
+    g.drawImage(g.canvas,0,sy,W,sh,off,sy,W,sh);
+    g.fillStyle = `rgba(0,255,200,${0.10*worst})`; g.fillRect(0,sy,W,sh);
+  }
+  g.fillStyle = 'rgba(60,45,0,0.55)'; g.font = '11px monospace'; g.textAlign = 'center'; g.fillText(`NÍVEL 0 · sala ${bx}-${by}`, W/2, H-30);
   if (flick){ g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0,0,W,H); }
 }
 function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring of dark stars around a swirling void
@@ -4764,6 +4904,9 @@ function checkUnlocks(){
   if (progress.kills >= 20) unlockChar('totoziho','Totoziho');
   if (emeraldCount() >= 2) unlockChar('ice','Ice');
   if (progress.emeralds.crit) unlockChar('glard','Glard');
+  if (progress.kills >= 40) unlockChar('raphidash','Raphidash');
+  if (progress.level >= 10) unlockChar('zapi','Zapi');
+  if (emeraldCount() >= 4) unlockChar('naia','Naia');
 }
 function checkAchievements(){
   if (checkingAch) return;
@@ -4926,10 +5069,10 @@ function buildOpenWorld(){
       }
     });
   }
-  function populate(sc, pool, danger){
+  function populate(sc, pool, danger, minCount){
     sc.npcs = sc.npcs.filter(n=> n.persistent);      // keep shrines/villagers, respawn only the roaming monsters
     const spots = [[230,250],[730,250],[230,410],[730,410],[480,200],[480,460]];
-    const want = 1 + (Math.random() < 0.5 ? 1 : 0);
+    const want = Math.max(1 + (Math.random() < 0.5 ? 1 : 0), minCount||0);
     const free = spots.filter(([x,y])=> !sc.obstacles.some(o=> rectsOverlap({x:x-40,y:y-40,w:80,h:100}, o)));
     for (let i=0;i<want && free.length;i++){
       const [x,y] = free.splice(Math.floor(Math.random()*free.length), 1)[0];
@@ -5027,10 +5170,16 @@ function buildOpenWorld(){
   const brKey = (x,y)=> 'br'+x+','+y;
   const brRooms = {};
   const BR_FX = { ambient:{kind:'dust',count:26,color:'255,240,150'}, tint:'rgba(120,105,10,0.16)' };
-  const BR_ROAM = [
+  const BR_ROAM = [       // the old ones plus the new Backrooms-only entities
     {type:'shadowPredator', name:'Entidade Rastejante', hp:170, atk:11, speed:150},
     {type:'hunter',         name:'Sorriso Sem Rosto',   hp:190, atk:12, speed:160},
-    {type:'predator',       name:'Entidade Faminta',    hp:210, atk:13, speed:135}
+    {type:'predator',       name:'Entidade Faminta',    hp:210, atk:13, speed:135},
+    {type:'smiler',         name:'Sorridente',          hp:200, atk:13, speed:120, ranged:true},
+    {type:'smiler',         name:'Sorridente Antigo',   hp:260, atk:15, speed:120, ranged:true},
+    {type:'faceless',       name:'Sem Rosto',           hp:240, atk:14, speed:130},
+    {type:'faceless',       name:'Homem Alto',          hp:300, atk:16, speed:110},
+    {type:'crawler',        name:'Rastejador',          hp:180, atk:12, speed:170},
+    {type:'crawler',        name:'Enxame de Olhos',     hp:230, atk:14, speed:165}
   ];
   function goBR(x, y, from){
     const sp = { l:{x:60,y:H/2-20}, r:{x:W-100,y:H/2-20}, t:{x:W/2-17,y:110}, b:{x:W/2-17,y:H-110} }[from];
@@ -5057,16 +5206,25 @@ function buildOpenWorld(){
           checkAchievements();
         } });
     }
+    if (bx === 0 && by === 2){       // the way out that needs no gem — but you have to find it first
+      sc.npcs.push({ x:110, y:104, w:60, h:84, type:'exitDoor', scale:52, persistent:true,
+        onInteract: ()=>{
+          startDialogue([
+            {speaker:'Porta', text:'Uma porta de emergência, com um sinal verde de SAÍDA piscando. Ela dá pras Cavernas — sem precisar de joia nenhuma!', color:'#9dffb8'},
+            {speaker:ROSTER[progress.main].name, text:'Achamos! Vamos embora daqui.', color:'#7ef9ff'}
+          ], ()=>{ fxWhite = 0.8; sfxPickup(); goToScene(areas[key(2,2)], {x:W/2-17, y:430}); });
+        } });
+    }
     if (bx === 1 && by === 1){
       sc.npcs.push({ x:W/2-25, y:H/2-140, w:50, h:60, type:'teleportGem', scale:30, persistent:true, label:'Saída (exige a Joia do Teleporte)',
         onInteract: ()=>{
           if (!upgrades.teleportGem){
-            startDialogue([{speaker:'Saída', text:'Uma fenda estável... mas só a energia de uma Joia do Teleporte consegue atravessá-la. Ela estava no bunker do Capítulo 3. (Você ainda pode voltar ao menu pela engrenagem ⚙.)', color:'#ffd54a'}]); return; }
+            startDialogue([{speaker:'Saída', text:'Uma fenda estável... mas só a energia de uma Joia do Teleporte consegue atravessá-la. Ela estava no bunker do Capítulo 3. Mas dizem que existe outra saída, escondida em alguma sala: procure uma porta com um sinal verde de SAÍDA.', color:'#ffd54a'}]); return; }
           startDialogue([{speaker:'Saída', text:'A Joia do Teleporte brilha e abre a fenda. Voltar às Cavernas?', color:'#c9a8ff'}], ()=>{
             fxWhite = 0.8; sfxPickup(); goToScene(areas[key(2,2)], {x:W/2-17, y:430}); });
         } });
     }
-    sc.onEnter = ()=>{ progress.backrooms = true; checkAchievements(); populate(sc, BR_ROAM, 1.7); };
+    sc.onEnter = ()=>{ progress.backrooms = true; checkAchievements(); populate(sc, BR_ROAM, 1.7, 3 + (Math.random() < 0.5 ? 1 : 0)); };
     return sc;
   }
   for (let y=0;y<BR_N;y++) for (let x=0;x<BR_N;x++) brRooms[brKey(x,y)] = makeBackroom(x,y);
@@ -5074,7 +5232,7 @@ function buildOpenWorld(){
     onInteract: function(){
       startDialogue([
         {speaker:ROSTER[progress.main].name, text:'Essa parede... está vibrando. Tem uma fenda escondida aqui!', color:'#7ef9ff'},
-        {speaker:'???', text:upgrades.teleportGem ? 'Você sente a Joia do Teleporte pulsando. Dá pra voltar de lá. Entrar?' : 'Você não sente nenhuma Joia do Teleporte com você. Sem ela, talvez não haja volta. Entrar mesmo assim?', color:'#ffd54a'}
+        {speaker:'???', text:upgrades.teleportGem ? 'Você sente a Joia do Teleporte pulsando. Dá pra voltar de lá. Entrar?' : 'Você não sente nenhuma Joia do Teleporte com você. Sem ela, só voltando por uma porta de emergência escondida lá dentro. Entrar mesmo assim?', color:'#ffd54a'}
       ], ()=>{ fxWhite = 0.9; sfxSpecial(); goToScene(brRooms[brKey(0,0)], {x:W/2-17, y:H-110}); });
     } });
 
@@ -5132,8 +5290,154 @@ function drawMiniMap(g){
   g.fillText('⌂', ox+2*cw+cw/2, oy+1*ch+ch/2+3);
   g.strokeStyle = '#ffffff'; g.lineWidth = 2;
   g.strokeRect(ox+currentScene.owX*cw+0.5, oy+currentScene.owY*ch+0.5, cw-1, ch-1);
+  mapLabel(g, OW_NAMES[owBiome(currentScene.owX,currentScene.owY)], W-14, oy+OW_ROWS*ch+16, 11, 'right');
+  g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Nível '+progress.level+'  ·  M ou 🗺 = mapa', W-14, oy+OW_ROWS*ch+28);
   g.restore();
 }
+
+/* ---------------- maps: corner mini-map + full map (M key / 🗺 button) ---------------- */
+// Chapters have no fixed grid, so the map is built as you walk: each room you leave through a side exit is placed on the
+// matching side of the room you left, and doors inside a room go to the nearest free cell. Unexplored exits show as "?".
+const mapNodes = new Map();
+let mapCur = null, mapExitDir = null, mapOpen = false;
+const MAP_VEC = { l:[-1,0], r:[1,0], u:[0,-1], d:[0,1] }, MAP_OPP = { l:'r', r:'l', u:'d', d:'u' };
+const MAP_SMALL = ['de','do','da','dos','das','o','a','e','para','no','na','em'];
+function mapReset(){ mapNodes.clear(); mapCur = null; mapExitDir = null; }
+function exitDir(ex){
+  const cx = ex.x+ex.w/2, cy = ex.y+ex.h/2, d = { l:cx, r:W-cx, u:cy-60, d:H-cy };   // walkable area starts around y=70
+  let best = null; for (const k in d) if (best === null || d[k] < d[best]) best = k;
+  return d[best] <= 110 ? best : null;                                              // farther than that = a door inside the room
+}
+function mapNodeName(scene){
+  const raw = (scene.banner || 'Sala').toLowerCase().replace(/^cap[ií]tulo \d+ — /, '');
+  return raw.split(' ').map((w,i)=> (i > 0 && MAP_SMALL.includes(w)) ? w : w.charAt(0).toUpperCase()+w.slice(1)).join(' ');
+}
+function mapFreeCell(gx, gy){
+  const taken = new Set([...mapNodes.values()].map(n=> n.gx+','+n.gy));
+  if (!taken.has(gx+','+gy)) return [gx,gy];
+  for (let r=1; r<8; r++) for (let dy=-r; dy<=r; dy++) for (let dx=-r; dx<=r; dx++){
+    if (Math.max(Math.abs(dx),Math.abs(dy)) !== r) continue;
+    if (!taken.has((gx+dx)+','+(gy+dy))) return [gx+dx, gy+dy];
+  }
+  return [gx,gy];
+}
+function mapEnter(scene){
+  if (scene.isOpenWorld){ mapReset(); return; }          // the open world has its own fixed grid
+  const dir = mapExitDir; mapExitDir = null;
+  let node = mapNodes.get(scene);
+  if (!node){
+    let gx = 0, gy = 0;
+    if (mapCur){ const v = MAP_VEC[dir] || MAP_VEC.r; gx = mapCur.gx+v[0]; gy = mapCur.gy+v[1]; }
+    [gx,gy] = mapFreeCell(gx,gy);
+    node = { gx, gy, name:mapNodeName(scene), links:{} };
+    mapNodes.set(scene, node);
+  }
+  if (mapCur && mapCur !== node && dir){ mapCur.links[dir] = node; node.links[MAP_OPP[dir]] = mapCur; }
+  mapCur = node;
+}
+function mapStubs(){       // sides of the current room that have an exit you haven't walked through yet
+  const out = [];
+  if (!mapCur || !currentScene) return out;
+  (currentScene.exits||[]).forEach(ex=>{ const d = exitDir(ex); if (d && !mapCur.links[d] && !out.includes(d)) out.push(d); });
+  return out;
+}
+function mapLabel(g, text, x, y, size, align){
+  g.font = `bold ${size}px sans-serif`; g.textAlign = align;
+  g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.85)'; g.strokeText(text, x, y);
+  g.fillStyle = '#ffffff'; g.fillText(text, x, y);
+}
+function drawChapterMiniMap(g){
+  if (!mapCur) return;
+  const cols = 7, rows = 5, cw = 20, ch = 15, pw = cols*cw, ph = rows*ch, ox = W-14-pw, oy = 64, t = Date.now()/1000;
+  g.save();
+  g.fillStyle = 'rgba(8,10,24,0.72)'; g.fillRect(ox-4,oy-4,pw+8,ph+8);
+  const cx0 = mapCur.gx-3, cy0 = mapCur.gy-2;
+  mapNodes.forEach(n=>{
+    const c = n.gx-cx0, r = n.gy-cy0;
+    if (c < 0 || c >= cols || r < 0 || r >= rows) return;
+    const x = ox+c*cw, y = oy+r*ch;
+    g.fillStyle = '#5a78b8'; if (n.links.r) g.fillRect(x+cw-4,y+ch/2-1,6,2); if (n.links.d) g.fillRect(x+cw/2-1,y+ch-3,2,5);
+    g.fillStyle = n === mapCur ? '#ffd54a' : '#3a5a98'; g.fillRect(x+2,y+2,cw-6,ch-5);
+  });
+  const cx = ox+3*cw, cy = oy+2*ch, pulse = 0.5+0.5*Math.sin(t*4);
+  g.strokeStyle = `rgba(255,255,255,${0.5+0.5*pulse})`; g.lineWidth = 1.5; g.strokeRect(cx+1,cy+1,cw-4,ch-3);
+  mapStubs().forEach(d=>{
+    const px = d==='l' ? cx-1 : d==='r' ? cx+cw-2 : cx+cw/2-2, py = d==='u' ? cy : d==='d' ? cy+ch-2 : cy+ch/2-1;
+    g.fillStyle = `rgba(255,150,80,${0.55+0.45*pulse})`; g.beginPath(); g.arc(px,py,2.6,0,Math.PI*2); g.fill();
+  });
+  mapLabel(g, mapCur.name, ox+pw, oy+ph+16, 11, 'right');
+  g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('M ou 🗺 = mapa', ox+pw, oy+ph+28);
+  g.restore();
+}
+function wrapMapText(g, text, maxW){
+  const words = text.split(' '), lines = []; let cur = '';
+  words.forEach(w=>{ const test = cur ? cur+' '+w : w; if (g.measureText(test).width > maxW && cur){ lines.push(cur); cur = w; } else cur = test; });
+  if (cur) lines.push(cur);
+  return lines.slice(0,3);
+}
+function drawBigMap(g){
+  const t = Date.now()/1000, pulse = 0.5+0.5*Math.sin(t*4);
+  g.save();
+  g.fillStyle = 'rgba(4,6,16,0.93)'; g.fillRect(0,0,W,H);
+  if (currentScene.isOpenWorld){
+    const cw = 150, ch = 100, ox = (W-cw*OW_COLS)/2, oy = 96;
+    mapLabel(g, 'MAPA DO MUNDO', W/2, 46, 22, 'center');
+    g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.6)'; g.fillText('N ↑   ·   Cada região liga às vizinhas pelos lados', W/2, 66);
+    for (let y=0;y<OW_ROWS;y++) for (let x=0;x<OW_COLS;x++){
+      const b = owBiome(x,y), seen = progress.visited[x+','+y], px = ox+x*cw, py = oy+y*ch;
+      g.fillStyle = OW_STYLE[b].a; g.fillRect(px+3,py+3,cw-6,ch-6);
+      if (!seen){ g.fillStyle = 'rgba(4,6,16,0.6)'; g.fillRect(px+3,py+3,cw-6,ch-6); }
+      g.globalAlpha = seen ? 1 : 0.7; mapLabel(g, OW_NAMES[b], px+cw/2, py+ch/2-4, 12, 'center'); g.globalAlpha = 1;
+      const ch2 = CHALLENGES.find(c=> c.area[0]===x && c.area[1]===y);
+      if (ch2){ const got = progress.emeralds[ch2.id]; g.fillStyle = got ? '#ffd54a' : '#5aff96'; g.beginPath(); g.arc(px+14,py+ch-14,6,0,Math.PI*2); g.fill();
+        g.font = '10px sans-serif'; g.textAlign = 'left'; g.fillStyle = '#fff'; g.fillText(got ? 'Esmeralda ✔' : 'Esmeralda', px+24,py+ch-10); }
+      if (b === 'village'){ g.font = '11px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#fff'; g.fillText('⌂ Vila · portais, mestre, arena', px+cw/2, py+ch-12); }
+      if (x === 4 && y === 3){ g.font = '11px sans-serif'; g.textAlign = 'center'; g.fillStyle = '#e8b0ff'; g.fillText('🌌 Portal do chefe final', px+cw/2, py+ch-12); }
+    }
+    const cxp = ox+currentScene.owX*cw, cyp = oy+currentScene.owY*ch;
+    g.strokeStyle = `rgba(255,255,255,${0.6+0.4*pulse})`; g.lineWidth = 4; g.strokeRect(cxp+3,cyp+3,cw-6,ch-6);
+    g.fillStyle = '#fff'; g.beginPath(); g.moveTo(cxp+cw/2-7,cyp-2); g.lineTo(cxp+cw/2+7,cyp-2); g.lineTo(cxp+cw/2,cyp+8); g.closePath(); g.fill();
+    mapLabel(g, 'VOCÊ', cxp+cw/2, cyp-8, 11, 'center');
+  } else if (mapCur){
+    const ns = [...mapNodes.values()];
+    const minx = Math.min(...ns.map(n=>n.gx)), maxx = Math.max(...ns.map(n=>n.gx)), miny = Math.min(...ns.map(n=>n.gy)), maxy = Math.max(...ns.map(n=>n.gy));
+    const cols = maxx-minx+1, rows = maxy-miny+1;
+    const cw = Math.min(170, 840/cols), ch = Math.min(84, 400/rows), ox = (W-cols*cw)/2, oy = (H-rows*ch)/2+14;
+    mapLabel(g, 'MAPA', W/2, 46, 22, 'center');
+    g.font = '13px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillText('Você está em: '+mapCur.name, W/2, 68);
+    const ctr = n=> [ox+(n.gx-minx)*cw+cw/2, oy+(n.gy-miny)*ch+ch/2];
+    g.strokeStyle = '#5a78b8'; g.lineWidth = 3;
+    ns.forEach(n=>{ const [ax,ay] = ctr(n); ['r','d'].forEach(d=>{ if (n.links[d]){ const [bx,by] = ctr(n.links[d]); g.beginPath(); g.moveTo(ax,ay); g.lineTo(bx,by); g.stroke(); } }); });
+    const bw = cw-24, bh = ch-16;
+    ns.forEach(n=>{
+      const [ax,ay] = ctr(n), cur = n === mapCur;
+      g.fillStyle = cur ? '#ffd54a' : '#2e4a86'; roundRect(g,ax-bw/2,ay-bh/2,bw,bh,8); g.fill();
+      g.strokeStyle = cur ? `rgba(255,255,255,${0.6+0.4*pulse})` : '#5a78b8'; g.lineWidth = cur ? 3 : 1.5; roundRect(g,ax-bw/2,ay-bh/2,bw,bh,8); g.stroke();
+      g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillStyle = cur ? '#1a1400' : '#e8f0ff';
+      const lines = wrapMapText(g, n.name, bw-10);
+      lines.forEach((l,i)=> g.fillText(l, ax, ay-(lines.length-1)*6.5+i*13+4));
+    });
+    const [cx,cy] = ctr(mapCur);
+    mapStubs().forEach(d=>{
+      const px = d==='l' ? cx-bw/2-8 : d==='r' ? cx+bw/2+8 : cx, py = d==='u' ? cy-bh/2-8 : d==='d' ? cy+bh/2+8 : cy;
+      g.fillStyle = `rgba(255,150,80,${0.6+0.4*pulse})`; g.beginPath(); g.arc(px,py,8,0,Math.PI*2); g.fill();
+      g.fillStyle = '#1a0a00'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('?',px,py+4);
+    });
+    g.font = '11px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,170,110,0.9)'; g.fillText('? = saída que você ainda não explorou', W/2, H-38);
+  } else {
+    mapLabel(g, 'Nada explorado ainda', W/2, H/2, 18, 'center');
+  }
+  g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillText('Toque na tela ou pressione M / Esc para fechar', W/2, H-18);
+  g.restore();
+}
+const mapBtn = document.getElementById('mapBtn');
+function canOpenMap(){
+  const menuVisible = !menuOverlay.classList.contains('hidden'), endVisible = !endOverlay.classList.contains('hidden');
+  return !!currentScene && !battle && !dialogueActive && !menuVisible && !endVisible && !settingsOpen && !panelOpen && (currentScene.isOpenWorld || !!mapCur);
+}
+function toggleMap(){ if (mapOpen) mapOpen = false; else if (canOpenMap()){ mapOpen = true; keys['arrowleft'] = keys['arrowright'] = keys['arrowup'] = keys['arrowdown'] = keys['a'] = keys['d'] = keys['w'] = keys['s'] = false; } }
+mapBtn.addEventListener('click', toggleMap);
+canvas.addEventListener('pointerdown', ()=>{ if (mapOpen) mapOpen = false; });
 
 /* ---------------- chapter flow / menus ---------------- */
 const menuOverlay = document.getElementById('menuOverlay');
@@ -5145,6 +5449,7 @@ const endButtons = document.getElementById('endButtons');
 let ch1 = null, ch2 = null, ch3 = null, ch4 = null, ch5 = null, chOpen = null;
 
 function startChapter(n){
+  mapReset(); mapOpen = false;
   menuOverlay.classList.add('hidden');
   endOverlay.classList.add('hidden');
   if (n===1){ player.type = 'duo'; ch1 = buildChapter1(); ch1.start(); }
@@ -5240,6 +5545,7 @@ function mkEndBtn(label, fn, secondary){
   endButtons.appendChild(b);
 }
 function showMenu(){
+  mapReset(); mapOpen = false;
   currentScene = null;
   endOverlay.classList.add('hidden');
   menuOverlay.classList.remove('hidden');
@@ -5337,7 +5643,7 @@ function loop(t){
     if (fxHitStop > 0){
       fxHitStop -= dt;          // freeze-frame: the world holds for a beat on heavy hits
     } else {
-      if (!settingsOpen && !panelOpen){
+      if (!settingsOpen && !panelOpen && !mapOpen){
         updateExploration(dt);
         updateBattle(dt);
       }
