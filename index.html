@@ -4308,13 +4308,13 @@ function buildChapter4(){
             return;
           }
           cueioFreed = true;
-          followers.push('cueio');
+          followers.push('cueio'); storyParty.push('cueio');
           castle.npcs = castle.npcs.filter(n=> n.type !== 'cueio');
           startDialogue([
             {speaker:'Cueio', text:'Espera... vocês não são daqui. Vieram me tirar?', color:'#ffb066'},
             {speaker:'Astro', text:'Cueio?! Você é do meu planeta... o que faz preso aqui?', color:'#8fffb0'},
             {speaker:'Cueio', text:'Uma longa história. Esse titã de pedra me guarda há semanas. Tirem-me daqui, rápido!', color:'#ffb066'},
-            {speaker:'Duo', text:'Vamos indo. Fica perto da gente.', color:'#7ef9ff'},
+            {speaker:leadName(), text:'Vamos indo. Fica perto da gente.', color:'#7ef9ff'},
           ]);
         }
       }
@@ -4341,26 +4341,23 @@ function buildChapter4(){
       intro:'Ele avança pesado, pronto pra socar tudo no caminho.',
       fleeChance:0.2,
       allyAssist:true,
-      player:{ name:'Duo', type:'duo',
-        hp:40+(upgrades.jewelOfLife?15:0), maxHp:40+(upgrades.jewelOfLife?15:0),
-        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
-      secondary:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+      player:storyPlayer(40), secondary:storySecondary(42),
       enemy:{ name:'Titã Batedor', type:'titan', hp:100, maxHp:100, atk:13, speed:70 },
       onVictory: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         titanDefeated = true;
         upgrades.elementalEmerald = true;
         sfxPickup();
         startDialogue([
-          {speaker:'Duo', text:'Conseguimos! Ele... ele estava guardando alguma coisa.', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Conseguimos! Ele... ele estava guardando alguma coisa.', color:'#7ef9ff'},
           {speaker:'???', text:'Vocês encontraram a Esmeralda dos Elementos! Ela pulsa com poder: +40 de ataque para todo o grupo!', color:'#ff9a5c'},
           {speaker:'Cueio', text:'Essa pedra é rara até no meu planeta. Guardem bem.', color:'#ffb066'},
         ]);
       },
       onDefeat: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         startDialogue([
-          {speaker:'Duo', text:'Ele é forte demais... precisamos nos recompor antes de tentar de novo!', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Ele é forte demais... precisamos nos recompor antes de tentar de novo!', color:'#7ef9ff'},
         ]);
       }
     });
@@ -4414,7 +4411,7 @@ function buildChapter4(){
       {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(crossroads, {x:W/2-17,y:H-150})},
       {x:W-40,y:H/2-60,w:40,h:120, onEnter: ()=>{
         if (!hasCastleKey){
-          startDialogue([{speaker:'Duo', text:'Tem uma porta trancada aqui... preciso achar uma chave.', color:'#7ef9ff'}]);
+          startDialogue([{speaker:leadName(), text:'Tem uma porta trancada aqui... preciso achar uma chave.', color:'#7ef9ff'}]);
           return;
         }
         goToScene(bigCastleInterior, {x:40,y:H/2-20});
@@ -4428,24 +4425,21 @@ function buildChapter4(){
       intro:'Ele se move rápido pelas sombras da floresta esquecida.',
       fleeChance:0.3,
       allyAssist:true,
-      player:{ name:'Duo', type:'duo',
-        hp:40+(upgrades.jewelOfLife?15:0), maxHp:40+(upgrades.jewelOfLife?15:0),
-        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
-      secondary:{ name:'Astro', type:'astro', hp:42, maxHp:42, atk:9 },
+      player:storyPlayer(40), secondary:storySecondary(42),
       enemy:{ name:'Predador das Sombras', type:'shadowPredator', hp:50, maxHp:50, atk:10, speed:150 },
       onVictory: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         predatorDefeated = true;
         addForestChest();
         startDialogue([
-          {speaker:'Duo', text:'Esse não era igual ao que enfrentamos antes... e olha, tem um baú ali!', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Esse não era igual ao que enfrentamos antes... e olha, tem um baú ali!', color:'#7ef9ff'},
         ]);
       },
       onDefeat: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         predatorTriggered = false;
         startDialogue([
-          {speaker:'Duo', text:'Ele é rápido demais... vamos ter que tentar de novo.', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Ele é rápido demais... vamos ter que tentar de novo.', color:'#7ef9ff'},
         ]);
       }
     });
@@ -4456,14 +4450,14 @@ function buildChapter4(){
       x:W-150,y:H/2-35,w:50,h:50, type:'chest', scale:34, label:'Baú',
       onInteract: function(){
         if (hasCastleKey){
-          startDialogue([{speaker:'Duo', text:'Já peguei a chave desse baú.', color:'#7ef9ff'}]);
+          startDialogue([{speaker:leadName(), text:'Já peguei a chave desse baú.', color:'#7ef9ff'}]);
           return;
         }
         hasCastleKey = true;
         this.talking = true;
         sfxPickup();
         startDialogue([
-          {speaker:'Duo', text:'Uma chave antiga... deve abrir aquela porta escondida ali na floresta.', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Uma chave antiga... deve abrir aquela porta escondida ali na floresta.', color:'#7ef9ff'},
         ]);
       }
     });
@@ -4509,14 +4503,14 @@ function buildChapter4(){
       { x:W/2-25,y:H/2-30,w:50,h:50, type:'disguiseEmerald', scale:40, label:'Esmeralda do Disfarce',
         onInteract: function(){
           if (upgrades.disguiseEmerald){
-            startDialogue([{speaker:'Duo', text:'Já está comigo.', color:'#7ef9ff'}]);
+            startDialogue([{speaker:leadName(), text:'Já está comigo.', color:'#7ef9ff'}]);
             return;
           }
           upgrades.disguiseEmerald = true;
           this.talking = true;
           sfxPickup();
           startDialogue([
-            {speaker:'Duo', text:'Uma esmeralda que muda a aparência de quem a segura... vai nos deixar passar pelos guardas!', color:'#7ef9ff'},
+            {speaker:leadName(), text:'Uma esmeralda que muda a aparência de quem a segura... vai nos deixar passar pelos guardas!', color:'#7ef9ff'},
           ]);
         } }
     ],
@@ -4537,11 +4531,11 @@ function buildChapter4(){
           metKing = true;
           startDialogue([
             {speaker:'Rei', text:'Poucos chegam tão longe disfarçados... o que vieram buscar em meu reino?', color:'#ffd54a'},
-            {speaker:'Duo', text:'Só queríamos passagem segura. Não viemos causar problema.', color:'#7ef9ff'},
+            {speaker:leadName(), text:'Só queríamos passagem segura. Não viemos causar problema.', color:'#7ef9ff'},
             {speaker:'Rei', text:'Vocês trazem um titã derrotado nas costas e uma esmeralda proibida... isso já é problema o bastante.', color:'#ffd54a'},
             {speaker:'Rei', text:'Mas sinto também o cheiro de outra coisa em vocês — algo que despertou lá fora. Fiquem atentos. Esse castelo tem mais olhos do que parece, e o mundo além dele guarda perigo bem maior.', color:'#ffd54a'},
             {speaker:'Cueio', text:'Precisamos ir. Já arriscamos demais ficando aqui.', color:'#ffb066'},
-            {speaker:'Duo', text:'Vamos. Já temos o que viemos buscar. A saída fica no fim do corredor.', color:'#7ef9ff'},
+            {speaker:leadName(), text:'Vamos. Já temos o que viemos buscar. A saída fica no fim do corredor.', color:'#7ef9ff'},
           ], ()=> goToScene(giantRoom, {x:80,y:H/2-20}));
         } }
     ],
@@ -4564,7 +4558,7 @@ function buildChapter4(){
         {speaker:'Gigante', text:'NINGUÉM... SAI... DAQUI.', color:'#ff5f7a'},
         {speaker:'Cueio', text:'Ele é enorme! Nossos golpes sozinhos não bastam!', color:'#ffb066'},
         {speaker:'Astro', text:'Olhem a sala — barris explosivos e cristais instáveis! Se ele chegar perto deles...', color:'#8fffb0'},
-        {speaker:'Duo', text:'Então a gente usa o cenário! Encosta nos barris e cristais pra detonar em cima dele — e usa o dash pra desviar!', color:'#7ef9ff'},
+        {speaker:leadName(), text:'Então a gente usa o cenário! Encosta nos barris e cristais pra detonar em cima dele — e usa o dash pra desviar!', color:'#7ef9ff'},
       ], ()=> startGiantBattle());
     },
     exits: [ {x:0,y:H/2-60,w:40,h:120, onEnter: ()=> goToScene(bigCastleInterior, {x:W-110,y:H/2-20})} ]
@@ -4575,10 +4569,7 @@ function buildChapter4(){
       intro:'HP enorme — detone os barris e cristais da sala pra feri-lo!',
       fleeChance:0.15,
       allyAssist:true,
-      player:{ name:'Duo', type:'duo',
-        hp:70+(upgrades.jewelOfLife?15:0), maxHp:70+(upgrades.jewelOfLife?15:0),
-        atk:9+(upgrades.emeraldOfPower?10:0)+(upgrades.alienWeapon?20:0) },
-      secondary:{ name:'Astro', type:'astro', hp:60, maxHp:60, atk:9 },
+      player:storyPlayer(70), secondary:storySecondary(60),
       enemy:{ name:'Gigante Devorador', type:'giant', hp:520, maxHp:520, atk:15, speed:52, scale:98, reach:88, hitColor:'255,120,150' },
       envItems:[
         {x:200,y:210,kind:'barrel',pct:0.14,label:'BARRIL!'}, {x:760,y:210,kind:'barrel',pct:0.14,label:'BARRIL!'},
@@ -4586,45 +4577,61 @@ function buildChapter4(){
         {x:480,y:170,kind:'crystal',pct:0.08,label:'CRISTAL!'}, {x:480,y:500,kind:'crystal',pct:0.08,label:'CRISTAL!'}
       ],
       onVictory: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         giantDefeated = true;
         giantRoom.npcs.push({
           x:W/2-25,y:H/2-30,w:50,h:50, type:'monsterEmerald', scale:44, label:'Esmeralda dos Monstros',
           onInteract: function(){
-            if (upgrades.monsterEmerald){ startDialogue([{speaker:'Duo', text:'Já está comigo.', color:'#7ef9ff'}]); return; }
+            if (upgrades.monsterEmerald){ startDialogue([{speaker:leadName(), text:'Já está comigo.', color:'#7ef9ff'}]); return; }
             upgrades.monsterEmerald = true;
             this.talking = true;
             sfxPickup(); fxWhite = 0.5; fxBurst(this.x+25, this.y+25, 30, '90,255,150', 260, 3.2, 0.9, -30);
             startDialogue([
-              {speaker:'Duo', text:'A Esmeralda dos Monstros... ela vibra como se ouvisse todos eles.', color:'#7ef9ff'},
+              {speaker:leadName(), text:'A Esmeralda dos Monstros... ela vibra como se ouvisse todos eles.', color:'#7ef9ff'},
               {speaker:'Astro', text:'Dizem que quem a carrega consegue sentir criaturas de outras dimensões.', color:'#8fffb0'},
               {speaker:'Cueio', text:'Então por que o céu lá fora está ficando... roxo?', color:'#ffb066'},
             ], ()=> endChapter4());
           }
         });
         startDialogue([
-          {speaker:'Duo', text:'Ele... caiu! O gigante caiu!', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Ele... caiu! O gigante caiu!', color:'#7ef9ff'},
           {speaker:'Huggy', text:'Tem algo brilhando onde ele estava. Pega!', color:'#a9c9ff'},
         ]);
       },
       onDefeat: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         startDialogue([
-          {speaker:'Duo', text:'Forte demais... vamos recuar e voltar com um plano melhor. Os barris são a chave!', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Forte demais... vamos recuar e voltar com um plano melhor. Os barris são a chave!', color:'#7ef9ff'},
         ], ()=> goToScene(bigCastleInterior, {x:W-110,y:H/2-20}));
       }
     });
   }
 
-  return { start: ()=> goToScene(bunkerOutside, {x:40,y:H/2-20}) };
+  return { start: ()=> pickLead('Capítulo 4 — Escolha o líder', ['duo','astro','huggy'], ()=> goToScene(bunkerOutside, {x:40,y:H/2-20})) };
 }
 
 /* ---------------- CHAPTER 5: the interdimensional hurricane ---------------- */
-function heroStats(baseHp){
-  const hp = baseHp + (upgrades.jewelOfLife?15:0);
-  return { name:'Duo', type:'duo', hp, maxHp:hp,
-    atk: 9 + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) };
+// story-mode party: whoever the player picked to lead is the main fighter; the next party member backs them up
+let storyLead = 'duo', storyParty = ['duo','astro','huggy'];
+function leadName(){ return ROSTER[storyLead].name; }
+function setStoryParty(party, lead){
+  storyLead = lead; storyParty = party.slice(); player.type = lead;
+  followers = party.filter(id=> id !== lead); followerTrail.length = 0;
 }
+function pickLead(title, party, then){
+  showEndingScreen({ title, text:'Quem vai na frente do grupo? Ele lidera na exploração e é o lutador principal; os outros vêm logo atrás e ajudam na luta.',
+    buttons: party.map(id=>({ label: ROSTER[id].name + ' — ' + ROSTER[id].desc, fn:()=>{ endOverlay.classList.add('hidden'); setStoryParty(party, id); then(); } })) });
+}
+function storyPlayer(baseHp){
+  const r = ROSTER[storyLead], hp = Math.round(baseHp*r.hp) + (upgrades.jewelOfLife?15:0);
+  const atk = Math.round((9 + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0))*r.atk);
+  return { name:r.name, type:storyLead, hp, maxHp:hp, atk };
+}
+function storySecondary(baseHp){
+  const id = storyParty.find(p=> p !== storyLead) || 'astro', r = ROSTER[id], hp = Math.round(baseHp*r.hp);
+  return { name:r.name, type:id, hp, maxHp:hp, atk:Math.round(9*r.atk) };
+}
+function heroStats(baseHp){ return storyPlayer(baseHp); }
 function makeWaveList(){   // waves that follow the first enemy in one continuous fight
   return [
     {enemy:{name:'Predador das Sombras',type:'shadowPredator',hp:150,maxHp:150,atk:10,speed:150}},
@@ -4638,7 +4645,7 @@ function startWaveFight(o){
   startBattle({
     title:o.title, intro:o.intro, fleeChance:0, allyAssist:true, ranged:true,
     player:heroStats(o.hp||85),
-    secondary:{ name:'Astro', type:'astro', hp:60, maxHp:60, atk:9 },
+    secondary:storySecondary(60),
     enemy:{ name:'Drone Alienígena', type:'drone', hp:110, maxHp:110, atk:8, projColor:'#8a5fd0' },
     waves: makeWaveList(),
     onVictory: o.onVictory, onDefeat: o.onDefeat
@@ -4661,7 +4668,7 @@ function buildChapter5(){
     onEnter: ()=>{
       sceneLocked = true;
       startDialogue([
-        {speaker:'Duo', text:'Finalmente fora do castelo... mas o ar está pesado.', color:'#7ef9ff'},
+        {speaker:leadName(), text:'Finalmente fora do castelo... mas o ar está pesado.', color:'#7ef9ff'},
         {speaker:'Astro', text:'Meu sensor de energia enlouqueceu. Algo enorme está se formando.', color:'#8fffb0'},
         {speaker:'Huggy', text:'O céu... tá ficando roxo?', color:'#a9c9ff'},
         {speaker:'Cueio', text:'Eu conheço isso. No meu mundo chamamos de "A Fenda".', color:'#ffb066'},
@@ -4678,12 +4685,12 @@ function buildChapter5(){
     startDialogue([
       {speaker:'???', text:'*O vento uiva. Um redemoinho de luz roxa rasga o céu!*', color:'#c9a8ff'},
       {speaker:'Cueio', text:'É um FURACÃO INTERDIMENSIONAL! Ele arranca criaturas de outros mundos e joga aqui!', color:'#ffb066'},
-      {speaker:'Duo', text:'Fiquem juntos! Não deixem ele nos levar!', color:'#7ef9ff'},
+      {speaker:leadName(), text:'Fiquem juntos! Não deixem ele nos levar!', color:'#7ef9ff'},
     ], ()=>{
       startDialogue([
         {speaker:'???', text:'*Silhuetas despencam do redemoinho... dezenas de monstros de todas as dimensões cercam vocês!*', color:'#ff9977'},
         {speaker:'Astro', text:'São muitos! Precisamos aguentar até a Fenda esgotar!', color:'#8fffb0'},
-        {speaker:'Duo', text:'Sem recuar! Dash, ataque e golpe especial — todos juntos!', color:'#7ef9ff'},
+        {speaker:leadName(), text:'Sem recuar! Dash, ataque e golpe especial — todos juntos!', color:'#7ef9ff'},
       ], ()=> startFight());
     });
   }
@@ -4692,23 +4699,23 @@ function buildChapter5(){
     startWaveFight({
       title:'O Furacão Interdimensional!', intro:'6 ondas de monstros — aguente firme!', hp:85,
       onVictory: ()=>{
-        player.type = 'duo';
+        player.type = storyLead;
         hurrEnd = performance.now(); stopStorm(); fxWhite = 0.9; fxShakeNow(0.6, 8);
         startDialogue([
-          {speaker:'Duo', text:'Acabou...? O redemoinho está encolhendo!', color:'#7ef9ff'},
+          {speaker:leadName(), text:'Acabou...? O redemoinho está encolhendo!', color:'#7ef9ff'},
           {speaker:'Cueio', text:'A Fenda está se fechando. Mas as criaturas que já caíram... elas ficaram por aqui.', color:'#ffb066'},
           {speaker:'Astro', text:'Então o mundo agora está cheio delas. E também de caminhos que antes não existiam.', color:'#8fffb0'},
           {speaker:'Huggy', text:'Quer dizer que a gente pode ir pra qualquer lugar? Explorar tudo?', color:'#a9c9ff'},
-          {speaker:'Duo', text:'É isso. O mundo está aberto. Vamos!', color:'#7ef9ff'},
+          {speaker:leadName(), text:'É isso. O mundo está aberto. Vamos!', color:'#7ef9ff'},
         ], ()=> endChapter5());
       },
       onDefeat: ()=>{
-        player.type = 'duo';
-        startDialogue([{speaker:'Duo', text:'Ainda tem monstro demais... levanta! Vamos tentar de novo!', color:'#7ef9ff'}], ()=> startFight());
+        player.type = storyLead;
+        startDialogue([{speaker:leadName(), text:'Ainda tem monstro demais... levanta! Vamos tentar de novo!', color:'#7ef9ff'}], ()=> startFight());
       }
     });
   }
-  return { start: ()=> goToScene(field, {x:120,y:Math.round(H*0.7)}) };
+  return { start: ()=> pickLead('Capítulo 5 — Escolha o líder', ['duo','astro','huggy','cueio'], ()=> goToScene(field, {x:120,y:Math.round(H*0.7)})) };
 }
 
 /* ---------------- OPEN WORLD: achievements, roster, upgrades panel ---------------- */
