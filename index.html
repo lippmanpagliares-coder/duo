@@ -108,6 +108,9 @@
     display:none; align-items:center; justify-content:center; text-align:center; line-height:1.2;
   }
   #actionBtn:active { filter:brightness(0.9); transform:scale(0.96); }
+  /* tapping the dialogue box itself already advances it — the corner button is just redundant
+     clutter on touch, and would otherwise sit on top of the dialogue text on short screens */
+  @media (pointer:coarse){ #actionBtn.duringDialogue { display:none !important; } }
 
   #battleAttackBtn {
     position:absolute; right:calc(var(--sp-3) + var(--safe)); bottom:calc(var(--sp-3) + var(--safe)); z-index:20; pointer-events:auto;
@@ -1076,8 +1079,10 @@ function updateActionButton(){
   if (dialogueActive){
     actionBtn.style.display = 'flex';
     actionBtn.textContent = 'Continuar';
+    actionBtn.classList.add('duringDialogue');
     return;
   }
+  actionBtn.classList.remove('duringDialogue');
   if (sceneLocked || !currentScene){
     actionBtn.style.display = 'none';
     return;
