@@ -423,6 +423,25 @@ document.getElementById('dialogueBox').addEventListener('click', ()=> advanceDia
 
 /* ---------------- character drawing ---------------- */
 // all sprites are procedurally drawn (no image assets needed)
+// soft radial gradient standing in for volume/lighting on a rounded body shape
+function volumeGrad(g,cx,cy,r,light,dark){
+  const gr = g.createRadialGradient(cx-r*0.35,cy-r*0.42,r*0.05,cx,cy,r*1.25);
+  gr.addColorStop(0,light); gr.addColorStop(1,dark);
+  return gr;
+}
+// soft contact shadow grounding a character at its feet
+function groundShadow(g,s,yOff){
+  g.save();
+  g.fillStyle = 'rgba(0,0,0,0.25)';
+  g.beginPath(); g.ellipse(0, yOff, s*0.36, s*0.09, 0, 0, Math.PI*2); g.fill();
+  g.restore();
+}
+// lightens a #rrggbb color by a flat amount per channel — used to build volumeGrad's highlight stop
+function lighten(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.min(255,((n>>16)&255)+amt), gg = Math.min(255,((n>>8)&255)+amt), b = Math.min(255,(n&255)+amt);
+  return `rgb(${r},${gg},${b})`;
+}
 function roundRect(g,x,y,w,h,r){
   g.beginPath();
   g.moveTo(x+r,y);
@@ -441,12 +460,13 @@ function drawOwlAdult(g,x,y,s,facing,opts){
   const beakColor = opts.beak || '#ffb020';
   facing = facing || 1;
   g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.86);
   // feet
   g.fillStyle = beakColor;
   g.beginPath(); g.ellipse(-s*0.22, s*0.8, s*0.14, s*0.09, 0,0,Math.PI*2); g.fill();
   g.beginPath(); g.ellipse(s*0.22, s*0.8, s*0.14, s*0.09, 0,0,Math.PI*2); g.fill();
-  // body (tapered egg shape, wider base than head)
-  g.fillStyle = bodyColor;
+  // body (tapered egg shape, wider base than head) — radial shading gives it roundness instead of a flat blob
+  g.fillStyle = volumeGrad(g, -s*0.15, -s*0.15, s*0.75, lighten(bodyColor,55), bodyColor);
   g.beginPath();
   g.moveTo(-s*0.6, s*0.05);
   g.bezierCurveTo(-s*0.6,-s*0.58,-s*0.3,-s*0.86,0,-s*0.86);
@@ -455,18 +475,25 @@ function drawOwlAdult(g,x,y,s,facing,opts){
   g.bezierCurveTo(-s*0.32,s*0.74,-s*0.6,s*0.5,-s*0.6,s*0.05);
   g.closePath(); g.fill();
   // head feather tufts
+  g.fillStyle = bodyColor;
   g.beginPath(); g.moveTo(-s*0.2,-s*0.8); g.lineTo(-s*0.3,-s*1.02); g.lineTo(-s*0.06,-s*0.86); g.closePath(); g.fill();
   g.beginPath(); g.moveTo(s*0.2,-s*0.8); g.lineTo(s*0.3,-s*1.02); g.lineTo(s*0.06,-s*0.86); g.closePath(); g.fill();
-  // belly patch
-  g.fillStyle = bellyColor;
+  // belly patch, lightly shaded too so it doesn't look like a flat sticker
+  g.fillStyle = volumeGrad(g, -s*0.06, s*0.08, s*0.4, '#ffffff', bellyColor);
   g.beginPath(); g.ellipse(0, s*0.2, s*0.32, s*0.4, 0,0,Math.PI*2); g.fill();
-  // wing
-  g.fillStyle = wingColor;
+  // a couple of soft feather-seam lines on the belly for texture
+  g.strokeStyle = `rgba(0,0,0,0.08)`; g.lineWidth = s*0.025;
+  g.beginPath(); g.moveTo(-s*0.14,-s*0.05); g.quadraticCurveTo(0,s*0.02,-s*0.1,s*0.5); g.stroke();
+  g.beginPath(); g.moveTo(s*0.14,-s*0.05); g.quadraticCurveTo(0,s*0.02,s*0.1,s*0.5); g.stroke();
+  // wing, shaded so it reads as a separate rounded surface rather than a flat patch
+  g.fillStyle = volumeGrad(g, -s*0.56*facing-s*0.05, -s*0.08, s*0.28, lighten(wingColor,40), wingColor);
   g.beginPath(); g.ellipse(-s*0.56*facing, 0, s*0.15, s*0.3, 0.3*facing, 0, Math.PI*2); g.fill();
+  g.strokeStyle = `rgba(0,0,0,0.15)`; g.lineWidth = s*0.02;
+  g.beginPath(); g.ellipse(-s*0.56*facing, 0, s*0.15, s*0.3, 0.3*facing, 0, Math.PI*2); g.stroke();
   // eyes
   eyesBig(g, s, opts.eyeWhite||'#fff', opts.eyePupil||'#1a1a1a', -0.28);
-  // beak
-  g.fillStyle = beakColor;
+  // beak, with a subtle gradient so it's not perfectly flat
+  g.fillStyle = volumeGrad(g, -s*0.03, 0, s*0.16, lighten(beakColor,50), beakColor);
   g.beginPath(); g.moveTo(-s*0.15,-s*0.05); g.lineTo(s*0.15,-s*0.05); g.lineTo(0, s*0.14); g.closePath(); g.fill();
   // optional accessory for parents
   if (opts.accessory === 'glasses'){
@@ -501,26 +528,39 @@ function drawAstroSpecies(g,x,y,s,facing,opts){
   const legs = opts.legs || '#324';
   facing = facing || 1;
   g.save(); g.translate(x,y);
-  g.fillStyle = legs;
+  groundShadow(g, s, s*0.9);
+  g.fillStyle = volumeGrad(g, -s*0.05, s*0.6, s*0.3, lighten(legs,45), legs);
   g.fillRect(-s*0.26, s*0.5, s*0.18, s*0.34);
   g.fillRect(s*0.08, s*0.5, s*0.18, s*0.34);
   g.fillStyle = trim;
   g.fillRect(-s*0.28, s*0.8, s*0.22, s*0.1);
   g.fillRect(s*0.06, s*0.8, s*0.22, s*0.1);
-  g.fillStyle = skin;
+  g.fillStyle = volumeGrad(g, -s*0.42*facing, s*0.1, s*0.2, '#ffffff', skin);
   g.beginPath(); g.ellipse(-s*0.42*facing, s*0.16, s*0.11, s*0.24, 0.15*facing, 0, Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g, s*0.42*facing, s*0.1, s*0.2, '#ffffff', skin);
   g.beginPath(); g.ellipse(s*0.42*facing, s*0.16, s*0.11, s*0.24, -0.15*facing, 0, Math.PI*2); g.fill();
-  g.fillStyle = skin;
+  // torso — soft gradient plus a faint centre seam so the suit reads as a solid rounded volume
+  g.fillStyle = volumeGrad(g, -s*0.1, s*0.15, s*0.4, '#ffffff', skin);
   roundRect(g, -s*0.34, s*0.0, s*0.68, s*0.56, s*0.2); g.fill();
   g.strokeStyle = trim; g.lineWidth = s*0.05; g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,0.06)'; g.lineWidth = s*0.02;
+  g.beginPath(); g.moveTo(0,s*0.04); g.lineTo(0,s*0.5); g.stroke();
+  // chest panel with a soft glow, like a powered instrument light
+  g.fillStyle = `rgba(${trim==='#3ddc84'?'61,220,132':'255,255,255'},0.35)`;
+  g.beginPath(); g.arc(0,s*0.26,s*0.16,0,Math.PI*2); g.fill();
   g.fillStyle = trim;
   g.fillRect(-s*0.08, s*0.18, s*0.16, s*0.16);
-  g.fillStyle = skin;
+  // head — gradient dome with a visor-like highlight band near the top
+  g.fillStyle = volumeGrad(g, -s*0.08, -s*0.5, s*0.45, '#ffffff', skin);
   g.beginPath(); g.ellipse(0, -s*0.34, s*0.4, s*0.42, 0, 0, Math.PI*2); g.fill();
   g.strokeStyle = trim; g.lineWidth = s*0.05;
   g.beginPath(); g.ellipse(0, -s*0.34, s*0.4, s*0.42, 0, 0, Math.PI*2); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = s*0.04;
+  g.beginPath(); g.arc(-s*0.1,-s*0.55,s*0.22,Math.PI*1.1,Math.PI*1.6); g.stroke();
+  g.strokeStyle = trim; g.lineWidth = s*0.05;
   g.beginPath(); g.moveTo(0,-s*0.74); g.lineTo(0,-s*0.98); g.stroke();
-  g.fillStyle = trim; g.beginPath(); g.arc(0,-s*1.0,s*0.07,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g, -s*0.02,-s*1.02,s*0.09,'#ffffff',trim);
+  g.beginPath(); g.arc(0,-s*1.0,s*0.07,0,Math.PI*2); g.fill();
   eyesBig(g, s*0.8, opts.eyeWhite||'#eafff2', opts.eyePupil||'#12321f', -0.42);
   g.restore();
 }
@@ -531,36 +571,37 @@ function drawCueio(g,x,y,s,facing){
   const fur = '#e8a05a', furDark = '#c97f3a', belly = '#fff1dd';
   const eyeWhite = '#fff8ef', eyePupil = '#2a1a08';
   g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.78);
   // feet
   g.fillStyle = furDark;
   g.beginPath(); g.ellipse(-s*0.22,s*0.68,s*0.17,s*0.12,0,0,Math.PI*2); g.fill();
   g.beginPath(); g.ellipse(s*0.22,s*0.68,s*0.17,s*0.12,0,0,Math.PI*2); g.fill();
-  // round body
-  g.fillStyle = fur;
+  // round body, radially shaded so the fur reads as plush and round, not a flat disc
+  g.fillStyle = volumeGrad(g,-s*0.14,s*0.06,s*0.5,lighten(fur,45),fur);
   g.beginPath(); g.ellipse(0,s*0.28,s*0.44,s*0.42,0,0,Math.PI*2); g.fill();
-  g.fillStyle = belly;
+  g.fillStyle = volumeGrad(g,-s*0.05,s*0.24,s*0.3,'#ffffff',belly);
   g.beginPath(); g.ellipse(0,s*0.36,s*0.26,s*0.28,0,0,Math.PI*2); g.fill();
   // stubby arms
-  g.fillStyle = fur;
+  g.fillStyle = volumeGrad(g,-s*0.42*facing,s*0.14,s*0.14,lighten(fur,35),fur);
   g.beginPath(); g.ellipse(-s*0.42*facing,s*0.22,s*0.1,s*0.2,0.3*facing,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.42*facing,s*0.14,s*0.14,lighten(fur,35),fur);
   g.beginPath(); g.ellipse(s*0.42*facing,s*0.22,s*0.1,s*0.2,-0.3*facing,0,Math.PI*2); g.fill();
   // a broken rope collar — a small nod to the cage he was just freed from
   g.strokeStyle = '#5a4a38'; g.lineWidth = s*0.05;
   g.beginPath(); g.arc(0,-s*0.02,s*0.3,0.15*Math.PI,0.85*Math.PI); g.stroke();
   // long ears (drawn behind the head)
-  g.fillStyle = fur;
   [-1,1].forEach(side=>{
     g.save(); g.translate(side*s*0.16,-s*0.62); g.rotate(side*0.1);
+    g.fillStyle = volumeGrad(g,-s*0.03,-s*0.3,s*0.3,lighten(fur,40),fur);
     roundRect(g,-s*0.1,-s*0.58,s*0.2,s*0.58,s*0.1); g.fill();
     g.fillStyle = '#ffcfa0';
     roundRect(g,-s*0.055,-s*0.5,s*0.11,s*0.42,s*0.055); g.fill();
-    g.fillStyle = fur;
     g.restore();
   });
   // round head + muzzle
-  g.fillStyle = fur;
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.24,s*0.42,lighten(fur,45),fur);
   g.beginPath(); g.arc(0,-s*0.14,s*0.36,0,Math.PI*2); g.fill();
-  g.fillStyle = belly;
+  g.fillStyle = volumeGrad(g,-s*0.02,-s*0.02,s*0.25,'#ffffff',belly);
   g.beginPath(); g.ellipse(0,-s*0.02,s*0.22,s*0.18,0,0,Math.PI*2); g.fill();
   eyesBig(g, s*0.66, eyeWhite, eyePupil, -0.24);
   // nose + buck teeth
@@ -587,7 +628,8 @@ function drawShadowPredator(g,x,y,s){
   g.save(); g.translate(x,y);
   const bob = Math.sin(Date.now()/220)*s*0.03;
   g.translate(0,bob);
-  g.fillStyle = '#241a30';
+  groundShadow(g, s, s*0.5-bob*0.4);
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.05,s*0.55,lighten('#241a30',30),'#241a30');
   g.beginPath(); g.ellipse(0,s*0.1,s*0.6,s*0.32,0,0,Math.PI*2); g.fill();
   g.fillStyle = '#1a1224';
   [[-0.45,0.32],[-0.15,0.36],[0.2,0.36],[0.48,0.32]].forEach(([dx,dy])=>{
@@ -595,7 +637,7 @@ function drawShadowPredator(g,x,y,s){
   });
   g.strokeStyle = '#241a30'; g.lineWidth = s*0.12; g.lineCap = 'round';
   g.beginPath(); g.moveTo(s*0.55,s*0.02); g.quadraticCurveTo(s*0.95,-s*0.1,s*0.85,-s*0.4); g.stroke();
-  g.fillStyle = '#2e2140';
+  g.fillStyle = volumeGrad(g,-s*0.62,-s*0.16,s*0.26,lighten('#2e2140',35),'#2e2140');
   g.beginPath(); g.ellipse(-s*0.55,-s*0.08,s*0.26,s*0.22,0,0,Math.PI*2); g.fill();
   g.beginPath(); g.moveTo(-s*0.68,-s*0.24); g.lineTo(-s*0.74,-s*0.42); g.lineTo(-s*0.58,-s*0.3); g.closePath(); g.fill();
   g.beginPath(); g.moveTo(-s*0.44,-s*0.24); g.lineTo(-s*0.38,-s*0.42); g.lineTo(-s*0.52,-s*0.3); g.closePath(); g.fill();
@@ -677,38 +719,52 @@ function drawDrone(g,x,y,s){
   g.save(); g.translate(x,y);
   const bob = Math.sin(Date.now()/220)*s*0.05;
   g.translate(0,bob);
-  g.fillStyle = '#5a3d8a';
+  // hovering ground shadow that bobs opposite the drone, selling the floating height
+  g.save(); g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.beginPath(); g.ellipse(0,s*0.75-bob*0.4,s*0.5,s*0.12,0,0,Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = volumeGrad(g,-s*0.15,-s*0.1,s*0.75,lighten('#5a3d8a',30),'#5a3d8a');
   g.beginPath(); g.ellipse(0,0,s*0.85,s*0.4,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#8a5fd0';
+  g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = s*0.03;
+  g.beginPath(); g.ellipse(0,0,s*0.85,s*0.4,0,0,Math.PI*2); g.stroke();
+  // panel seams for a more mechanical, detailed hull
+  g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = s*0.02;
+  for (let i=-2;i<=2;i++){ g.beginPath(); g.moveTo(i*s*0.16,-s*0.18); g.lineTo(i*s*0.22,s*0.3); g.stroke(); }
+  g.fillStyle = volumeGrad(g,-s*0.08,-s*0.3,s*0.4,lighten('#8a5fd0',35),'#8a5fd0');
   g.beginPath(); g.ellipse(0,-s*0.22,s*0.45,s*0.32,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#ff2f4a';
-  g.beginPath(); g.arc(0,-s*0.22,s*0.14,0,Math.PI*2); g.fill();
   g.fillStyle = 'rgba(255,60,80,0.5)';
   g.beginPath(); g.arc(0,-s*0.22,s*0.24,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,-s*0.03,-s*0.25,s*0.14,'#ffb0bd','#ff2f4a');
+  g.beginPath(); g.arc(0,-s*0.22,s*0.14,0,Math.PI*2); g.fill();
   for (let i=-1;i<=1;i+=2){
     g.strokeStyle = '#3a2560'; g.lineWidth = s*0.06;
     g.beginPath(); g.moveTo(i*s*0.5, s*0.1); g.lineTo(i*s*0.65, s*0.5); g.stroke();
+    g.fillStyle = '#2a1a4a';
+    g.beginPath(); g.arc(i*s*0.65,s*0.5,s*0.05,0,Math.PI*2); g.fill();
   }
   g.restore();
 }
 // fluffy, spotted, round-eared companion with stubby hug-arms — distinct from the old plain blob
 function drawHuggy(g,x,y,s,talking){
   g.save(); g.translate(x,y);
+  groundShadow(g, s, s*1.0);
   const body = '#2f6fe0', dark = '#1f4fb0', spot = '#a9d4ff';
   g.fillStyle = dark;
   g.beginPath(); g.ellipse(-s*0.3,s*0.95,s*0.18,s*0.12,0,0,Math.PI*2); g.fill();
   g.beginPath(); g.ellipse(s*0.3,s*0.95,s*0.18,s*0.12,0,0,Math.PI*2); g.fill();
-  g.fillStyle = dark;
+  g.fillStyle = volumeGrad(g,-s*0.5,-s*0.85,s*0.2,lighten(dark,35),dark);
   g.beginPath(); g.ellipse(-s*0.45,-s*0.75,s*0.16,s*0.2,-0.3,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.4,-s*0.85,s*0.2,lighten(dark,35),dark);
   g.beginPath(); g.ellipse(s*0.45,-s*0.75,s*0.16,s*0.2,0.3,0,Math.PI*2); g.fill();
-  g.fillStyle = body;
+  g.fillStyle = volumeGrad(g,-s*0.84,0,s*0.3,lighten(body,35),body);
   g.beginPath(); g.ellipse(-s*0.78,s*0.15,s*0.16,s*0.32,0.5,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.72,0,s*0.3,lighten(body,35),body);
   g.beginPath(); g.ellipse(s*0.78,s*0.15,s*0.16,s*0.32,-0.5,0,Math.PI*2); g.fill();
   g.fillStyle = body;
   for (let i=0;i<10;i++){
     const a = (i/10)*Math.PI*2;
     g.beginPath(); g.arc(Math.cos(a)*s*0.66, Math.sin(a)*s*0.82, s*0.12, 0, Math.PI*2); g.fill();
   }
+  g.fillStyle = volumeGrad(g,-s*0.2,-s*0.25,s*0.78,lighten(body,45),body);
   g.beginPath(); g.ellipse(0,0,s*0.7,s*0.86,0,0,Math.PI*2); g.fill();
   g.fillStyle = spot;
   g.beginPath(); g.arc(-s*0.3,-s*0.1,s*0.09,0,Math.PI*2); g.fill();
@@ -738,13 +794,17 @@ function drawVulcromPredator(g,x,y,s){
   [-0.5,-0.15,0.2,0.5].forEach(dx=>{
     g.beginPath(); g.moveTo(dx*s,s*0.76); g.lineTo(dx*s-s*0.06,s*0.9); g.lineTo(dx*s+s*0.1,s*0.9); g.closePath(); g.fill();
   });
-  g.fillStyle = '#7a1f2a';
+  groundShadow(g, s, s*0.9);
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.15,s*0.68,lighten('#7a1f2a',40),'#7a1f2a');
   g.beginPath(); g.ellipse(0,0,s*0.62,s*0.42,0,0,Math.PI*2); g.fill();
+  // rough scale texture across the hide
+  g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = s*0.015;
+  for (let i=-2;i<=2;i++){ g.beginPath(); g.arc(i*s*0.16,s*0.1,s*0.14,0,Math.PI); g.stroke(); }
   g.fillStyle = '#4a1a1a';
   for (let i=-2;i<=2;i++){
     g.beginPath(); g.moveTo(i*s*0.2,-s*0.34); g.lineTo(i*s*0.2-s*0.06,-s*0.56); g.lineTo(i*s*0.2+s*0.06,-s*0.56); g.closePath(); g.fill();
   }
-  g.fillStyle = '#8a2733';
+  g.fillStyle = volumeGrad(g,-s*0.68,-s*0.2,s*0.34,lighten('#8a2733',35),'#8a2733');
   g.beginPath(); g.ellipse(-s*0.6,-s*0.12,s*0.32,s*0.28,0,0,Math.PI*2); g.fill();
   g.fillStyle = '#ffdd33';
   g.beginPath(); g.arc(-s*0.72,-s*0.2,s*0.06,0,Math.PI*2); g.fill();
@@ -756,20 +816,27 @@ function drawVulcromPredator(g,x,y,s){
 // cloaked bounty hunter tracking Duo and Astro through the restaurant
 function drawAlienHunter(g,x,y,s){
   g.save(); g.translate(x,y);
-  g.fillStyle = '#1a1a24';
+  groundShadow(g, s, s*0.9);
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.2,s*0.75,'#3a3a4a','#1a1a24');
   g.beginPath(); g.moveTo(0,-s*0.9); g.lineTo(s*0.5,s*0.85); g.lineTo(-s*0.5,s*0.85); g.closePath(); g.fill();
-  g.fillStyle = '#2a2a3a';
+  // cloak fold lines for a bit of drapery detail instead of one flat triangle
+  g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = s*0.025;
+  g.beginPath(); g.moveTo(-s*0.1,-s*0.6); g.lineTo(-s*0.22,s*0.8); g.stroke();
+  g.beginPath(); g.moveTo(s*0.14,-s*0.5); g.lineTo(s*0.26,s*0.8); g.stroke();
+  g.fillStyle = volumeGrad(g,-s*0.42,-s*0.42,s*0.24,'#3a3a4a','#2a2a3a');
   g.beginPath(); g.ellipse(-s*0.42,-s*0.35,s*0.18,s*0.24,0.3,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.42,-s*0.42,s*0.24,'#3a3a4a','#2a2a3a');
   g.beginPath(); g.ellipse(s*0.42,-s*0.35,s*0.18,s*0.24,-0.3,0,Math.PI*2); g.fill();
-  g.fillStyle = '#20202c';
+  g.fillStyle = volumeGrad(g,-s*0.06,-s*0.7,s*0.3,'#30303e','#20202c');
   g.beginPath(); g.arc(0,-s*0.62,s*0.28,0,Math.PI*2); g.fill();
   g.fillStyle = 'rgba(255,47,74,0.4)';
   g.beginPath(); g.ellipse(0,-s*0.62,s*0.26,s*0.12,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#ff2f4a';
+  g.fillStyle = volumeGrad(g,-s*0.03,-s*0.64,s*0.14,'#ff9aa8','#ff2f4a');
   g.beginPath(); g.ellipse(0,-s*0.62,s*0.18,s*0.07,0,0,Math.PI*2); g.fill();
   g.strokeStyle = '#555'; g.lineWidth = s*0.06;
   g.beginPath(); g.moveTo(s*0.5,s*0.5); g.lineTo(s*0.75,-s*0.35); g.stroke();
-  g.fillStyle = '#ff5f7a'; g.beginPath(); g.arc(s*0.75,-s*0.35,s*0.07,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.72,-s*0.38,s*0.09,'#ffb0c0','#ff5f7a');
+  g.beginPath(); g.arc(s*0.75,-s*0.35,s*0.07,0,Math.PI*2); g.fill();
   g.restore();
 }
 // floating turret construct guarding the bunker's locked room
@@ -777,19 +844,25 @@ function drawArmaGuardia(g,x,y,s){
   g.save(); g.translate(x,y);
   const bob = Math.sin(Date.now()/200)*s*0.04;
   g.translate(0,bob);
+  groundShadow(g, s, s*0.85-bob*0.4);
   g.strokeStyle = '#55555f'; g.lineWidth = s*0.12; g.lineCap = 'round';
   for (let i=0;i<4;i++){
     const a = i*Math.PI/2 + Math.PI/4;
     g.beginPath(); g.moveTo(Math.cos(a)*s*0.3,Math.sin(a)*s*0.3); g.lineTo(Math.cos(a)*s*0.7,Math.sin(a)*s*0.7); g.stroke();
   }
-  g.fillStyle = '#ffaa3a';
   for (let i=0;i<4;i++){
     const a = i*Math.PI/2 + Math.PI/4;
-    g.beginPath(); g.arc(Math.cos(a)*s*0.72,Math.sin(a)*s*0.72,s*0.09,0,Math.PI*2); g.fill();
+    const px = Math.cos(a)*s*0.72, py = Math.sin(a)*s*0.72;
+    g.fillStyle = volumeGrad(g,px-s*0.03,py-s*0.03,s*0.1,'#ffd9a0','#ffaa3a');
+    g.beginPath(); g.arc(px,py,s*0.09,0,Math.PI*2); g.fill();
   }
-  g.fillStyle = '#3a3a44';
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.12,s*0.42,'#55555f','#3a3a44');
   g.beginPath(); g.ellipse(0,0,s*0.4,s*0.4,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#ff5f3a';
+  g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = s*0.025;
+  g.beginPath(); g.arc(0,0,s*0.4,0,Math.PI*2); g.stroke();
+  g.fillStyle = 'rgba(255,95,58,0.35)';
+  g.beginPath(); g.arc(0,0,s*0.24,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,-s*0.04,-s*0.04,s*0.16,'#ffb08a','#ff5f3a');
   g.beginPath(); g.arc(0,0,s*0.15,0,Math.PI*2); g.fill();
   g.restore();
 }
@@ -798,28 +871,38 @@ function drawTitan(g,x,y,s){
   g.save(); g.translate(x,y);
   const bob = Math.sin(Date.now()/300)*s*0.02;
   g.translate(0,bob);
-  g.fillStyle = '#5a5a5a';
+  groundShadow(g, s, s*0.92);
+  g.fillStyle = volumeGrad(g,-s*0.19,s*0.5,s*0.3,'#8a8a8a','#5a5a5a');
   g.fillRect(-s*0.32,s*0.3,s*0.26,s*0.55);
+  g.fillStyle = volumeGrad(g,s*0.19,s*0.5,s*0.3,'#8a8a8a','#5a5a5a');
   g.fillRect(s*0.06,s*0.3,s*0.26,s*0.55);
+  // cracked stone texture lines across the legs
+  g.strokeStyle = 'rgba(0,0,0,0.2)'; g.lineWidth = s*0.015;
+  g.beginPath(); g.moveTo(-s*0.28,s*0.4); g.lineTo(-s*0.1,s*0.5); g.moveTo(-s*0.26,s*0.65); g.lineTo(-s*0.1,s*0.72); g.stroke();
+  g.beginPath(); g.moveTo(s*0.3,s*0.42); g.lineTo(s*0.12,s*0.52); g.moveTo(s*0.28,s*0.68); g.lineTo(s*0.1,s*0.75); g.stroke();
   g.strokeStyle = '#ff8a3a'; g.lineWidth = s*0.03; g.lineCap='round';
   g.beginPath(); g.moveTo(-s*0.22,s*0.35); g.lineTo(-s*0.15,s*0.55); g.lineTo(-s*0.24,s*0.75); g.stroke();
   g.beginPath(); g.moveTo(s*0.2,s*0.4); g.lineTo(s*0.28,s*0.6); g.lineTo(s*0.18,s*0.78); g.stroke();
-  g.fillStyle = '#6a6a6a';
+  g.fillStyle = volumeGrad(g,-s*0.1,s*0.05,s*0.6,'#8a8a8a','#6a6a6a');
   g.beginPath();
   g.moveTo(-s*0.55,-s*0.1); g.lineTo(s*0.55,-s*0.1);
   g.lineTo(s*0.42,s*0.34); g.lineTo(-s*0.42,s*0.34);
   g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = s*0.018;
+  g.beginPath(); g.moveTo(-s*0.4,-s*0.02); g.lineTo(-s*0.15,s*0.28); g.moveTo(s*0.38,-s*0.04); g.lineTo(s*0.16,s*0.3); g.stroke();
   g.fillStyle = 'rgba(255,140,60,0.35)';
   g.beginPath(); g.arc(0,s*0.1,s*0.2,0,Math.PI*2); g.fill();
-  g.fillStyle = '#ff6a2a';
+  g.fillStyle = volumeGrad(g,-s*0.03,s*0.02,s*0.13,'#ffcf9a','#ff6a2a');
   g.beginPath(); g.moveTo(0,-s*0.02); g.lineTo(s*0.12,s*0.1); g.lineTo(0,s*0.22); g.lineTo(-s*0.12,s*0.1); g.closePath(); g.fill();
-  g.fillStyle = '#5a5a5a';
+  g.fillStyle = volumeGrad(g,-s*0.68,-s*0.02,s*0.28,'#8a8a8a','#5a5a5a');
   g.beginPath(); g.arc(-s*0.62,s*0.05,s*0.24,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.56,-s*0.02,s*0.28,'#8a8a8a','#5a5a5a');
   g.beginPath(); g.arc(s*0.62,s*0.05,s*0.24,0,Math.PI*2); g.fill();
-  g.fillStyle = '#7a7a7a';
+  g.fillStyle = volumeGrad(g,-s*0.72,s*0.35,s*0.26,'#9a9a9a','#7a7a7a');
   g.beginPath(); g.arc(-s*0.66,s*0.42,s*0.22,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.6,s*0.35,s*0.26,'#9a9a9a','#7a7a7a');
   g.beginPath(); g.arc(s*0.66,s*0.42,s*0.22,0,Math.PI*2); g.fill();
-  g.fillStyle = '#6a6a6a';
+  g.fillStyle = volumeGrad(g,-s*0.08,-s*0.44,s*0.3,'#8a8a8a','#6a6a6a');
   g.beginPath(); g.ellipse(0,-s*0.36,s*0.26,s*0.24,0,0,Math.PI*2); g.fill();
   g.strokeStyle = '#ff8a3a'; g.lineWidth = s*0.025;
   g.beginPath(); g.moveTo(-s*0.3,-s*0.05); g.lineTo(-s*0.2,s*0.15); g.stroke();
