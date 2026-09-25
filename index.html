@@ -635,13 +635,32 @@ function drawShadowPredator(g,x,y,s){
   [[-0.45,0.32],[-0.15,0.36],[0.2,0.36],[0.48,0.32]].forEach(([dx,dy])=>{
     g.fillRect(dx*s-s*0.06,dy*s,s*0.12,s*0.3);
   });
+  const tt = Date.now()/1000;
+  // tail whips side to side, with wispy shadow tendrils curling off it
+  const sway = Math.sin(tt*3)*s*0.12;
   g.strokeStyle = '#241a30'; g.lineWidth = s*0.12; g.lineCap = 'round';
-  g.beginPath(); g.moveTo(s*0.55,s*0.02); g.quadraticCurveTo(s*0.95,-s*0.1,s*0.85,-s*0.4); g.stroke();
+  g.beginPath(); g.moveTo(s*0.55,s*0.02); g.quadraticCurveTo(s*0.95,-s*0.1,s*0.85+sway,-s*0.4); g.stroke();
+  g.strokeStyle = `rgba(160,110,255,${0.25+0.15*fxRage})`; g.lineWidth = s*0.04;
+  for (let i=0;i<3;i++){
+    const k = Math.sin(tt*2.2+i*2);
+    g.beginPath(); g.moveTo(s*0.4+i*s*0.08,-s*0.05); g.quadraticCurveTo(s*0.6+k*s*0.1,-s*0.4-i*s*0.1,s*0.5+k*s*0.2,-s*0.7-i*s*0.1); g.stroke();
+  }
   g.fillStyle = volumeGrad(g,-s*0.62,-s*0.16,s*0.26,lighten('#2e2140',35),'#2e2140');
   g.beginPath(); g.ellipse(-s*0.55,-s*0.08,s*0.26,s*0.22,0,0,Math.PI*2); g.fill();
   g.beginPath(); g.moveTo(-s*0.68,-s*0.24); g.lineTo(-s*0.74,-s*0.42); g.lineTo(-s*0.58,-s*0.3); g.closePath(); g.fill();
   g.beginPath(); g.moveTo(-s*0.44,-s*0.24); g.lineTo(-s*0.38,-s*0.42); g.lineTo(-s*0.52,-s*0.3); g.closePath(); g.fill();
-  g.fillStyle = '#c9a8ff';
+  // fangs
+  g.fillStyle = '#e8e0f0';
+  g.beginPath(); g.moveTo(-s*0.72,-s*0.02); g.lineTo(-s*0.69,s*0.08); g.lineTo(-s*0.65,-s*0.02); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(-s*0.6,-s*0.02); g.lineTo(-s*0.57,s*0.08); g.lineTo(-s*0.53,-s*0.02); g.closePath(); g.fill();
+  // glowing eyes with a soft halo — they turn blood-red once enraged
+  const eye = fxRage > 0 ? '255,60,90' : '201,168,255';
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(${eye},0.35)`;
+  g.beginPath(); g.arc(-s*0.62,-s*0.1,s*0.11,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(-s*0.46,-s*0.1,s*0.11,0,Math.PI*2); g.fill();
+  g.restore();
+  g.fillStyle = `rgb(${eye})`;
   g.beginPath(); g.ellipse(-s*0.62,-s*0.1,s*0.05,s*0.03,0,0,Math.PI*2); g.fill();
   g.beginPath(); g.ellipse(-s*0.46,-s*0.1,s*0.05,s*0.03,0,0,Math.PI*2); g.fill();
   g.restore();
@@ -731,10 +750,29 @@ function drawDrone(g,x,y,s){
   for (let i=-2;i<=2;i++){ g.beginPath(); g.moveTo(i*s*0.16,-s*0.18); g.lineTo(i*s*0.22,s*0.3); g.stroke(); }
   g.fillStyle = volumeGrad(g,-s*0.08,-s*0.3,s*0.4,lighten('#8a5fd0',35),'#8a5fd0');
   g.beginPath(); g.ellipse(0,-s*0.22,s*0.45,s*0.32,0,0,Math.PI*2); g.fill();
+  // rotor blur spinning on top + a little antenna
+  const dt2 = Date.now()/1000;
+  g.strokeStyle = 'rgba(30,20,50,0.9)'; g.lineWidth = s*0.03;
+  g.beginPath(); g.moveTo(s*0.1,-s*0.52); g.lineTo(s*0.16,-s*0.78); g.stroke();
+  g.fillStyle = '#ff5f7a'; g.beginPath(); g.arc(s*0.16,-s*0.78,s*0.035,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(200,190,230,0.32)';
+  g.beginPath(); g.ellipse(0,-s*0.5,s*(0.62+0.05*Math.sin(dt2*40)),s*0.06,0,0,Math.PI*2); g.fill();
+  // eye pulse — angrier and brighter when enraged, with a scanner beam raking the floor
+  const pulse = 0.5+0.5*Math.sin(dt2*(fxRage>0?14:6));
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(255,50,80,${0.22+0.25*pulse+0.2*fxRage})`;
+  g.beginPath(); g.arc(0,-s*0.22,s*(0.28+0.06*pulse),0,Math.PI*2); g.fill();
+  g.restore();
   g.fillStyle = 'rgba(255,60,80,0.5)';
   g.beginPath(); g.arc(0,-s*0.22,s*0.24,0,Math.PI*2); g.fill();
   g.fillStyle = volumeGrad(g,-s*0.03,-s*0.25,s*0.14,'#ffb0bd','#ff2f4a');
   g.beginPath(); g.arc(0,-s*0.22,s*0.14,0,Math.PI*2); g.fill();
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const bx = Math.sin(dt2*2.4)*s*0.7;
+  const bg = g.createLinearGradient(0,-s*0.1,0,s*0.9);
+  bg.addColorStop(0,'rgba(255,60,90,0.25)'); bg.addColorStop(1,'rgba(255,60,90,0)');
+  g.fillStyle = bg; g.beginPath(); g.moveTo(-s*0.05,-s*0.1); g.lineTo(s*0.05,-s*0.1); g.lineTo(bx+s*0.25,s*0.9); g.lineTo(bx-s*0.25,s*0.9); g.closePath(); g.fill();
+  g.restore();
   for (let i=-1;i<=1;i+=2){
     g.strokeStyle = '#3a2560'; g.lineWidth = s*0.06;
     g.beginPath(); g.moveTo(i*s*0.5, s*0.1); g.lineTo(i*s*0.65, s*0.5); g.stroke();
@@ -804,6 +842,13 @@ function drawVulcromPredator(g,x,y,s){
   for (let i=-2;i<=2;i++){
     g.beginPath(); g.moveTo(i*s*0.2,-s*0.34); g.lineTo(i*s*0.2-s*0.06,-s*0.56); g.lineTo(i*s*0.2+s*0.06,-s*0.56); g.closePath(); g.fill();
   }
+  // molten veins glow along its back — faintly at rest, blazing once enraged
+  const vg = 0.25 + 0.55*fxRage + 0.15*Math.sin(Date.now()/260);
+  g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = `rgba(255,120,40,${vg})`; g.lineWidth = s*0.03; g.lineCap='round';
+  for (let i=-2;i<=2;i++){ g.beginPath(); g.moveTo(i*s*0.2,-s*0.3); g.lineTo(i*s*0.17,-s*0.05); g.lineTo(i*s*0.22,s*0.15); g.stroke(); }
+  g.fillStyle = `rgba(255,140,50,${vg*0.6})`;
+  for (let i=-2;i<=2;i++){ g.beginPath(); g.arc(i*s*0.2,-s*0.56,s*0.05,0,Math.PI*2); g.fill(); }
+  g.restore();
   g.fillStyle = volumeGrad(g,-s*0.68,-s*0.2,s*0.34,lighten('#8a2733',35),'#8a2733');
   g.beginPath(); g.ellipse(-s*0.6,-s*0.12,s*0.32,s*0.28,0,0,Math.PI*2); g.fill();
   g.fillStyle = '#ffdd33';
@@ -829,6 +874,17 @@ function drawAlienHunter(g,x,y,s){
   g.beginPath(); g.ellipse(s*0.42,-s*0.35,s*0.18,s*0.24,-0.3,0,Math.PI*2); g.fill();
   g.fillStyle = volumeGrad(g,-s*0.06,-s*0.7,s*0.3,'#30303e','#20202c');
   g.beginPath(); g.arc(0,-s*0.62,s*0.28,0,Math.PI*2); g.fill();
+  // cloak hem flutters at the bottom
+  const ht = Date.now()/1000;
+  g.fillStyle = '#12121a';
+  g.beginPath(); g.moveTo(-s*0.5,s*0.85);
+  for (let i=0;i<=6;i++){ g.lineTo(-s*0.5+i*s*0.1667, s*0.85 + (i%2? s*0.09 : -s*0.01) + Math.sin(ht*4+i)*s*0.02); }
+  g.lineTo(s*0.5,s*0.8); g.lineTo(-s*0.5,s*0.8); g.closePath(); g.fill();
+  // visor glows and sweeps — wider and hotter when enraged
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(255,47,74,${0.25+0.18*Math.sin(ht*5)+0.2*fxRage})`;
+  g.beginPath(); g.ellipse(0,-s*0.62,s*(0.34+0.06*fxRage),s*(0.16+0.04*fxRage),0,0,Math.PI*2); g.fill();
+  g.restore();
   g.fillStyle = 'rgba(255,47,74,0.4)';
   g.beginPath(); g.ellipse(0,-s*0.62,s*0.26,s*0.12,0,0,Math.PI*2); g.fill();
   g.fillStyle = volumeGrad(g,-s*0.03,-s*0.64,s*0.14,'#ff9aa8','#ff2f4a');
@@ -845,14 +901,18 @@ function drawArmaGuardia(g,x,y,s){
   const bob = Math.sin(Date.now()/200)*s*0.04;
   g.translate(0,bob);
   groundShadow(g, s, s*0.85-bob*0.4);
+  // the four gun arms slowly orbit the core, spinning faster when enraged; a charge ring pulses around it
+  const at = Date.now()/1000, spin = at*(0.7 + 1.6*fxRage);
   g.strokeStyle = '#55555f'; g.lineWidth = s*0.12; g.lineCap = 'round';
   for (let i=0;i<4;i++){
-    const a = i*Math.PI/2 + Math.PI/4;
+    const a = i*Math.PI/2 + Math.PI/4 + spin;
     g.beginPath(); g.moveTo(Math.cos(a)*s*0.3,Math.sin(a)*s*0.3); g.lineTo(Math.cos(a)*s*0.7,Math.sin(a)*s*0.7); g.stroke();
   }
   for (let i=0;i<4;i++){
-    const a = i*Math.PI/2 + Math.PI/4;
+    const a = i*Math.PI/2 + Math.PI/4 + spin;
     const px = Math.cos(a)*s*0.72, py = Math.sin(a)*s*0.72;
+    g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,170,58,${0.3+0.2*Math.sin(at*6+i)})`;
+    g.beginPath(); g.arc(px,py,s*0.17,0,Math.PI*2); g.fill(); g.restore();
     g.fillStyle = volumeGrad(g,px-s*0.03,py-s*0.03,s*0.1,'#ffd9a0','#ffaa3a');
     g.beginPath(); g.arc(px,py,s*0.09,0,Math.PI*2); g.fill();
   }
@@ -860,10 +920,16 @@ function drawArmaGuardia(g,x,y,s){
   g.beginPath(); g.ellipse(0,0,s*0.4,s*0.4,0,0,Math.PI*2); g.fill();
   g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = s*0.025;
   g.beginPath(); g.arc(0,0,s*0.4,0,Math.PI*2); g.stroke();
+  // rivets / plating detail
+  g.fillStyle = 'rgba(0,0,0,0.35)';
+  for (let i=0;i<8;i++){ const a=i*Math.PI/4; g.beginPath(); g.arc(Math.cos(a)*s*0.33,Math.sin(a)*s*0.33,s*0.02,0,Math.PI*2); g.fill(); }
+  const cp = 0.5+0.5*Math.sin(at*(4+6*fxRage));
+  g.strokeStyle = `rgba(255,120,60,${0.25+0.35*cp})`; g.lineWidth = s*0.03;
+  g.beginPath(); g.arc(0,0,s*(0.3+0.08*cp),0,Math.PI*2); g.stroke();
   g.fillStyle = 'rgba(255,95,58,0.35)';
   g.beginPath(); g.arc(0,0,s*0.24,0,Math.PI*2); g.fill();
-  g.fillStyle = volumeGrad(g,-s*0.04,-s*0.04,s*0.16,'#ffb08a','#ff5f3a');
-  g.beginPath(); g.arc(0,0,s*0.15,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,-s*0.04,-s*0.04,s*0.16, fxRage>0?'#ffffff':'#ffb08a', fxRage>0?'#ff8a5a':'#ff5f3a');
+  g.beginPath(); g.arc(0,0,s*(0.15+0.03*fxRage*cp),0,Math.PI*2); g.fill();
   g.restore();
 }
 // hulking magma-cracked titan guarding the castle exit — gray stone body, glowing orange fissures
@@ -907,7 +973,28 @@ function drawTitan(g,x,y,s){
   g.strokeStyle = '#ff8a3a'; g.lineWidth = s*0.025;
   g.beginPath(); g.moveTo(-s*0.3,-s*0.05); g.lineTo(-s*0.2,s*0.15); g.stroke();
   g.beginPath(); g.moveTo(s*0.28,-s*0.08); g.lineTo(s*0.18,s*0.1); g.stroke();
-  g.fillStyle = '#ffaa3a';
+  // the magma core breathes; phase 2 splits the stone wide open with extra glowing cracks
+  const tt = Date.now()/1000, core = 0.5+0.5*Math.sin(tt*(2.4+3*fxRage));
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(255,120,40,${0.18+0.22*core+0.25*fxRage})`;
+  g.beginPath(); g.arc(0,s*0.1,s*(0.3+0.05*core),0,Math.PI*2); g.fill();
+  if (fxRage > 0){
+    g.strokeStyle = `rgba(255,170,60,${0.6+0.3*core})`; g.lineWidth = s*0.035; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(-s*0.5,-s*0.05); g.lineTo(-s*0.32,s*0.1); g.lineTo(-s*0.4,s*0.3); g.stroke();
+    g.beginPath(); g.moveTo(s*0.5,-s*0.06); g.lineTo(s*0.34,s*0.12); g.lineTo(s*0.42,s*0.3); g.stroke();
+    g.beginPath(); g.moveTo(-s*0.1,-s*0.1); g.lineTo(-s*0.04,s*0.06); g.lineTo(s*0.06,-s*0.02); g.stroke();
+    g.beginPath(); g.arc(-s*0.62,s*0.05,s*0.2,0.4,2.4); g.stroke();
+    g.beginPath(); g.arc(s*0.62,s*0.05,s*0.2,0.7,2.7); g.stroke();
+  }
+  g.restore();
+  // eyes: molten orange at rest, burning red when enraged, each with a glow
+  const ec = fxRage > 0 ? '255,60,50' : '255,170,58';
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(${ec},0.4)`;
+  g.beginPath(); g.arc(-s*0.1,-s*0.38,s*0.12,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.1,-s*0.38,s*0.12,0,Math.PI*2); g.fill();
+  g.restore();
+  g.fillStyle = `rgb(${ec})`;
   g.beginPath(); g.arc(-s*0.1,-s*0.38,s*0.055,0,Math.PI*2); g.fill();
   g.beginPath(); g.arc(s*0.1,-s*0.38,s*0.055,0,Math.PI*2); g.fill();
   g.restore();
@@ -1257,10 +1344,196 @@ function updateExploration(dt){
 function clampX(v){ return Math.max(20, Math.min(W-20-player.w, v)); }
 function clampY(v){ return Math.max(70, Math.min(H-20-player.h, v)); }
 
+/* ---------------- visual effects: particles, shake, lighting, ambience ---------------- */
+const fxParticles = [];   // short-lived world-space sparks/embers/smoke
+let fxShake = 0, fxShakeMag = 0;   // screen shake (seconds left, pixels)
+let fxPlayerHit = 0;               // player blink after taking damage
+let fxRage = 0;                    // 0..1, read by boss draw functions (phase 2 look)
+const fxFlashCanvas = document.createElement('canvas');   // lets an enemy sprite flash white on hit
+fxFlashCanvas.width = fxFlashCanvas.height = 360;
+const fxFlashCtx = fxFlashCanvas.getContext('2d');
+// soft dark edges, built once
+const fxVignette = document.createElement('canvas');
+fxVignette.width = W; fxVignette.height = H;
+(function(){
+  const g = fxVignette.getContext('2d');
+  const gr = g.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.85);
+  gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,0.5)');
+  g.fillStyle = gr; g.fillRect(0,0,W,H);
+})();
+function fxQuality(){ return settings.quality === 'baixa' ? 0 : (settings.quality === 'media' ? 0.5 : 1); }
+function fxBurst(x,y,n,color,speed,size,life,grav){
+  const q = fxQuality(); if (q === 0) n = Math.ceil(n*0.3); else n = Math.ceil(n*q);
+  for (let i=0;i<n && fxParticles.length<320;i++){
+    const a = Math.random()*Math.PI*2, sp = speed*(0.35+Math.random()*0.65);
+    fxParticles.push({ x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - speed*0.2, life:life*(0.6+Math.random()*0.4), max:life,
+      size:size*(0.6+Math.random()*0.8), color, grav:grav||0 });
+  }
+}
+function fxShakeNow(sec, mag){ if (fxQuality() === 0) return; fxShake = Math.max(fxShake, sec); fxShakeMag = Math.max(fxShakeMag, mag); }
+function updateFx(dt){
+  for (let i=fxParticles.length-1;i>=0;i--){
+    const p = fxParticles[i];
+    p.life -= dt;
+    if (p.life <= 0){ fxParticles.splice(i,1); continue; }
+    p.vy += p.grav*dt; p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= (1 - 1.5*dt);
+  }
+  if (fxShake > 0){ fxShake -= dt; if (fxShake <= 0){ fxShake = 0; fxShakeMag = 0; } }
+  if (fxPlayerHit > 0) fxPlayerHit = Math.max(0, fxPlayerHit - dt);
+}
+function fxDrawParticles(g){
+  g.save(); g.globalCompositeOperation = 'lighter';
+  fxParticles.forEach(p=>{
+    const k = Math.max(0, p.life/p.max);
+    g.fillStyle = `rgba(${p.color},${(0.85*k).toFixed(3)})`;
+    g.beginPath(); g.arc(p.x,p.y,p.size*(0.4+0.6*k),0,Math.PI*2); g.fill();
+  });
+  g.restore();
+}
+// stateless drifting ambience — position is a pure function of time, so it costs no per-frame bookkeeping
+function fxRand(i,k){ const v = Math.sin(i*127.1 + k*311.7)*43758.5453; return v - Math.floor(v); }
+function fxAmbient(g, cfg, t){
+  const q = fxQuality(); if (q === 0 || !cfg || !cfg.kind) return;
+  const n = Math.round((cfg.count||24)*q), col = cfg.color || '255,240,210';
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<n;i++){
+    const r1 = fxRand(i,1), r2 = fxRand(i,2), r3 = fxRand(i,3);
+    let x, y, a, s;
+    if (cfg.kind === 'embers'){          // rise, sway, fade with height
+      const cyc = (t*(22+r3*34) + r2*(H+60)) % (H+60);
+      y = H + 20 - cyc; x = r1*W + Math.sin(t*1.3 + i)*16;
+      a = Math.min(1, cyc/80) * Math.max(0, 1 - cyc/(H+40)) * 0.9; s = 1.2 + r3*2.2;
+    } else if (cfg.kind === 'fireflies'){ // wander and blink
+      x = r1*W + Math.sin(t*0.5 + i*2)*46; y = r2*H*0.85 + H*0.1 + Math.cos(t*0.4 + i)*34;
+      a = Math.max(0, Math.sin(t*1.7 + i*3.1))*0.9; s = 1.6 + r3*1.6;
+      g.fillStyle = `rgba(${col},${(a*0.25).toFixed(3)})`;
+      g.beginPath(); g.arc(x,y,s*3.2,0,Math.PI*2); g.fill();
+    } else {                              // dust: slow float
+      x = (r1*W + t*(3+r3*5)) % W; y = r2*H + Math.sin(t*0.35 + i*1.7)*18;
+      a = 0.12 + 0.2*Math.abs(Math.sin(t*0.6 + i)); s = 0.9 + r3*1.6;
+    }
+    g.fillStyle = `rgba(${col},${a.toFixed(3)})`;
+    g.beginPath(); g.arc(x,y,s,0,Math.PI*2); g.fill();
+  }
+  g.restore();
+}
+// flickering additive light pools (torches, lamps, glowing windows) and soft god-ray shafts
+function fxLights(g, lights, t){
+  if (!lights || fxQuality() === 0) return;
+  g.save(); g.globalCompositeOperation = 'lighter';
+  lights.forEach((L,i)=>{
+    const fl = 0.86 + 0.09*Math.sin(t*8.3 + i*2.1) + 0.05*Math.sin(t*15.7 + i*5.3);
+    if (L.shaft){
+      const gr = g.createLinearGradient(0,L.y,0,L.y+L.len);
+      gr.addColorStop(0,`rgba(${L.c},${0.2*fl})`); gr.addColorStop(1,`rgba(${L.c},0)`);
+      g.fillStyle = gr; g.beginPath();
+      g.moveTo(L.x-L.w/2,L.y); g.lineTo(L.x+L.w/2,L.y);
+      g.lineTo(L.x+L.w*1.2,L.y+L.len); g.lineTo(L.x-L.w*1.2,L.y+L.len); g.closePath(); g.fill();
+    } else {
+      const gr = g.createRadialGradient(L.x,L.y,0,L.x,L.y,L.r*fl);
+      gr.addColorStop(0,`rgba(${L.c},${0.38*fl})`); gr.addColorStop(1,`rgba(${L.c},0)`);
+      g.fillStyle = gr; g.beginPath(); g.arc(L.x,L.y,L.r*fl,0,Math.PI*2); g.fill();
+    }
+  });
+  g.restore();
+}
+// ground mist: two slow, wide translucent bands
+function fxMist(g, color, t, y, alpha){
+  if (fxQuality() === 0) return;
+  const R = W*0.42;
+  for (let i=0;i<2;i++){
+    const cx = ((t*(10+i*7) + i*W*0.55) % (W*1.6)) - W*0.3;
+    const gr = g.createRadialGradient(0,0,0,0,0,R);
+    gr.addColorStop(0,`rgba(${color},${alpha})`); gr.addColorStop(1,`rgba(${color},0)`);
+    g.save(); g.translate(cx, y+i*14); g.scale(1,0.22); g.fillStyle = gr;
+    g.fillRect(-R,-R,R*2,R*2); g.restore();
+  }
+}
+function decorPlanks(g){       // wooden floor boards + baseboard shade
+  g.strokeStyle = 'rgba(0,0,0,0.07)'; g.lineWidth = 2;
+  for (let y=110;y<H-20;y+=26){ g.beginPath(); g.moveTo(20,y); g.lineTo(W-20,y); g.stroke(); }
+  const gr = g.createLinearGradient(0,70,0,120); gr.addColorStop(0,'rgba(0,0,0,0.3)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(20,70,W-40,50);
+}
+function decorPillarShadows(g, xs, topY, bottomY){ // depth: each pillar throws a soft shadow onto the floor beside it
+  xs.forEach(x=>{
+    const gr = g.createLinearGradient(x+26,0,x+90,0);
+    gr.addColorStop(0,'rgba(0,0,0,0.3)'); gr.addColorStop(1,'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(x+26, topY, 64, bottomY-topY);
+  });
+}
+// per-scene look. Keyed by the scene's draw function; scenes may override with scene.fx.
+const SCENE_FX = new Map();
+function registerSceneFx(){
+  SCENE_FX.set(drawDuoHouse,      { ambient:{kind:'dust',count:22,color:'255,235,190'}, tint:'rgba(255,170,60,0.05)',
+    lights:[{x:229,y:150,r:130,c:'255,200,80'},{x:W/2,y:135,w:120,len:340,c:'170,220,255',shaft:true}], decor:decorPlanks });
+  SCENE_FX.set(drawDuoUpstairs,   { ambient:{kind:'dust',count:20,color:'255,235,190'}, tint:'rgba(255,170,60,0.05)', decor:decorPlanks });
+  SCENE_FX.set(drawAstroHouse,    { ambient:{kind:'dust',count:22,color:'255,235,190'}, tint:'rgba(255,170,60,0.05)',
+    lights:[{x:229,y:150,r:130,c:'255,200,80'},{x:W/2,y:135,w:120,len:340,c:'170,220,255',shaft:true}], decor:decorPlanks });
+  SCENE_FX.set(drawVillage,       { ambient:{kind:'dust',count:22,color:'255,255,220'} });
+  SCENE_FX.set(drawForest,        { ambient:{kind:'fireflies',count:24,color:'190,255,120'}, tint:'rgba(5,40,20,0.14)',
+    decor:(g,t)=>fxMist(g,'170,220,190',t,H-90,0.10) });
+  SCENE_FX.set(drawSecretRoom,    { ambient:{kind:'dust',count:20,color:'200,160,255'}, tint:'rgba(60,20,90,0.12)' });
+  SCENE_FX.set(drawAlienShipInterior,{ ambient:{kind:'dust',count:26,color:'120,255,230'}, tint:'rgba(0,110,140,0.10)' });
+  SCENE_FX.set(drawVulcromLandscape,{ ambient:{kind:'embers',count:30,color:'255,120,50'}, tint:'rgba(130,25,10,0.10)',
+    decor:(g,t)=>{ const gr=g.createLinearGradient(0,H-110,0,H); gr.addColorStop(0,'rgba(255,90,30,0)'); gr.addColorStop(1,`rgba(255,90,30,${0.16+0.05*Math.sin(t*2)})`); g.fillStyle=gr; g.fillRect(0,H-110,W,110); } });
+  SCENE_FX.set(drawUndergroundPassage,{ ambient:{kind:'dust',count:22,color:'180,200,255'}, tint:'rgba(10,20,60,0.14)' });
+  SCENE_FX.set(drawRocketClearing,{ ambient:{kind:'dust',count:22,color:'255,240,210'} });
+  SCENE_FX.set(drawBackyard,      { ambient:{kind:'fireflies',count:18,color:'255,240,120'}, tint:'rgba(10,10,50,0.14)' });
+  SCENE_FX.set(drawRestaurant,    { ambient:{kind:'dust',count:22,color:'255,235,190'}, tint:'rgba(255,150,50,0.06)',
+    lights:[{x:W*0.25,y:110,r:150,c:'255,200,110'},{x:W*0.5,y:110,r:150,c:'255,200,110'},{x:W*0.75,y:110,r:150,c:'255,200,110'}], decor:decorPlanks });
+  SCENE_FX.set(drawBunker,        { ambient:{kind:'dust',count:24,color:'200,210,255'}, tint:'rgba(10,15,40,0.12)',
+    lights:[{x:W/2,y:70,r:110,c:'255,95,58'}] });
+  SCENE_FX.set(drawArmaRoom,      { ambient:{kind:'embers',count:22,color:'255,150,60'}, tint:'rgba(120,30,10,0.14)' });
+  SCENE_FX.set(drawBunkerOutside, { ambient:{kind:'dust',count:24,color:'200,180,150'}, tint:'rgba(40,10,40,0.10)',
+    decor:(g,t)=>fxMist(g,'150,140,160',t,H-120,0.08) });
+  SCENE_FX.set(drawPathToCastle,  { ambient:{kind:'embers',count:24,color:'255,130,60'}, tint:'rgba(100,35,10,0.10)',
+    decor:(g,t)=>fxMist(g,'160,110,90',t,H-110,0.07) });
+  SCENE_FX.set(drawCastle,        { ambient:{kind:'embers',count:36,color:'255,120,40'}, tint:'rgba(120,35,10,0.12)',
+    lights:[103,323,543,763].map(x=>({x,y:150,r:120,c:'255,110,40'})),
+    decor:(g,t)=>{
+      decorPillarShadows(g,[90,310,530,750],70,H-70);
+      // glowing lava fissures cracking the floor
+      g.save(); g.strokeStyle = `rgba(255,${100+Math.round(40*Math.sin(t*2))},30,0.65)`; g.lineWidth = 2; g.lineCap='round';
+      [[60,520,140,500,190,540],[380,530,430,505,500,538],[640,525,700,545,780,512],[860,538,900,515,930,530]].forEach(([a,b,c,d,e,f])=>{
+        g.beginPath(); g.moveTo(a,b); g.lineTo(c,d); g.lineTo(e,f); g.stroke(); });
+      g.restore(); } });
+  SCENE_FX.set(drawCrossroads,    { ambient:{kind:'dust',count:22,color:'220,200,230'}, tint:'rgba(30,10,50,0.10)',
+    decor:(g,t)=>fxMist(g,'170,150,190',t,H-100,0.08) });
+  SCENE_FX.set(drawBigCastleGate, { ambient:{kind:'fireflies',count:20,color:'200,160,255'}, tint:'rgba(40,10,70,0.10)',
+    lights:[{x:W/2-215,y:140,r:90,c:'255,200,90'},{x:W/2-215,y:290,r:90,c:'255,200,90'},{x:W/2+215,y:140,r:90,c:'255,200,90'},{x:W/2+215,y:290,r:90,c:'255,200,90'}],
+    decor:(g,t)=>fxMist(g,'190,170,220',t,H-130,0.10) });
+  SCENE_FX.set(drawSecretForest,  { ambient:{kind:'fireflies',count:28,color:'120,255,200'}, tint:'rgba(0,35,20,0.16)',
+    lights:[{x:W-65,y:H/2,r:110,c:'255,213,74'}], decor:(g,t)=>fxMist(g,'120,180,150',t,H-90,0.11) });
+  SCENE_FX.set(drawBigCastleInterior,{ ambient:{kind:'dust',count:26,color:'255,220,170'}, tint:'rgba(50,20,10,0.08)',
+    lights:[140,460,780].map(x=>({x,y:120,r:150,c:'255,170,58'})),
+    decor:(g,t)=>{
+      decorPillarShadows(g,[300,620],70,H-70);
+      g.fillStyle='rgba(120,20,40,0.55)'; g.fillRect(40,H/2+10,W-80,44);         // long red carpet
+      g.fillStyle='rgba(255,213,74,0.55)'; g.fillRect(40,H/2+10,W-80,3); g.fillRect(40,H/2+51,W-80,3); } });
+  SCENE_FX.set(drawTreasureRoom,  { ambient:{kind:'fireflies',count:22,color:'255,150,230'}, tint:'rgba(70,20,80,0.10)',
+    lights:[{x:W/2,y:H/2,r:180,c:'255,110,220'}],
+    decor:(g,t)=>{ g.save(); g.translate(W/2,H/2+30); g.scale(1,0.35); g.rotate(t*0.4);
+      g.strokeStyle='rgba(255,150,230,0.5)'; g.lineWidth=3; g.setLineDash([16,10]);
+      g.beginPath(); g.arc(0,0,120,0,Math.PI*2); g.stroke(); g.beginPath(); g.arc(0,0,70,0,Math.PI*2); g.stroke(); g.restore(); } });
+  SCENE_FX.set(drawKingRoom,      { ambient:{kind:'dust',count:24,color:'255,215,120'}, tint:'rgba(60,10,60,0.10)',
+    lights:[{x:W/2,y:H/2-40,r:210,c:'255,213,74'},{x:120,y:170,r:110,c:'255,170,58'},{x:W-120,y:170,r:110,c:'255,170,58'}],
+    decor:(g,t)=>{ [[60,'#5a1f8a'],[W-100,'#5a1f8a']].forEach(([x,c])=>{      // hanging banners
+      g.fillStyle=c; g.fillRect(x,70,40,190); g.beginPath(); g.moveTo(x,260); g.lineTo(x+20,282); g.lineTo(x+40,260); g.closePath(); g.fill();
+      g.fillStyle='#ffd54a'; g.fillRect(x,70,40,6); g.beginPath(); g.arc(x+20,140,9,0,Math.PI*2); g.fill(); }); } });
+}
+registerSceneFx();
 function renderScene(){
   ctx.clearRect(0,0,W,H);
   if (!currentScene) return;
+  const tSec = Date.now()/1000;
+  const sfx = currentScene.fx || SCENE_FX.get(currentScene.draw) || { ambient:{kind:'dust',count:18} };
+  ctx.save();
+  if (fxShake > 0){ const m = fxShakeMag*(fxShake > 0.2 ? 1 : fxShake/0.2); ctx.translate((Math.random()-0.5)*2*m,(Math.random()-0.5)*2*m); }
   currentScene.draw(ctx);
+  if (sfx.decor) sfx.decor(ctx, tSec);
+  if (sfx.lights) fxLights(ctx, sfx.lights, tSec);
   for (const npc of (currentScene.npcs||[])){
     const draw = DRAW[npc.type];
     if (draw) draw(ctx, npc.x+npc.w/2, npc.y+npc.h/2, npc.scale||34, npc.talking);
@@ -1277,14 +1550,51 @@ function renderScene(){
       if (draw) draw(ctx, sample.x+player.w/2, sample.y+player.h/2, PLAYER_SCALE[type]||34, false);
     });
   }
+  if (fxPlayerHit > 0 && Math.floor(fxPlayerHit*22) % 2 === 0) ctx.globalAlpha = 0.45;   // blink after a hit
   DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
+  ctx.globalAlpha = 1;
   if (battle){
-    DRAW[battle.enemy.type](ctx, battle.enemyPos.x, battle.enemyPos.y, battle.enemy.scale||52);
+    const ex = battle.enemyPos.x, ey = battle.enemyPos.y, base = battle.enemy.scale||52;
+    const pdx = (player.x+player.w/2)-ex, pdy = (player.y+player.h/2)-ey, pd = Math.hypot(pdx,pdy)||1;
+    // telegraph: melee enemies rear back and lunge just before swinging; ranged ones charge a glowing orb
+    let wind = 0;
+    if (battle.ranged){ if (battle.enemyAtkCd > 0 && battle.enemyAtkCd < 0.45) wind = 1 - battle.enemyAtkCd/0.45; }
+    else if (pd < 85 && battle.enemyAtkCd > 0 && battle.enemyAtkCd < 0.32) wind = 1 - battle.enemyAtkCd/0.32;
+    if (wind > 0){
+      const rc = battle.ranged ? (battle.enemy.projColor||'#ff5f3a') : '#ff5040';
+      ctx.save(); ctx.strokeStyle = rc; ctx.globalAlpha = 0.55*wind; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(ex,ey,base*(1.15-0.35*wind),0,Math.PI*2); ctx.stroke();
+      if (battle.ranged){ ctx.globalAlpha = 0.45*wind; ctx.fillStyle = rc; ctx.beginPath(); ctx.arc(ex,ey,base*0.3*wind,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
+    const lunge = battle.ranged ? 0 : wind*9;
+    // draw the enemy on an offscreen canvas so a hit can flash the whole sprite white
+    fxFlashCtx.clearRect(0,0,360,360);
+    fxRage = battle.rageTriggered ? 1 : 0;
+    DRAW[battle.enemy.type](fxFlashCtx, 180, 180, base*(1+0.1*wind));
+    fxRage = 0;
+    if (battle.enemyFlash > 0){
+      fxFlashCtx.globalCompositeOperation = 'source-atop';
+      fxFlashCtx.fillStyle = `rgba(255,255,255,${(Math.min(1,battle.enemyFlash/0.16)*0.85).toFixed(3)})`;
+      fxFlashCtx.fillRect(0,0,360,360);
+      fxFlashCtx.globalCompositeOperation = 'source-over';
+    }
+    ctx.drawImage(fxFlashCanvas, ex-180+(pdx/pd)*lunge, ey-180+(pdy/pd)*lunge);
     battle.projectiles.forEach(pr=>{
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = pr.color; ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r*2.4,0,Math.PI*2); ctx.fill();
+      ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(pr.x-pr.vx*0.02,pr.y-pr.vy*0.02,pr.r*1.6,0,Math.PI*2); ctx.fill();
+      ctx.restore();
       ctx.fillStyle = pr.color; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r*0.5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r*0.5,0,Math.PI*2); ctx.fill();
     });
   }
+  fxDrawParticles(ctx);
+  ctx.restore();
+  // screen-wide finishing: colour grade, drifting ambience, soft dark edges
+  if (sfx.tint && fxQuality() > 0){ ctx.fillStyle = sfx.tint; ctx.fillRect(0,0,W,H); }
+  fxAmbient(ctx, sfx.ambient, tSec);
+  if (fxQuality() > 0) ctx.drawImage(fxVignette, 0, 0);
 }
 
 /* ---------------- battle system (real-time arena) ---------------- */
@@ -1330,6 +1640,8 @@ function startBattle(config){
   battle.allyCd = 0;
   battle.fleeCd = 0;
   battle.enemyAtkCd = 0.9;
+  battle.enemyFlash = 0;
+  battle.rageTriggered = false;
 
   player.type = battle.player.type;
   const px = player.x+player.w/2, py = player.y+player.h/2;
@@ -1359,11 +1671,24 @@ function startBattle(config){
   battleAttackBtn.textContent = config.playerRanged ? '🚀' : '⚔';
 }
 
+// juice: white flash on the sprite, a spray of sparks and a small screen kick on every landed hit
+function fxEnemyHit(power){
+  if (!battle) return;
+  const big = power > 1;
+  battle.enemyFlash = 0.16;
+  fxBurst(battle.enemyPos.x, battle.enemyPos.y, big?22:10, battle.enemy.hitColor||'255,230,160', big?260:170, 2.8, 0.5, 140);
+  fxShakeNow(big?0.16:0.08, big?4:2);
+}
 function endBattleArena(outcome){
   battleOverlay.style.display = 'none';
   battleAttackBtn.style.display = 'none';
   const cfg = battle; battle = null;
   sceneLocked = false;
+  if (outcome === 'victory' && cfg && cfg.enemyPos){   // enemy bursts apart
+    fxBurst(cfg.enemyPos.x, cfg.enemyPos.y, 48, '255,210,130', 330, 3.6, 0.95, 170);
+    fxBurst(cfg.enemyPos.x, cfg.enemyPos.y, 24, cfg.enemy.hitColor||'255,120,90', 200, 4.4, 1.1, 120);
+    fxShakeNow(0.32, 6);
+  }
   if (outcome === 'victory'){ sfxVictory(); if (cfg.onVictory) cfg.onVictory(); }
   else if (outcome === 'fled') (cfg.onFlee || cfg.onDefeat) && (cfg.onFlee || cfg.onDefeat)();
   else if (outcome === 'defeat'){ sfxDefeat(); if (cfg.onDefeat) cfg.onDefeat(); }
@@ -1389,6 +1714,7 @@ function battleAttack(){
   if (dist > 95){ toast('Chegue mais perto pra atacar!'); return; }
   battle.enemy.hp -= dmg;
   sfxAttack();
+  fxEnemyHit(1);
   refreshHpUI();
   if (battle.enemy.hp <= 0){ toast(`${battle.enemy.name} foi derrotado!`); endBattleArena('victory'); }
 }
@@ -1398,6 +1724,7 @@ function battleAllyAssist(){
   const dmg = rnd(battle.player.atk+8, battle.player.atk+14);
   battle.enemy.hp -= dmg;
   sfxAllyAssist();
+  fxEnemyHit(2);
   toast(`Huggy ajuda! ${battle.enemy.name} sofre ${dmg} de dano.`);
   refreshHpUI();
   if (battle.enemy.hp <= 0){ endBattleArena('victory'); }
@@ -1414,6 +1741,9 @@ function battleTakeDamage(dmg){
   battle.player.hp -= dmg;
   battle.hitsTaken++;
   sfxEnemyHit();
+  fxPlayerHit = 0.55;
+  fxShakeNow(0.22, 5);
+  fxBurst(player.x+player.w/2, player.y+player.h/2, 14, '255,90,90', 200, 2.6, 0.5, 200);
   refreshHpUI();
 
   if (battle.guaranteedDefeatAfterTurns && battle.hitsTaken >= battle.guaranteedDefeatAfterTurns){
@@ -1441,18 +1771,37 @@ function updateBattle(dt){
   battle.allyCd = Math.max(0, battle.allyCd - dt);
   battle.fleeCd = Math.max(0, battle.fleeCd - dt);
   battle.enemyAtkCd -= dt;
+  battle.enemyFlash = Math.max(0, battle.enemyFlash - dt);
 
   const px = player.x+player.w/2, py = player.y+player.h/2;
   const ex = battle.enemyPos.x, ey = battle.enemyPos.y;
   const dx = px-ex, dy = py-ey;
   const dist = Math.hypot(dx,dy) || 1;
 
+  // phase 2: below half health the enemy gets enraged — faster, quicker to strike, and looks it
+  if (!battle.rageTriggered && battle.enemy.hp > 0 && battle.enemy.hp <= battle.enemy.maxHp*0.5){
+    battle.rageTriggered = true;
+    toast(`${battle.enemy.name} está furioso!`);
+    fxShakeNow(0.4, 7);
+    fxBurst(ex, ey, 34, '255,90,50', 280, 3.4, 0.8, -40);
+    flash('#ff6a2a');
+  }
+  const rage = battle.rageTriggered;
+  // ambient aura particles: embers off the titan, sparks off the turret, wisps off the shadow beast…
+  const AURA = { titan:['255,140,50',16], armaGuardia:['255,170,60',12], shadowPredator:['160,110,255',14],
+                 drone:['200,120,255',6], hunter:['255,60,80',5], predator:['255,90,60',8] };
+  const au = AURA[battle.enemy.type];
+  if (au && fxQuality() > 0 && Math.random() < au[1]*(rage?2:1)*dt && fxParticles.length < 300){
+    fxParticles.push({ x:ex+(Math.random()-0.5)*44, y:ey+(Math.random()-0.5)*34, vx:(Math.random()-0.5)*34,
+      vy:-26-Math.random()*34, life:0.9, max:0.9, size:2+Math.random()*2, color:au[0], grav:0 });
+  }
+
   if (battle.ranged){
     if (dist < 230){ battle.enemyPos.x -= (dx/dist)*55*dt; battle.enemyPos.y -= (dy/dist)*55*dt; }
     battle.enemyPos.x = Math.max(70, Math.min(W-70, battle.enemyPos.x));
     battle.enemyPos.y = Math.max(100, Math.min(H-70, battle.enemyPos.y));
     if (battle.enemyAtkCd <= 0){
-      battle.enemyAtkCd = 1.35;
+      battle.enemyAtkCd = rage ? 1.1 : 1.35;
       battle.projectiles.push({
         x:ex, y:ey, vx:(dx/dist)*270, vy:(dy/dist)*270, r:7,
         color: battle.enemy.projColor || '#ff5f3a', life:3,
@@ -1461,11 +1810,11 @@ function updateBattle(dt){
     }
   } else {
     if (dist > 58){
-      const spd = battle.enemy.speed || 105;
+      const spd = (battle.enemy.speed || 105) * (rage ? 1.25 : 1);
       battle.enemyPos.x += (dx/dist)*spd*dt;
       battle.enemyPos.y += (dy/dist)*spd*dt;
     } else if (battle.enemyAtkCd <= 0){
-      battle.enemyAtkCd = 1.15;
+      battle.enemyAtkCd = rage ? 0.95 : 1.15;
       battleTakeDamage(rnd(battle.enemy.atk-2, battle.enemy.atk+2));
       if (!battle) return;
     }
@@ -1477,6 +1826,7 @@ function updateBattle(dt){
     if (pr.target === 'enemy'){
       if (Math.hypot(pr.x-battle.enemyPos.x, pr.y-battle.enemyPos.y) < 30){
         battle.enemy.hp -= pr.dmg;
+        fxEnemyHit(1);
         refreshHpUI();
         battle.projectiles.splice(i,1);
         if (battle.enemy.hp <= 0){ toast(`${battle.enemy.name} foi derrotado!`); endBattleArena('victory'); return; }
@@ -3082,6 +3432,7 @@ function loop(t){
       updateExploration(dt);
       updateBattle(dt);
     }
+    updateFx(dt);
     updateActionButton();
     updateInventoryHud();
     renderScene();
