@@ -474,6 +474,12 @@ const UPGRADE_DEFS = {
   dash: { name:'Dash Veloz',      icon:'💨', max:8,  base:30, per:0.06, text:lv=>`-${Math.round(lv*6)}% de recarga` },
   crit: { name:'Golpe Crítico',   icon:'🎯', max:8,  base:35, per:0.02, text:lv=>`+${Math.round(lv*2)}% de crítico` }
 };
+// transformations won on the Ilha Celestial — they power up whoever leads the group (equip them in the backpack)
+const FORMS = {
+  normal:{ name:'Normal', icon:'',   hp:1,    atk:1,    sp:1,    dash:1,    text:'Sem transformação.' },
+  super: { name:'Super',  icon:'⚡', hp:1.35, atk:1.5,  sp:1.25, dash:0.9,  text:'+35% vida, +50% ataque, +25% especial, aura dourada.' },
+  max:   { name:'Max',    icon:'🌈', hp:1.8,  atk:2.2,  sp:1.6,  dash:0.75, text:'+80% vida, +120% ataque, +60% especial, dash 25% mais rápido, aura arco-íris com asas.' }
+};
 const EMERALD_DEFS = {   // permanent bonuses earned from open-world challenges
   life:   { name:'Esmeralda da Vida',    icon:'💚', text:'+25 de vida máxima',            tier:0 },
   special:{ name:'Esmeralda do Especial',icon:'✨', text:'+50% de carga do especial',     tier:0 },
@@ -486,23 +492,24 @@ function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totoziho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
-    main:'duo', sub:'astro', visited:{}, achievements:{} };
+    main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
   const r = ROSTER[id], p = progress, em = p.emeralds;
-  const hp = Math.round((isMain?60:50)*r.hp) + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0);
-  const atk = Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0);
+  const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0))*fm.hp);
+  const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0))*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
   const p = progress, em = p.emeralds, r = ROSTER[p.main];
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0)),
-    dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0))),
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0))*FORMS[p.form||'normal'].sp,
+    dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0))*FORMS[p.form||'normal'].dash),
     critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0),
     bug: !!p.bugGem
   };
@@ -1796,6 +1803,8 @@ function handleInteractKey(){
 let stepTimer = 0;
 function updateExploration(dt){
   if (dialogueActive || sceneLocked || !currentScene) return;
+  if (currentScene.tick && !battle) currentScene.tick();
+  if (dialogueActive || sceneLocked) return;       // a tick may have started a dialogue or moved us to another scene
   let dx=0, dy=0;
   if (keys['arrowleft']||keys['a']) dx -= 1;
   if (keys['arrowright']||keys['d']) dx += 1;
@@ -2121,6 +2130,7 @@ function renderScene(){
   });
   if (fxPlayerHit > 0 && Math.floor(fxPlayerHit*22) % 2 === 0) ctx.globalAlpha = 0.45;   // blink after a hit
   else if (battle && battle.iframes > 0 && player.dashT > 0) ctx.globalAlpha = 0.7;
+  if (progress.form !== 'normal' && player.type === progress.main && (currentScene.isOpenWorld || (battle && battle.mods))) drawFormAura(ctx, player.x+player.w/2, player.y+player.h/2, progress.form, tSec);
   DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
   ctx.globalAlpha = 1;
   if (battle){
@@ -3445,7 +3455,7 @@ const OW_DIM = { tree:[58,80,1], pine:[50,86,1], palm:[50,90,1], bush:[40,30,1],
   spike:[34,80,1], icespike:[34,80,1], shell:[22,16,0], bones:[40,20,0] };
 const OW_LM_BOX = { x:50, y:96, w:150, h:130 };
 const OW_LM_BOX2 = { x:W-200, y:96, w:150, h:130 };              // the village gets a second hut
-const OW_AVOID = { '4,3':[{x:760,y:90,w:130,h:150}], '2,2':[{x:800,y:90,w:100,h:120}] };   // free space around the final portal and the secret wall
+const OW_AVOID = { '4,2':[{x:790,y:390,w:130,h:110}], '4,3':[{x:760,y:90,w:130,h:150}], '2,2':[{x:800,y:90,w:100,h:120}] };   // free space around the final portal and the secret wall
 const OW_ITEM_CACHE = {};
 // four quadrants — the two central lanes (horizontal and vertical) are never used, so every exit stays reachable
 const OW_QUADS = [[34,W/2-100,96,H/2-80],[W/2+100,W-34,96,H/2-80],[34,W/2-100,H/2+80,H-70],[W/2+100,W-34,H/2+80,H-70]];
@@ -3820,6 +3830,96 @@ function drawBackrooms(g,bx,by,t){
   g.fillStyle = 'rgba(60,45,0,0.55)'; g.font = '11px monospace'; g.textAlign = 'center'; g.fillText(`NÍVEL 0 · sala ${bx}-${by}`, W/2, H-30);
   if (flick){ g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0,0,W,H); }
 }
+/* ---- Ilha Celestial: art, boat, altars and the Super / Max transformation aura ---- */
+function drawBoat(g,x,y,s){
+  const t = Date.now()/1000, bob = Math.sin(t*1.8)*s*0.05;
+  g.save(); g.translate(x,y+bob);
+  g.fillStyle = 'rgba(80,190,255,0.35)'; g.beginPath(); g.ellipse(0,s*0.55,s*1.1,s*0.2,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 2; g.beginPath(); g.ellipse(0,s*0.55,s*0.9+Math.sin(t*2)*4,s*0.14,0,0,Math.PI*2); g.stroke();
+  g.fillStyle = '#7a4a24'; g.beginPath(); g.moveTo(-s*0.8,s*0.1); g.lineTo(s*0.8,s*0.1); g.quadraticCurveTo(s*0.6,s*0.6,0,s*0.62); g.quadraticCurveTo(-s*0.6,s*0.6,-s*0.8,s*0.1); g.closePath(); g.fill();
+  g.fillStyle = '#a0682f'; g.fillRect(-s*0.8,s*0.06,s*1.6,s*0.1);
+  g.strokeStyle = '#4a2a10'; g.lineWidth = 4; g.beginPath(); g.moveTo(0,s*0.08); g.lineTo(0,-s*0.85); g.stroke();
+  g.fillStyle = '#f4ecd8'; g.beginPath(); g.moveTo(s*0.04,-s*0.8); g.quadraticCurveTo(s*0.6+Math.sin(t*2)*3,-s*0.4,s*0.5,s*0.02); g.lineTo(s*0.04,s*0.02); g.closePath(); g.fill();
+  g.fillStyle = '#ff5a5a'; g.beginPath(); g.moveTo(0,-s*0.85); g.lineTo(-s*0.3,-s*0.75); g.lineTo(0,-s*0.65); g.closePath(); g.fill();
+  g.restore();
+}
+function drawAltarBase(g,x,y,s,done,kind){
+  const t = Date.now()/1000, max = kind === 'max';
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.8);
+  g.fillStyle = '#8a8fa0'; g.beginPath(); g.moveTo(-s*0.6,s*0.8); g.lineTo(-s*0.44,s*0.3); g.lineTo(s*0.44,s*0.3); g.lineTo(s*0.6,s*0.8); g.closePath(); g.fill();
+  g.fillStyle = '#b8bccb'; g.fillRect(-s*0.5,s*0.22,s,s*0.12);
+  g.fillStyle = '#6a6f80'; g.fillRect(-s*0.36,s*0.5,s*0.72,s*0.06);
+  const hue = max ? (t*90)%360 : 45, col = done ? 'rgba(160,160,170,0.5)' : (max ? `hsl(${hue},95%,68%)` : '#ffd54a');
+  if (!done){ g.save(); g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(0,-s*0.15,0,0,-s*0.15,s*1.1); rg.addColorStop(0,max ? `hsla(${hue},95%,65%,0.5)` : 'rgba(255,210,60,0.5)'); rg.addColorStop(1,'rgba(255,210,60,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.15,s*1.1,0,Math.PI*2); g.fill(); g.restore(); }
+  const fl = done ? 0 : Math.sin(t*3)*s*0.05;
+  g.fillStyle = col; g.beginPath(); g.moveTo(0,-s*0.62+fl); g.lineTo(s*0.24,-s*0.2+fl); g.lineTo(0,s*0.16+fl); g.lineTo(-s*0.24,-s*0.2+fl); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.moveTo(0,-s*0.62+fl); g.lineTo(-s*0.24,-s*0.2+fl); g.lineTo(-s*0.06,-s*0.16+fl); g.closePath(); g.fill();
+  if (max && !done){ g.font = `bold ${Math.round(s*0.3)}px sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillText('MAX', 0, s*0.52); }
+  else if (!done){ g.font = `bold ${Math.round(s*0.26)}px sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(80,50,0,0.85)'; g.fillText('SUPER', 0, s*0.52); }
+  g.restore();
+}
+function drawAltarSuper(g,x,y,s,done){ drawAltarBase(g,x,y,s,done,'super'); }
+function drawAltarMax(g,x,y,s,done){ drawAltarBase(g,x,y,s,done,'max'); }
+// Super: gold flames. Max: rainbow flames, a shifting ring and feathered wings — drawn behind the sprite of whoever leads the group
+function drawFormAura(g,x,y,form,t){
+  const max = form === 'max';
+  g.save(); g.translate(x,y); g.globalCompositeOperation = 'lighter';
+  const c1 = max ? '255,120,240' : '255,210,60', c2 = max ? '80,230,255' : '255,130,30', r = (max ? 58 : 46) + 5*Math.sin(t*6);
+  const gr = g.createRadialGradient(0,-4,6,0,-4,r*1.5); gr.addColorStop(0,`rgba(${c1},0.5)`); gr.addColorStop(0.6,`rgba(${c2},0.24)`); gr.addColorStop(1,`rgba(${c2},0)`);
+  g.fillStyle = gr; g.beginPath(); g.arc(0,-4,r*1.5,0,Math.PI*2); g.fill();
+  const n = max ? 14 : 9;
+  for (let i=0;i<n;i++){
+    const u = (t*0.9+i/n)%1, px = Math.sin(i*2.4+t*2)*24, py = 24-u*90, sz = (1-u)*(max ? 8 : 7);
+    g.fillStyle = max ? `hsla(${(i*40+t*120)%360},95%,65%,${(1-u)*0.85})` : `rgba(${i%2?c1:c2},${(1-u)*0.85})`;
+    g.beginPath(); g.arc(px,py,sz,0,Math.PI*2); g.fill();
+  }
+  if (max){
+    const flap = Math.sin(t*5)*0.18;
+    [-1,1].forEach(sd=>{
+      for (let k=0;k<5;k++){
+        const a = -0.9+k*0.34+flap, len = 46+k*7;
+        g.fillStyle = `hsla(${(k*50+t*80)%360},90%,78%,0.42)`;
+        g.beginPath(); g.moveTo(sd*12,-8); g.quadraticCurveTo(sd*(14+Math.cos(a)*len*0.6),-8+Math.sin(a)*len*0.9,sd*(14+Math.cos(a)*len),-8+Math.sin(a)*len*0.5+10); g.quadraticCurveTo(sd*(10+Math.cos(a)*len*0.5),-2,sd*12,-2); g.closePath(); g.fill();
+      }
+    });
+    g.strokeStyle = `hsla(${(t*160)%360},95%,70%,0.7)`; g.lineWidth = 2.5; g.beginPath(); g.ellipse(0,26,r*0.9,r*0.22,0,0,Math.PI*2); g.stroke();
+  }
+  g.restore();
+}
+function drawIsland(g,t,info){
+  const sg = g.createLinearGradient(0,0,0,H); sg.addColorStop(0,'#2a5ac8'); sg.addColorStop(0.18,'#6ad4f0'); sg.addColorStop(1,'#1a8ab8');
+  g.fillStyle = sg; g.fillRect(0,0,W,H);
+  g.save(); g.globalCompositeOperation = 'lighter';       // aurora over the horizon
+  for (let i=0;i<3;i++){ const ag = g.createLinearGradient(0,10,0,110); ag.addColorStop(0,'rgba(120,255,200,0)'); ag.addColorStop(0.5,`rgba(${i?'200,120,255':'120,255,200'},${0.22+0.08*Math.sin(t+i)})`); ag.addColorStop(1,'rgba(120,255,200,0)');
+    g.fillStyle = ag; g.beginPath(); g.moveTo(0,60+i*10); for (let x=0;x<=W;x+=40) g.lineTo(x,60+i*12+Math.sin(x*0.01+t*0.8+i)*16); g.lineTo(W,110); g.lineTo(0,110); g.closePath(); g.fill(); }
+  g.restore();
+  g.fillStyle = 'rgba(255,250,220,0.8)'; g.beginPath(); g.arc(W*0.82,44,20,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 2;
+  for (let i=0;i<26;i++){ const x = (fxRand(i,120)*W + t*8*(1+i%3)) % W, y = 130+fxRand(i,121)*(H-130); g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+9,y-4,x+18,y); g.stroke(); }
+  const cx = W/2, cy = H/2+30;
+  g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.ellipse(cx,cy+8,452,232,0,0,Math.PI*2); g.fill();        // surf
+  g.fillStyle = '#f0dc9a'; g.beginPath(); g.ellipse(cx,cy,430,214,0,0,Math.PI*2); g.fill();                       // sand
+  const gg = g.createRadialGradient(cx,cy-30,20,cx,cy,360); gg.addColorStop(0,'#5ad07a'); gg.addColorStop(1,'#2a9a52');
+  g.fillStyle = gg; g.beginPath(); g.ellipse(cx,cy-6,370,178,0,0,Math.PI*2); g.fill();                             // grass
+  g.strokeStyle = 'rgba(255,240,170,0.5)'; g.lineWidth = 46; g.beginPath(); g.moveTo(cx,cy+178); g.lineTo(cx,cy+30); g.stroke();   // path from the boat
+  g.lineWidth = 34; g.beginPath(); g.moveTo(cx-260,cy-40); g.lineTo(cx+260,cy-40); g.stroke();
+  g.save(); g.translate(cx,cy-40); g.scale(1,0.4);                                                               // ring of runes
+  g.strokeStyle = `rgba(255,240,150,${0.5+0.3*Math.sin(t*2)})`; g.lineWidth = 4; g.setLineDash([14,10]); g.lineDashOffset = -t*20; g.beginPath(); g.arc(0,0,120,0,Math.PI*2); g.stroke(); g.restore();
+  ISLAND_ITEMS.forEach(o=> drawDeco(g,o.k,o.x,o.y,o.w,o.h,t,ISLAND_STYLE));
+  if (info){
+    const m = Math.floor(info.secs/60), s2 = String(Math.floor(info.secs%60)).padStart(2,'0');
+    g.textAlign = 'center'; g.font = 'bold 14px sans-serif'; g.lineWidth = 4; g.strokeStyle = 'rgba(0,30,60,0.8)';
+    const txt = info.open ? `A ilha afunda em ${m}:${s2}` : 'A ilha se foi...'; g.strokeText(txt,W/2,96); g.fillStyle = info.secs < 20 && info.open ? '#ffb0a0' : '#ffffff'; g.fillText(txt,W/2,96);
+  }
+}
+const ISLAND_STYLE = { leaf:'#2fd06a', trunk:'#8a6a3a', rock:'#a8b0b8' };
+const ISLAND_ITEMS = [
+  {k:'palm',x:60,y:130,w:56,h:96}, {k:'palm',x:W-116,y:130,w:56,h:96}, {k:'palm',x:80,y:420,w:56,h:96}, {k:'palm',x:W-136,y:420,w:56,h:96},
+  {k:'rock',x:300,y:150,w:50,h:34}, {k:'rock',x:W-350,y:150,w:50,h:34}
+].sort((a,b)=>(a.y+a.h)-(b.y+b.h));
+DRAW.boat = drawBoat; DRAW.altarSuper = drawAltarSuper; DRAW.altarMax = drawAltarMax;
+
 function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring of dark stars around a swirling void
   const t = Date.now()/1000;
   g.save(); g.translate(x,y);
@@ -4876,6 +4976,8 @@ const ACHIEVEMENTS = [
   { id:'lv50',    name:'Lenda',                 desc:'Chegue ao nível 50',                   reward:400, test:p=> p.level >= 50 },
   { id:'backrooms',name:'Fora dos Limites',     desc:'Encontre a passagem secreta e entre nas Backrooms', reward:100, test:p=> p.backrooms },
   { id:'bug',     name:'Erro de Sistema',       desc:'Pegue a Joia do Bug nas Backrooms',    reward:150, test:p=> p.bugGem },
+  { id:'super',   name:'Além do Limite',        desc:'Conquiste a forma Super na Ilha Celestial', reward:150, test:p=> p.forms.super },
+  { id:'max',     name:'Poder Máximo',          desc:'Conquiste a forma Max na Ilha Celestial',   reward:300, test:p=> p.forms.max },
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
@@ -4956,6 +5058,9 @@ function renderPanel(){
     });
   } else if (panelTab === 'chars'){
     h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span></div>`;
+    h += `<div class="pRow ${(progress.forms.super || progress.forms.max) ? '' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Forma de poder: ${FORMS[progress.form].name}</div>
+      <div class="pSub">${(progress.forms.super || progress.forms.max) ? FORMS[progress.form].text : '🔒 Conquiste as formas Super e Max na Ilha Celestial (abre a cada 5 minutos na Praia Calma).'}</div></div>
+      ${['normal','super','max'].map(k=> (k === 'normal' || progress.forms[k]) ? `<button class="pBtn ${k==='normal'?'':'alt'}" data-form="${k}" ${progress.form===k?'disabled':''}>${FORMS[k].icon} ${FORMS[k].name}</button>` : '').join('')}</div>`;
     Object.keys(ROSTER).forEach(id=>{
       const r = ROSTER[id], has = progress.chars[id], st = rosterStats(id, true);
       h += `<div class="pRow ${has ? '' : 'locked'}"><div class="pInfo"><div class="pTitle">${r.name} ${progress.main===id?'⭐ principal':(progress.sub===id?'🤝 reserva':'')}</div>
@@ -4978,6 +5083,8 @@ panelBody.addEventListener('click', e=>{
   if (b.dataset.buy){
     const k = b.dataset.buy, cost = upgradeCost(k);
     if (progress.crystals >= cost && progress[k+'Lv'] < UPGRADE_DEFS[k].max){ progress.crystals -= cost; progress[k+'Lv']++; sfxPickup(); checkAchievements(); }
+  } else if (b.dataset.form){
+    if (b.dataset.form === 'normal' || progress.forms[b.dataset.form]){ progress.form = b.dataset.form; sfxSpecial(); }
   } else if (b.dataset.main){
     const id = b.dataset.main; if (id === progress.sub) progress.sub = progress.main;
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
@@ -5236,6 +5343,87 @@ function buildOpenWorld(){
       ], ()=>{ fxWhite = 0.9; sfxSpecial(); goToScene(brRooms[brKey(0,0)], {x:W/2-17, y:H-110}); });
     } });
 
+  // ---- Ilha Celestial: appears on the Praia Calma every 5 minutes for 90 seconds; Super and Max forms are won here ----
+  const ISLAND_PERIOD = 300000, ISLAND_OPEN = 90000;
+  let islandT0 = performance.now(), islandShift = 0, islandWasOpen = false;
+  islandInfoFn = ()=>{
+    const e = performance.now()-islandT0+islandShift, ph = e % ISLAND_PERIOD, open = e >= ISLAND_PERIOD && ph < ISLAND_OPEN;
+    return { open, cycle:Math.floor(e/ISLAND_PERIOD), secs: open ? (ISLAND_OPEN-ph)/1000 : (ISLAND_PERIOD-ph)/1000 };
+  };
+  const islandTaken = {};      // chests already opened, per opening (they refill every time the island returns)
+  function islandWatch(){
+    const i = islandInfoFn();
+    if (i.open && !islandWasOpen){ islandWasOpen = true; showBanner('🏝 A Ilha Celestial surgiu na Praia Calma! (fecha em 1:30)'); sfxSpecial(); }
+    if (!i.open) islandWasOpen = false;
+  }
+  const beachArea = areas[key(4,2)];
+  const fmt = s=> Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+  function formFight(kind){
+    const d = FORMS[kind], isMax = kind === 'max';
+    owBattle({
+      title:`Prova da Forma ${d.name}`, intro: isMax ? 'Dois guardiões estelares protegem o Altar Max!' : 'O Guardião Supernova protege o Altar Super!',
+      fleeChance:0,
+      enemy: isMax ? { name:'Guardião Estelar', type:'titan', hp:900, maxHp:900, atk:22, speed:80, scale:70, reach:70, hitColor:'255,120,240' }
+                   : { name:'Guardião Supernova', type:'giant', hp:650, maxHp:650, atk:18, speed:60, scale:92, reach:84, hitColor:'255,220,90' },
+      waves: isMax ? [{ enemy:{ name:'Guardião Máximo', type:'giant', hp:1400, maxHp:1400, atk:26, speed:65, scale:100, reach:90, hitColor:'120,240,255' } }] : undefined,
+      onVictory: ()=>{
+        player.type = progress.main; progress.forms[kind] = true; progress.form = kind;
+        fxWhite = 1; sfxVictory(); fxShakeNow(0.6, 8); grantCrystals(isMax ? 300 : 150); grantXp(isMax ? 400 : 200);
+        startDialogue([
+          {speaker:'Altar', text:`${d.icon} Você conquistou a forma ${d.name.toUpperCase()}! ${d.text}`, color:isMax ? '#ff9af0' : '#ffd54a'},
+          {speaker:ROSTER[progress.main].name, text:'Sinto o poder correndo pelo corpo! Dá pra trocar de forma na mochila 🎒 (aba Personagens).', color:'#7ef9ff'}
+        ]);
+        checkAchievements();
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'O guardião foi forte demais... treine mais e volte quando a ilha reaparecer!', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function formAltar(kind, x){
+    const d = FORMS[kind];
+    return { x, y:200, w:70, h:80, type: kind === 'super' ? 'altarSuper' : 'altarMax', scale:40, persistent:true, label:`Altar ${d.name}`,
+      get talking(){ return !!progress.forms[kind]; },
+      onInteract: ()=>{
+        if (progress.forms[kind]){ startDialogue([{speaker:'Altar', text:`Você já domina a forma ${d.name}. Equipe na mochila 🎒 (aba Personagens).`, color:'#ffd54a'}]); return; }
+        if (kind === 'super' && progress.level < 10){ startDialogue([{speaker:'Altar', text:`A energia é forte demais. Volte com nível 10 (você: ${progress.level}).`, color:'#ff9977'}]); return; }
+        if (kind === 'max' && (!progress.forms.super || progress.level < 30)){ startDialogue([{speaker:'Altar', text:`Só quem domina a forma Super e chegou ao nível 30 aguenta o poder Max. (Super: ${progress.forms.super ? 'sim' : 'não'} · nível ${progress.level}/30)`, color:'#ff9977'}]); return; }
+        startDialogue([{speaker:'Altar', text:`${d.icon} Prova da forma ${d.name}: derrote o guardião. Aceita o desafio?`, color:'#ffd54a'}], ()=> formFight(kind));
+      } };
+  }
+  function islandChest(i, x, y){
+    return { x, y, w:50, h:50, type:'chest', scale:30, label:'Baú da Ilha',
+      get talking(){ return !!islandTaken[islandInfoFn().cycle+':'+i]; },
+      onInteract: ()=>{
+        const k = islandInfoFn().cycle+':'+i;
+        if (islandTaken[k]){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Já abri esse baú nesta visita.', color:'#7ef9ff'}]); return; }
+        islandTaken[k] = true; const n = 60 + i*25; sfxPickup(); grantCrystals(n); grantXp(30);
+        startDialogue([{speaker:ROSTER[progress.main].name, text:`Achei ${n} 💎 no baú! (os baús voltam na próxima vez que a ilha surgir)`, color:'#7ef9ff'}]);
+      } };
+  }
+  const island = {
+    banner:'ILHA CELESTIAL', isOpenWorld:true, owX:4, owY:2, mapName:'Ilha Celestial',
+    draw: (g)=> drawIsland(g, Date.now()/1000, islandInfoFn()),
+    obstacles: ISLAND_ITEMS.map(o=>({x:o.x+o.w*0.2, y:o.y+o.h*0.6, w:o.w*0.6, h:o.h*0.4})),
+    npcs: [ formAltar('super', 190), formAltar('max', W-260), islandChest(0,330,430), islandChest(1,W/2-25,300), islandChest(2,W-380,430) ],
+    exits: [ {x:W/2-60, y:H-40, w:120, h:34, onEnter:()=> goToScene(beachArea, {x:720, y:300})} ],
+    fx: { ambient:{kind:'fireflies',count:30,color:'170,255,235'}, tint:'rgba(20,90,140,0.05)' },
+    tick: ()=>{
+      const i = islandInfoFn();
+      if (!i.open && !dialogueActive){
+        startDialogue([{speaker:'Ilha', text:'A ilha está afundando! Corra pro barco!', color:'#ffb0a0'}], ()=> goToScene(beachArea, {x:720, y:300}));
+      }
+    }
+  };
+  Object.values(areas).forEach(a=>{ a.tick = islandWatch; });
+  areas[key(4,2)].npcs.push({ x:800, y:410, w:90, h:60, type:'boat', scale:40, persistent:true, label:'Barco · Ilha Celestial',
+    onInteract: ()=>{
+      const i = islandInfoFn();
+      if (!i.open){ startDialogue([{speaker:'Barqueiro', text:`A Ilha Celestial só surge a cada 5 minutos, por 1 minuto e meio. Próxima abertura em ${fmt(i.secs)}. Lá você conquista as formas Super e Max!`, color:'#9fe0ff'}]); return; }
+      startDialogue([{speaker:'Barqueiro', text:`A ilha está aberta! Fecha em ${fmt(i.secs)}. Embarcar?`, color:'#9fe0ff'}], ()=>{ fxWhite = 0.6; sfxPickup(); goToScene(island, {x:W/2-17, y:H-130}); });
+    } });
+
   // ---- the final boss portal (Terras Devastadas) ----
   function startFinalBoss(){
     owBattle({
@@ -5267,12 +5455,13 @@ function buildOpenWorld(){
         startDialogue([{speaker:'Portal do Vazio', text:`Selado. Requer: nível ${FINAL_LEVEL} (você: ${progress.level}), as 6 esmeraldas de desafio (${emeraldCount()}/6) e as 3 da história (${story}/3).`, color:'#e8b0ff'}]); return; }
       startDialogue([{speaker:'Portal do Vazio', text:'Ortsa, o Word Devourer e o Mega Universe Devourer esperam. Não haverá recuo. Entrar?', color:'#e8b0ff'}], ()=> startFinalBoss());
     } });
-  return { areas, brRooms, start: ()=>{
+  return { areas, brRooms, island, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
     goToScene(village, {x:W/2-17, y:430});
     startDialogue([{speaker:ROSTER[progress.main].name, text:'O mundo aberto! Explore as regiões, derrote monstros, conquiste esmeraldas e melhore o time na mochila 🎒.', color:'#7ef9ff'}]);
   } };
 }
 // tiny world map, top-right: visited regions, the village, and emerald shrines (gold once conquered)
+let islandInfoFn = null;     // set by buildOpenWorld: () => { open, secs, cycle } for the Ilha Celestial timer
 function drawMiniMap(g){
   const cw = 15, ch = 12, ox = W - 14 - OW_COLS*cw, oy = 64;
   g.save();
@@ -5290,8 +5479,12 @@ function drawMiniMap(g){
   g.fillText('⌂', ox+2*cw+cw/2, oy+1*ch+ch/2+3);
   g.strokeStyle = '#ffffff'; g.lineWidth = 2;
   g.strokeRect(ox+currentScene.owX*cw+0.5, oy+currentScene.owY*ch+0.5, cw-1, ch-1);
-  mapLabel(g, OW_NAMES[owBiome(currentScene.owX,currentScene.owY)], W-14, oy+OW_ROWS*ch+16, 11, 'right');
+  mapLabel(g, currentScene.mapName || OW_NAMES[owBiome(currentScene.owX,currentScene.owY)], W-14, oy+OW_ROWS*ch+16, 11, 'right');
   g.font = '9px sans-serif'; g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillText('Nível '+progress.level+'  ·  M ou 🗺 = mapa', W-14, oy+OW_ROWS*ch+28);
+  if (islandInfoFn){                         // the Ilha Celestial timer
+    const i = islandInfoFn(), m = Math.floor(i.secs/60), s2 = String(Math.floor(i.secs%60)).padStart(2,'0');
+    mapLabel(g, i.open ? `🏝 ILHA ABERTA · fecha em ${m}:${s2}` : `🏝 Ilha abre em ${m}:${s2}`, W-14, oy+OW_ROWS*ch+42, 10, 'right');
+  }
   g.restore();
 }
 
@@ -5382,7 +5575,7 @@ function drawBigMap(g){
   if (currentScene.isOpenWorld){
     const cw = 150, ch = 100, ox = (W-cw*OW_COLS)/2, oy = 96;
     mapLabel(g, 'MAPA DO MUNDO', W/2, 46, 22, 'center');
-    g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.6)'; g.fillText('N ↑   ·   Cada região liga às vizinhas pelos lados', W/2, 66);
+    g.font = '12px sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.6)'; { const ii = islandInfoFn ? islandInfoFn() : null; g.fillText('N ↑   ·   ' + (ii ? (ii.open ? '🏝 Ilha Celestial ABERTA na Praia Calma! Fecha em ' : '🏝 Ilha Celestial (Praia Calma) abre em ') + Math.floor(ii.secs/60) + ':' + String(Math.floor(ii.secs%60)).padStart(2,'0') : ''), W/2, 66); }
     for (let y=0;y<OW_ROWS;y++) for (let x=0;x<OW_COLS;x++){
       const b = owBiome(x,y), seen = progress.visited[x+','+y], px = ox+x*cw, py = oy+y*ch;
       g.fillStyle = OW_STYLE[b].a; g.fillRect(px+3,py+3,cw-6,ch-6);
