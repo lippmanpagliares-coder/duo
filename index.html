@@ -125,20 +125,43 @@
   #battleAttackBtn:active { filter:brightness(0.9); transform:scale(0.96); }
   #battleAttackBtn:disabled { filter:grayscale(0.6) brightness(0.7); cursor:default; }
 
-  /* open-world backpack: upgrades / roster / achievements panel */
-  #packBtn {
-    position:absolute; top:calc(var(--sp-2) + var(--safe)); right:calc(var(--sp-2)*2 + var(--btn-sm) + var(--safe)); z-index:30; pointer-events:auto;
-    width:var(--btn-sm); height:var(--btn-sm); border-radius:8px; border:1px solid #6a5a20; cursor:pointer; display:none;
-    background:rgba(40,30,8,0.8); color:#ffe27a; font-size:var(--font-lg); align-items:center; justify-content:center;
+  /* open-world backpack / map / co-op buttons: a shared row next to the settings gear. Each button gets a
+     --slot number set from JS (updateActionButton) so the row packs left with no gaps regardless of which
+     of the three are visible in the current scene, instead of hard-coding every visibility combination here. */
+  #packBtn, #mapBtn, #coopBtn {
+    position:absolute; top:calc(var(--sp-2) + var(--safe)); right:calc(var(--sp-2)*(var(--slot,1) + 1) + var(--btn-sm)*var(--slot,1) + var(--safe));
+    z-index:30; pointer-events:auto; width:var(--btn-sm); height:var(--btn-sm); border-radius:8px; cursor:pointer; display:none;
+    font-size:var(--font-lg); align-items:center; justify-content:center;
   }
+  #packBtn { border:1px solid #6a5a20; background:rgba(40,30,8,0.8); color:#ffe27a; }
   #packBtn.show { display:flex; }
-  #mapBtn {
-    position:absolute; top:calc(var(--sp-2) + var(--safe)); right:calc(var(--sp-2)*3 + var(--btn-sm)*2 + var(--safe)); z-index:30; pointer-events:auto;
-    width:var(--btn-sm); height:var(--btn-sm); border-radius:8px; border:1px solid #3a5a90; cursor:pointer; display:none;
-    background:rgba(10,20,44,0.8); color:#9fd0ff; font-size:var(--font-lg); align-items:center; justify-content:center;
-  }
+  #mapBtn { border:1px solid #3a5a90; background:rgba(10,20,44,0.8); color:#9fd0ff; }
   #mapBtn.show { display:flex; }
-  #mapBtn.solo { right:calc(var(--sp-2)*2 + var(--btn-sm) + var(--safe)); }
+  /* co-op: play together over a direct peer-to-peer link, joined with a short room code */
+  #coopBtn { border:1px solid #3a9a6a; background:rgba(8,30,20,0.8); color:#7dffb0; }
+  #coopBtn.show { display:flex; }
+  #coopBtn.connected { border-color:#ffd54a; color:#ffd54a; }
+  #coopOverlay { position:absolute; inset:0; z-index:46; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.86); }
+  #coopOverlay.open { display:flex; }
+  #coopBox {
+    width:min(420px,92%); display:flex; flex-direction:column; gap:12px;
+    background:linear-gradient(180deg,#0f2018,#0a1610); border:1px solid #2a5a3a; border-radius:12px; padding:18px 20px;
+  }
+  #coopBox h3 { color:#7dffb0; font-size:17px; text-align:center; letter-spacing:1px; margin:0; }
+  .coopNote { font-size:11px; color:#7a9a8a; text-align:center; }
+  .coopStatus { font-size:12.5px; color:#9fb3d8; text-align:center; min-height:16px; }
+  .coopRow { display:flex; gap:8px; }
+  .coopRow input {
+    flex:1; padding:8px 10px; font-family:inherit; font-size:14px; letter-spacing:3px; text-transform:uppercase;
+    background:#122018; color:#dfffe8; border:1px solid #2a5a3a; border-radius:7px; text-align:center; min-width:0;
+  }
+  .coopCode { font-family:inherit; font-size:28px; letter-spacing:8px; text-align:center; color:#ffd54a; font-weight:bold; user-select:all; }
+  .coopEmotes { display:flex; gap:8px; justify-content:center; }
+  .coopEmotes button {
+    font-size:22px; background:#12251a; border:1px solid #2a5a3a; border-radius:8px; padding:6px 10px; cursor:pointer; font-family:inherit;
+  }
+  .coopEmotes button:active { transform:scale(0.92); }
+  .coopDivider { border:none; border-top:1px solid #204030; margin:0; }
   #panelOverlay { position:absolute; inset:0; z-index:45; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.86); }
   #panelOverlay.open { display:flex; }
   #panelBox {
@@ -323,6 +346,15 @@
 
     <button id="mapBtn" type="button" title="Mapa (M)">🗺</button>
     <button id="packBtn" type="button" title="Mochila: melhorias, personagens e conquistas">🎒</button>
+    <button id="coopBtn" type="button" title="Jogar junto (online)">🌐</button>
+    <div id="coopOverlay">
+      <div id="coopBox">
+        <h3>🌐 Jogar Junto</h3>
+        <p class="coopNote">Conexão direta entre dois jogadores, sem servidor nem conta. Os dois precisam estar com o jogo aberto ao mesmo tempo. Funciona no Mundo Aberto, na Ilha Celestial e nas Backrooms — quando os dois estão na mesma área, aparecem um pro outro.</p>
+        <div id="coopBody"></div>
+        <div class="settingsActions"><button class="gameBtn" id="coopClose">Fechar</button></div>
+      </div>
+    </div>
     <div id="panelOverlay">
       <div id="panelBox">
         <div class="panelTabs" id="panelTabs">
@@ -423,6 +455,7 @@
       <h1>FUGA ALIENÍGENA</h1>
       <p>Uma história em capítulos. Comece pelo Capítulo 1 — o resto libera conforme você avança.</p>
       <div class="btnRow">
+        <button class="gameBtn hidden" id="btnContinue" style="background:linear-gradient(180deg,#8affa0,#1f9a4a);">▶ Continuar</button>
         <button class="gameBtn" id="btnCh1">Capítulo 1: O Bosque Mágico</button>
         <button class="gameBtn secondary" id="btnCh2">Capítulo 2: Vulcrom</button>
         <button class="gameBtn" id="btnCh3" style="background:linear-gradient(180deg,#c98fff,#7a3fd0);">Capítulo 3: O Encontro</button>
@@ -441,6 +474,9 @@
   </div>
 </div>
 
+
+<!-- co-op: a direct peer-to-peer data link between two browsers (no game server) — used only to swap position/appearance while both are connected -->
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 (function(){
 "use strict";
@@ -495,6 +531,36 @@ function freshProgress(){
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
+
+/* ---------------- save system: progress, upgrades and unlocked chapters persist across visits (localStorage) ---------------- */
+const SAVE_KEY = 'fugaAlienigena_save_v1';
+let saveIndicatorT = 0;   // brief "💾 salvo" flash after each save, purely visual
+function saveGame(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v:1, ts:Date.now(), progress, upgrades, unlocked,
+      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language } }));
+    saveIndicatorT = 1.4;
+  } catch(e){ /* private browsing / storage disabled — the game still works, it just won't remember next time */ }
+}
+function loadGame(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || !data.progress) return false;
+    const fresh = freshProgress();
+    ['chars','emeralds','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+      fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
+    });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(progress, fresh);
+    Object.assign(upgrades, data.upgrades || {});
+    Object.assign(unlocked, data.unlocked || {});
+    if (data.settings) Object.assign(settings, data.settings);
+    return true;
+  } catch(e){ return false; }
+}
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
@@ -517,6 +583,7 @@ function progressMods(){
 
 /* ---------------- settings (session-only, no storage) ---------------- */
 let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0 };
+const hadSave = loadGame();      // runs once at boot, now that progress/upgrades/unlocked/settings all exist — everything below sees the restored state
 const DIFFICULTY_MULT = {
   facil:   { hp:0.75, atk:0.7 },
   normal:  { hp:1,    atk:1 },
@@ -560,7 +627,7 @@ function sfxSpecial(){ [392,523,659,784,1047].forEach((f,i)=> beep(f,0.12,'trian
 /* ---------------- input ---------------- */
 const keys = {};
 window.addEventListener('keydown', e=>{
-  if (e.key === 'Escape'){ if (mapOpen) mapOpen = false; else if (panelOpen) closePanel(); else toggleSettings(); return; }
+  if (e.key === 'Escape'){ if (mapOpen) mapOpen = false; else if (coopOverlay.classList.contains('open')) closeCoop(); else if (panelOpen) closePanel(); else toggleSettings(); return; }
   if ((e.key === 'm' || e.key === 'M') && !e.repeat && !settingsOpen && !panelOpen){ toggleMap(); return; }
   if (settingsOpen || panelOpen) return;
   if (!e.repeat){
@@ -1741,9 +1808,17 @@ function updateActionButton(){
   const battleVisible = battleOverlay.style.display === 'flex';
   dpad.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
   dashBtn.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
-  packBtn.classList.toggle('show', !!(currentScene && currentScene.isOpenWorld) && !battleVisible && !dialogueActive && !menuVisible && !endVisible);
-  { const mv = !!currentScene && !battleVisible && !dialogueActive && !menuVisible && !endVisible && (currentScene.isOpenWorld || !!mapCur);
-    mapBtn.classList.toggle('show', mv); mapBtn.classList.toggle('solo', !(currentScene && currentScene.isOpenWorld)); }
+  {
+    const uiOk = !battleVisible && !dialogueActive && !menuVisible && !endVisible;
+    const packOn = uiOk && !!(currentScene && currentScene.isOpenWorld);
+    const mapOn = uiOk && !!currentScene && (currentScene.isOpenWorld || !!mapCur);
+    const coopOn = uiOk && !!(currentScene && currentScene.mpKey);
+    packBtn.classList.toggle('show', packOn);
+    mapBtn.classList.toggle('show', mapOn);
+    coopBtn.classList.toggle('show', coopOn);
+    let slot = 0;   // pack, then map, then coop pack left toward the settings gear with no gaps, whichever subset is showing
+    [[packBtn,packOn],[mapBtn,mapOn],[coopBtn,coopOn]].forEach(([el,on])=>{ if (on) el.style.setProperty('--slot', ++slot); });
+  }
   if (menuVisible || endVisible || battleVisible){
     actionBtn.style.display = 'none';
     return;
@@ -1892,6 +1967,7 @@ function fxBurst(x,y,n,color,speed,size,life,grav){
 }
 function fxShakeNow(sec, mag){ if (fxQuality() === 0) return; fxShake = Math.max(fxShake, sec); fxShakeMag = Math.max(fxShakeMag, mag); }
 function updateFx(dt){
+  if (saveIndicatorT > 0) saveIndicatorT -= dt;
   for (let i=fxParticles.length-1;i>=0;i--){
     const p = fxParticles[i];
     p.life -= dt;
@@ -2117,6 +2193,21 @@ function renderScene(){
       const draw = DRAW[type];
       if (draw) draw(ctx, sample.x+player.w/2, sample.y+player.h/2, PLAYER_SCALE[type]||34, false);
     });
+    if (mpRemote && mpRemote.area && currentScene.mpKey === mpRemote.area && DRAW[mpRemote.type]){   // the co-op partner, only drawn when we're both in the same room
+      const rx = mpRemote.dispX + player.w/2, ry = mpRemote.dispY + player.h/2;
+      ctx.save();
+      if (mpRemote.form && mpRemote.form !== 'normal') drawFormAura(ctx, rx, ry, mpRemote.form, tSec);
+      DRAW[mpRemote.type](ctx, rx, ry, PLAYER_SCALE[mpRemote.type]||34, false);
+      ctx.restore();
+      ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillText('🌐 '+(mpRemote.name||'Amigo'), rx, mpRemote.dispY-6);
+      ctx.fillStyle = '#9fe8ff'; ctx.fillText('🌐 '+(mpRemote.name||'Amigo'), rx, mpRemote.dispY-7);
+      if (mpRemote.emoteT > 0){
+        ctx.save(); ctx.globalAlpha = Math.min(1, mpRemote.emoteT); ctx.font = '26px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(mpRemote.emote, rx, mpRemote.dispY-42);
+        ctx.restore();
+      }
+    }
   }
   // dash afterimages: fading cyan-tinted ghosts of the sprite along the dash path
   fxAfter.forEach(a=>{
@@ -2185,6 +2276,13 @@ function renderScene(){
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
   else drawChapterMiniMap(ctx);
   if (mapOpen && !battle) drawBigMap(ctx);
+  if (saveIndicatorT > 0){                                             // a quiet "saved" flash, bottom-left, fading out
+    ctx.save(); ctx.globalAlpha = Math.min(1, saveIndicatorT*2.5);
+    ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillText('💾 salvo', 15, H-14);
+    ctx.fillStyle = 'rgba(140,255,180,0.9)'; ctx.fillText('💾 salvo', 14, H-15);
+    ctx.restore();
+  }
 }
 
 /* ---------------- battle system (real-time arena) ---------------- */
@@ -5026,6 +5124,7 @@ function checkAchievements(){
     }
   }
   checkingAch = false;
+  saveGame();
 }
 function grantCrystals(n){ progress.crystals += n; progress.earned += n; checkAchievements(); }
 function refreshFollowers(){
@@ -5090,6 +5189,7 @@ panelBody.addEventListener('click', e=>{
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
   }
+  saveGame();
   renderPanel();
 });
 panelTabs.addEventListener('click', e=>{ const b = e.target.closest('button'); if (b){ panelTab = b.dataset.tab; renderPanel(); } });
@@ -5215,7 +5315,7 @@ function buildOpenWorld(){
     const biome = owBiome(ix,iy);
     const sc = {
       banner: OW_NAMES[biome].toUpperCase(),
-      isOpenWorld: true, owX: ix, owY: iy,
+      isOpenWorld: true, owX: ix, owY: iy, mpKey: 'ow:'+ix+','+iy,
       draw: (g)=> drawOpenArea(g, ix, iy, Date.now()/1000),
       obstacles: owDecor(ix,iy),
       npcs: [], exits: [], fx: OW_FX[biome]
@@ -5292,7 +5392,7 @@ function buildOpenWorld(){
     goToScene(brRooms[brKey(x,y)], sp);
   }
   function makeBackroom(bx, by){
-    const sc = { banner:'BACKROOMS — NÍVEL 0', isOpenWorld:false, draw:(g)=> drawBackrooms(g,bx,by,Date.now()/1000),
+    const sc = { banner:'BACKROOMS — NÍVEL 0', isOpenWorld:false, mpKey:'br:'+bx+','+by, draw:(g)=> drawBackrooms(g,bx,by,Date.now()/1000),
       obstacles: brObstacles(bx,by), npcs:[], exits:[], fx:BR_FX };
     const wrap = v=> (v+BR_N)%BR_N;
     sc.exits.push({x:0,y:H/2-60,w:40,h:120, onEnter:()=> goBR(wrap(bx-1),by,'r')});
@@ -5402,7 +5502,7 @@ function buildOpenWorld(){
       } };
   }
   const island = {
-    banner:'ILHA CELESTIAL', isOpenWorld:true, owX:4, owY:2, mapName:'Ilha Celestial',
+    banner:'ILHA CELESTIAL', isOpenWorld:true, owX:4, owY:2, mapName:'Ilha Celestial', mpKey:'island',
     draw: (g)=> drawIsland(g, Date.now()/1000, islandInfoFn()),
     obstacles: ISLAND_ITEMS.map(o=>({x:o.x+o.w*0.2, y:o.y+o.h*0.6, w:o.w*0.6, h:o.h*0.4})),
     npcs: [ formAltar('super', 190), formAltar('max', W-260), islandChest(0,330,430), islandChest(1,W/2-25,300), islandChest(2,W-380,430) ],
@@ -5698,6 +5798,7 @@ function showEndingScreen(opts){
   endTitle.textContent = opts.title;
   endText.textContent = opts.text;
   (opts.buttons||[]).forEach(b=> mkEndBtn(b.label, b.fn, b.secondary));
+  saveGame();     // every ending screen follows a chapter unlock or a story item pickup — a safe moment to persist
 }
 function endingTrueCh1(){
   unlocked.ch2 = true;
@@ -5736,13 +5837,24 @@ function mkEndBtn(label, fn, secondary){
   b.textContent = label; b.onclick = fn;
   endButtons.appendChild(b);
 }
+function hasSavedRun(){ return unlocked.open || unlocked.ch2 || unlocked.ch3 || unlocked.ch4 || unlocked.ch5 || progress.kills > 0 || progress.crystals > 0; }
+function continueGame(){
+  if (unlocked.open) startChapter('open');
+  else if (unlocked.ch5) startChapter(5);
+  else if (unlocked.ch4) startChapter(4);
+  else if (unlocked.ch3) startChapter(3);
+  else if (unlocked.ch2) startChapter(2);
+  else startChapter(1);
+}
 function showMenu(){
   mapReset(); mapOpen = false;
   currentScene = null;
   endOverlay.classList.add('hidden');
   menuOverlay.classList.remove('hidden');
   document.getElementById('btnCh2').classList.toggle('locked', false);
+  document.getElementById('btnContinue').classList.toggle('hidden', !hasSavedRun());
 }
+document.getElementById('btnContinue').onclick = continueGame;
 document.getElementById('btnCh1').onclick = ()=> startChapter(1);
 document.getElementById('btnCh2').onclick = ()=> startChapter(2);
 document.getElementById('btnCh3').onclick = ()=> startChapter(3);
@@ -5809,6 +5921,7 @@ document.getElementById('btnRestart').addEventListener('click', ()=>{
   unlocked = { ch2:false, ch3:false, ch4:false, ch5:false, open:false };
   upgrades = { jewelOfLife:false, emeraldOfPower:false, alienWeapon:false, teleportGem:false, elementalEmerald:false, disguiseEmerald:false, monsterEmerald:false };
   progress = freshProgress();
+  clearSave();
   closeSettings();
   showMenu();
 });
@@ -5827,6 +5940,121 @@ rangeScale.addEventListener('input', ()=>{ settings.scale = +rangeScale.value; a
 rangeSafe.addEventListener('input', ()=>{ settings.safe = +rangeSafe.value; applySafeArea(); });
 refreshSettingsUI();
 
+/* ---------------- co-op: play together over a direct peer-to-peer link (no server, no accounts) ---------------- */
+// One player creates a room and gets a short code; the other types that code to connect straight to them.
+// While connected, each side just broadcasts its own position/skin ~8x/sec — nothing about the world itself is
+// synced, so it only "just works" in the deterministic areas that have a stable mpKey (open world, the Ilha
+// Celestial, the Backrooms). Chapters stay single-player, since two people replaying the same story scene
+// out of step would break scripted cutscenes.
+let mpPeer = null, mpConn = null, mpRole = null, mpMyCode = '', mpStatus = '', mpRemote = null, mpSendT = 0, mpConnectTO = null;
+function mpClearTO(){ if (mpConnectTO){ clearTimeout(mpConnectTO); mpConnectTO = null; } }
+const coopBtn = document.getElementById('coopBtn');
+const coopOverlay = document.getElementById('coopOverlay');
+const coopBody = document.getElementById('coopBody');
+const MP_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O or 1/I — easy to read out loud
+function mpGenCode(){ let s=''; for (let i=0;i<4;i++) s += MP_ALPHA[Math.floor(Math.random()*MP_ALPHA.length)]; return s; }
+function mpSetStatus(s){ mpStatus = s; mpRenderPanel(); }
+function mpTeardownConn(){ try{ mpConn && mpConn.close(); }catch(e){} mpConn = null; coopBtn.classList.remove('connected'); }
+function mpTeardownPeer(){ mpClearTO(); mpTeardownConn(); try{ mpPeer && mpPeer.destroy(); }catch(e){} mpPeer = null; mpRole = null; mpMyCode = ''; }
+function mpCleanup(){ mpTeardownPeer(); mpRemote = null; }
+function mpOnDisconnect(msg){ mpCleanup(); mpSetStatus(msg); }
+function mpSendRaw(d){ if (mpConn && mpConn.open){ try{ mpConn.send(d); }catch(e){} } }
+function mpSendState(){
+  mpSendRaw({ t:'state', x:player.x, y:player.y, facing:player.facing||1, type:player.type, form:progress.form,
+    area:(currentScene && currentScene.mpKey) || null, name:(ROSTER[player.type] && ROSTER[player.type].name) || player.type });
+}
+function mpSendEmote(e){ mpSendRaw({ t:'emote', e }); fxText(player.x+player.w/2, player.y-20, e, '#ffffff', 28, 1.2); }
+function mpOnData(d){
+  if (!d || typeof d !== 'object') return;
+  if (d.t === 'state'){
+    if (!mpRemote) mpRemote = { dispX:d.x, dispY:d.y };
+    Object.assign(mpRemote, { name:d.name, type:d.type, form:d.form, area:d.area, facing:d.facing, x:d.x, y:d.y });
+  } else if (d.t === 'emote'){
+    if (mpRemote){ mpRemote.emote = d.e; mpRemote.emoteT = 2.2; }
+  } else if (d.t === 'bye'){
+    mpOnDisconnect('O outro jogador saiu da sala.');
+  }
+}
+function mpWireConn(){
+  mpConn.on('open', ()=>{ mpSetStatus('Conectado! 🎉 Explorem juntos o Mundo Aberto, a Ilha Celestial ou as Backrooms.'); coopBtn.classList.add('connected'); sfxPickup(); mpSendState(); });
+  mpConn.on('data', mpOnData);
+  mpConn.on('close', ()=> mpOnDisconnect('O outro jogador saiu da sala.'));
+  mpConn.on('error', ()=> mpOnDisconnect('A conexão caiu. Tente criar ou entrar de novo.'));
+}
+function mpHost(){
+  if (typeof Peer === 'undefined'){ mpSetStatus('Carregando o sistema online... espera uns segundos e tenta de novo.'); return; }
+  mpCleanup(); mpRole = 'host';
+  const code = mpGenCode();
+  mpSetStatus('Criando a sala...');
+  try{
+    mpPeer = new Peer('duo-coop-'+code, { debug:0 });
+    mpConnectTO = setTimeout(()=>{ mpSetStatus('Demorando demais pra conectar. Confira sua internet e tente de novo.'); mpTeardownPeer(); }, 12000);
+    mpPeer.on('open', ()=>{ mpClearTO(); mpMyCode = code; mpSetStatus('Sala criada! Passe esse código pro seu amigo:'); });
+    mpPeer.on('connection', conn=>{
+      if (mpConn){ try{ conn.close(); }catch(e){} return; }   // only one guest at a time
+      mpConn = conn; mpWireConn();
+    });
+    mpPeer.on('error', ()=>{ mpSetStatus('Não consegui criar a sala agora. Tente de novo.'); mpTeardownPeer(); });
+    mpPeer.on('disconnected', ()=> mpOnDisconnect('Conexão com o servidor de sinalização caiu.'));
+  } catch(e){ mpSetStatus('Sistema online indisponível agora.'); }
+}
+function mpJoin(codeRaw){
+  const code = (codeRaw||'').trim().toUpperCase();
+  if (!code){ mpSetStatus('Digite o código da sala do seu amigo.'); return; }
+  if (typeof Peer === 'undefined'){ mpSetStatus('Carregando o sistema online... espera uns segundos e tenta de novo.'); return; }
+  mpCleanup(); mpRole = 'guest';
+  mpSetStatus('Conectando na sala '+code+'...');
+  try{
+    mpPeer = new Peer({ debug:0 });
+    mpConnectTO = setTimeout(()=>{ mpSetStatus('Demorando demais pra conectar. Confira sua internet e tente de novo.'); mpTeardownPeer(); }, 12000);
+    mpPeer.on('open', ()=>{
+      mpConn = mpPeer.connect('duo-coop-'+code, { reliable:true });
+      mpConn.on('open', mpClearTO);
+      mpWireConn();
+    });
+    mpPeer.on('error', ()=>{ mpSetStatus('Não achei essa sala. Confira o código com seu amigo e tente de novo.'); mpTeardownPeer(); });
+    mpPeer.on('disconnected', ()=> mpOnDisconnect('Conexão com o servidor de sinalização caiu.'));
+  } catch(e){ mpSetStatus('Sistema online indisponível agora.'); }
+}
+function mpLeave(){ mpSendRaw({ t:'bye' }); mpCleanup(); mpSetStatus('Desconectado.'); }
+function mpUpdate(dt){
+  if (mpConn && mpConn.open){
+    mpSendT -= dt;
+    if (mpSendT <= 0){ mpSendT = 0.12; mpSendState(); }
+  }
+  if (mpRemote){
+    const k = Math.min(1, dt*10);
+    mpRemote.dispX += ((mpRemote.x!=null ? mpRemote.x : mpRemote.dispX) - mpRemote.dispX)*k;
+    mpRemote.dispY += ((mpRemote.y!=null ? mpRemote.y : mpRemote.dispY) - mpRemote.dispY)*k;
+    if (mpRemote.emoteT > 0) mpRemote.emoteT -= dt;
+  }
+}
+function mpRenderPanel(){
+  let h = `<div class="coopStatus">${mpStatus || 'Ninguém conectado ainda.'}</div>`;
+  if (mpConn && mpConn.open){
+    h += `<div class="coopEmotes">${['👋','😂','❤️','⚔️'].map(e=>`<button data-emote="${e}">${e}</button>`).join('')}</div>`;
+    h += `<hr class="coopDivider"><div class="settingsActions"><button class="gameBtn secondary" id="coopLeave">Sair da sala</button></div>`;
+  } else {
+    if (mpRole === 'host' && mpMyCode){
+      h += `<div class="coopCode">${mpMyCode}</div>`;
+    } else {
+      h += `<div class="settingsActions"><button class="gameBtn" id="coopHostBtn">Criar sala</button></div>`;
+      h += `<hr class="coopDivider">`;
+      h += `<div class="coopRow"><input id="coopCodeInput" maxlength="4" placeholder="CÓDIGO"><button class="gameBtn secondary" id="coopJoinBtn">Entrar</button></div>`;
+    }
+  }
+  coopBody.innerHTML = h;
+  const hb = document.getElementById('coopHostBtn'); if (hb) hb.onclick = mpHost;
+  const jb = document.getElementById('coopJoinBtn'); if (jb) jb.onclick = ()=> mpJoin(document.getElementById('coopCodeInput').value);
+  const ci = document.getElementById('coopCodeInput'); if (ci) ci.addEventListener('keydown', e=>{ if (e.key === 'Enter') mpJoin(ci.value); });
+  const lv = document.getElementById('coopLeave'); if (lv) lv.onclick = mpLeave;
+  coopBody.querySelectorAll('[data-emote]').forEach(b=> b.onclick = ()=> mpSendEmote(b.dataset.emote));
+}
+function openCoop(){ coopOverlay.classList.add('open'); mpRenderPanel(); }
+function closeCoop(){ coopOverlay.classList.remove('open'); }
+coopBtn.addEventListener('click', openCoop);
+document.getElementById('coopClose').addEventListener('click', closeCoop);
+
 /* ---------------- main loop ---------------- */
 let lastT = performance.now();
 function loop(t){
@@ -5841,6 +6069,7 @@ function loop(t){
       }
       updateFx(dt);
     }
+    mpUpdate(dt);
     updateActionButton();
     updateInventoryHud();
     renderScene();
@@ -5852,6 +6081,10 @@ function loop(t){
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+showMenu();                                                            // reflects the restored save (shows "Continuar" when there's one)
+setInterval(saveGame, 5000);                                          // safety net: saves at least every 5s even if some event site forgets to
+window.addEventListener('beforeunload', ()=>{ saveGame(); mpSendRaw({ t:'bye' }); });
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') saveGame(); });
 })();
 </script>
 <script>
