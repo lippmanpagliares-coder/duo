@@ -460,7 +460,7 @@ const ROSTER = {
   cueio: { name:'Cueio',   hp:0.90, atk:1.20, spGain:1.0,  dashMul:1.0,  crit:0.05, desc:'Ágil e agressivo: +20% de ataque, +5% de crítico.' },
   hunter:{ name:'Caçador', hp:1.00, atk:1.10, spGain:1.0,  dashMul:1.0,  crit:0.12, desc:'Especialista em críticos: +12% de chance.', unlock:'Vença a Arena de Ondas' },
   king:  { name:'Rei',     hp:1.25, atk:1.25, spGain:0.9,  dashMul:1.0,  crit:0,    desc:'Realeza: +25% de vida e ataque.', unlock:'Colete 3 esmeraldas de desafio' },
-  totoziho:{ name:'Totoziho', hp:1.10, atk:1.05, spGain:1.35, dashMul:0.9, crit:0.03, desc:'Alegre e cheio de energia: +35% de carga do especial.', unlock:'Derrote 20 monstros' },
+  totozinho:{ name:'Totozinho', hp:1.10, atk:1.05, spGain:1.35, dashMul:0.9, crit:0.03, desc:'Alegre e cheio de energia: +35% de carga do especial.', unlock:'Derrote 20 monstros' },
   ice:   { name:'Ice',     hp:1.05, atk:1.15, spGain:1.0,  dashMul:0.85, crit:0.08, desc:'O Duo de gelo: ataque afiado, dash mais rápido, +8% de crítico.', unlock:'Colete 2 esmeraldas de desafio' },
   raphidash:{ name:'Raphidash', hp:0.95, atk:1.25, spGain:1.05, dashMul:1.0, crit:0.06, desc:'Coruja de fogo do planeta do Duo: +25% de ataque, +6% de crítico.', unlock:'Derrote 40 monstros' },
   zapi:  { name:'Zapi',    hp:0.90, atk:1.10, spGain:1.10, dashMul:0.7,  crit:0.04, desc:'Coruja elétrica do planeta do Duo: dash 30% mais rápido, +10% de especial.', unlock:'Chegue ao nível 10' },
@@ -491,7 +491,7 @@ const EMERALD_DEFS = {   // permanent bonuses earned from open-world challenges
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
-    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totoziho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
+    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
@@ -882,68 +882,67 @@ function drawIce(g,x,y,s,facing){       // Duo's frozen counterpart: same owl bo
 function drawRaphidash(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#ff6a2a', belly:'#ffe6b8', wing:'#c22a0a', beak:'#ffd54a', eyeWhite:'#fff8e0', eyePupil:'#5a0a00', accessory:'flameCrest' }); }
 function drawZapi(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#ffd23a', belly:'#fff6c8', wing:'#c9930a', beak:'#3a2a10', eyeWhite:'#ffffff', eyePupil:'#2a1a00', accessory:'boltCrest' }); }
 function drawNaia(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#2f7fe0', belly:'#d8f0ff', wing:'#1a4aa0', beak:'#ffd06a', eyeWhite:'#ffffff', eyePupil:'#062a5a', accessory:'waveCrest' }); }
-function drawTotoziho(g,x,y,s,facing){  // cheerful round critter with big orange ears, a blue scarf and a star on the forehead
+function drawTotozinho(g,x,y,s,facing){  // a cheerful poop emoji: swirled cone body, big eyes, rosy cheeks, a cheeky grin
   facing = facing || 1;
   g.save(); g.translate(x,y);
   const t = Date.now()/1000, bounce = Math.abs(Math.sin(t*4))*s*0.03;
-  groundShadow(g, s, s*0.8);
-  g.translate(0,-bounce);
-  g.strokeStyle = '#f2a04a'; g.lineWidth = s*0.16; g.lineCap = 'round';                       // fluffy tail
-  g.beginPath(); g.moveTo(-s*0.4*facing,s*0.4); g.quadraticCurveTo(-s*0.85*facing,s*0.3,-s*0.72*facing,-s*0.05+Math.sin(t*5)*s*0.06); g.stroke();
-  g.fillStyle = volumeGrad(g,-s*0.15,s*0.1,s*0.7,'#fff3d8','#f0c890');                       // body
-  g.beginPath(); g.ellipse(0,s*0.32,s*0.46,s*0.44,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#f0a44a';                                                                   // paws
-  g.beginPath(); g.ellipse(-s*0.2,s*0.74,s*0.15,s*0.09,0,0,Math.PI*2); g.fill(); g.beginPath(); g.ellipse(s*0.2,s*0.74,s*0.15,s*0.09,0,0,Math.PI*2); g.fill();
-  [-1,1].forEach(sd=>{                                                                       // ears
-    g.fillStyle = volumeGrad(g,sd*s*0.3,-s*0.72,s*0.3,'#ffb864','#e07a20');
-    g.beginPath(); g.moveTo(sd*s*0.12,-s*0.4); g.lineTo(sd*s*0.46,-s*0.98); g.lineTo(sd*s*0.5,-s*0.32); g.closePath(); g.fill();
-    g.fillStyle = '#ffd0d8'; g.beginPath(); g.moveTo(sd*s*0.2,-s*0.42); g.lineTo(sd*s*0.42,-s*0.82); g.lineTo(sd*s*0.44,-s*0.38); g.closePath(); g.fill(); });
-  g.fillStyle = volumeGrad(g,-s*0.12,-s*0.3,s*0.5,'#fff8e8','#f0c890');                       // head
-  g.beginPath(); g.ellipse(0,-s*0.1,s*0.48,s*0.42,0,0,Math.PI*2); g.fill();
-  g.fillStyle = '#ffd54a'; g.beginPath();                                                    // star mark
-  for (let i=0;i<10;i++){ const r = i%2 ? s*0.04 : s*0.09, a = -Math.PI/2 + i*Math.PI/5; g.lineTo(Math.cos(a)*r, -s*0.42+Math.sin(a)*r); } g.closePath(); g.fill();
-  eyesBig(g, s*0.85, '#ffffff', '#3a2210', -0.12);
-  g.fillStyle = '#e05a70'; g.beginPath(); g.ellipse(0,s*0.02,s*0.045,s*0.03,0,0,Math.PI*2); g.fill();
-  g.strokeStyle = '#7a3a20'; g.lineWidth = s*0.03; g.beginPath(); g.arc(-s*0.06,s*0.03,s*0.06,0.1,Math.PI*0.9); g.arc(s*0.06,s*0.03,s*0.06,0.1,Math.PI*0.9); g.stroke();
-  g.fillStyle = '#2f6fe0'; roundRect(g,-s*0.38,s*0.16,s*0.76,s*0.14,s*0.07); g.fill();      // scarf
-  g.fillRect(s*0.16,s*0.24,s*0.14,s*0.3);
+  groundShadow(g, s, s*0.78);
+  g.translate(0,-bounce); g.scale(facing,1);
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.1,s*0.75,'#a9754a','#7a4e28');                      // the swirled cone
+  g.beginPath();
+  g.moveTo(-s*0.5,s*0.72); g.quadraticCurveTo(-s*0.58,s*0.4,-s*0.32,s*0.28);
+  g.quadraticCurveTo(-s*0.5,s*0.14,-s*0.24,-s*0.02);
+  g.quadraticCurveTo(-s*0.42,-s*0.16,-s*0.14,-s*0.3);
+  g.quadraticCurveTo(-s*0.26,-s*0.5,0,-s*0.58);
+  g.quadraticCurveTo(s*0.26,-s*0.5,s*0.14,-s*0.3);
+  g.quadraticCurveTo(s*0.42,-s*0.16,s*0.24,-s*0.02);
+  g.quadraticCurveTo(s*0.5,s*0.14,s*0.32,s*0.28);
+  g.quadraticCurveTo(s*0.58,s*0.4,s*0.5,s*0.72);
+  g.quadraticCurveTo(0,s*0.9,-s*0.5,s*0.72); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.14)'; g.lineWidth = s*0.03;                                 // swirl seams
+  g.beginPath(); g.moveTo(-s*0.3,s*0.3); g.quadraticCurveTo(0,s*0.2,s*0.3,s*0.3); g.stroke();
+  g.beginPath(); g.moveTo(-s*0.22,-s*0.02); g.quadraticCurveTo(0,-s*0.1,s*0.22,-s*0.02); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.18)'; g.beginPath(); g.ellipse(-s*0.16,-s*0.3,s*0.12,s*0.2,0.3,0,Math.PI*2); g.fill();  // shine
+  g.fillStyle = '#ffb0c0'; g.beginPath(); g.ellipse(-s*0.36,s*0.32,s*0.1,s*0.07,0,0,Math.PI*2); g.fill();                  // rosy cheeks
+  g.beginPath(); g.ellipse(s*0.36,s*0.32,s*0.1,s*0.07,0,0,Math.PI*2); g.fill();
+  eyesBig(g, s*0.72, '#ffffff', '#2a1a10', 0.06);
+  g.strokeStyle = '#3a2414'; g.lineWidth = s*0.045; g.lineCap = 'round';                    // big cheeky grin
+  g.beginPath(); g.arc(0,s*0.4,s*0.26,0.15,Math.PI-0.15); g.stroke();
+  g.fillStyle = '#ff6a86'; g.beginPath(); g.ellipse(0,s*0.5,s*0.1,s*0.05,0,0,Math.PI); g.fill();
   g.restore();
 }
-function drawGlard(g,x,y,s,facing){     // fire dinosaur: chunky, flame-tipped tail, glowing back spikes
+function drawGlard(g,x,y,s,facing){     // a chunky robot dinosaur: riveted metal plates, glowing joints, an antenna and a visor eye
   facing = facing || 1;
   g.save(); g.translate(x,y); g.scale(facing,1);
-  const t = Date.now()/1000;
+  const t = Date.now()/1000, step = Math.sin(t*6)*s*0.05;
   groundShadow(g, s, s*0.82);
-  // tail with a live flame at the tip
-  g.fillStyle = volumeGrad(g,-s*0.7,s*0.3,s*0.5,'#ff8a3a','#c0300a');
-  g.beginPath(); g.moveTo(-s*0.3,s*0.2); g.quadraticCurveTo(-s*0.9,s*0.4,-s*0.95,-s*0.02); g.quadraticCurveTo(-s*0.6,s*0.2,-s*0.3,s*0.55); g.closePath(); g.fill();
-  const fx = -s*0.95, fy = -s*0.05;
-  g.save(); g.globalCompositeOperation = 'lighter';
-  for (let i=0;i<3;i++){ const k = Math.sin(t*9+i*2);
-    g.fillStyle = i===0 ? 'rgba(255,90,20,0.55)' : (i===1 ? 'rgba(255,190,60,0.6)' : 'rgba(255,255,200,0.7)');
-    g.beginPath(); g.moveTo(fx-s*0.1*(1-i*0.3),fy+s*0.06); g.quadraticCurveTo(fx+k*s*0.05,fy-s*(0.3-i*0.07),fx,fy-s*(0.42-i*0.1)); g.quadraticCurveTo(fx+s*0.12*(1-i*0.3),fy-s*0.04,fx+s*0.1*(1-i*0.3),fy+s*0.06); g.closePath(); g.fill(); }
-  g.restore();
-  // legs
-  g.fillStyle = '#b02808'; g.fillRect(-s*0.24,s*0.5,s*0.18,s*0.32); g.fillRect(s*0.08,s*0.5,s*0.18,s*0.32);
-  g.fillStyle = '#fff0c8'; g.fillRect(-s*0.26,s*0.78,s*0.24,s*0.06); g.fillRect(s*0.06,s*0.78,s*0.24,s*0.06);
-  // body + belly
-  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.05,s*0.75,'#ff9a4a','#c9360c');
+  g.strokeStyle = '#3a4048'; g.lineWidth = s*0.1; g.lineCap = 'round';                       // segmented metal tail
+  g.beginPath(); g.moveTo(-s*0.3,s*0.2); g.quadraticCurveTo(-s*0.7,s*0.3+step*0.3,-s*0.92,-s*0.02-step*0.4); g.stroke();
+  g.fillStyle = '#c9d0d8'; [[-0.45,0.24],[-0.68,0.1],[-0.88,-0.06]].forEach(([px,py],i)=>{ g.beginPath(); g.arc(px*s,py*s-step*0.3*i,s*0.06,0,Math.PI*2); g.fill(); });
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,60,60,${0.6+0.3*Math.sin(t*8)})`; g.beginPath(); g.arc(-s*0.92,-s*0.02-step*0.4,s*0.05,0,Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = '#9aa4b0'; g.fillRect(-s*0.24,s*0.5,s*0.18,s*0.3+step); g.fillRect(s*0.08,s*0.5,s*0.18,s*0.3-step);        // piston legs
+  g.fillStyle = '#5a6270'; g.fillRect(-s*0.26,s*0.5,s*0.22,s*0.08); g.fillRect(s*0.06,s*0.5,s*0.22,s*0.08);
+  g.fillStyle = '#2a2e34'; g.fillRect(-s*0.28,s*0.78+step,s*0.26,s*0.08); g.fillRect(s*0.04,s*0.7-step,s*0.26,s*0.08);      // feet
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.05,s*0.75,'#e4eaf0','#a8b2bc');                     // riveted body shell
   g.beginPath(); g.ellipse(0,s*0.22,s*0.52,s*0.46,0,0,Math.PI*2); g.fill();
-  g.fillStyle = volumeGrad(g,s*0.1,s*0.3,s*0.4,'#fff6d8','#f0c880');
-  g.beginPath(); g.ellipse(s*0.1,s*0.32,s*0.28,s*0.34,0,0,Math.PI*2); g.fill();
-  // glowing back spikes
-  for (let i=0;i<5;i++){ const bx = -s*0.4+i*s*0.2, by = -s*0.16+Math.abs(i-2)*s*0.07;
-    g.fillStyle = '#ffd54a'; g.beginPath(); g.moveTo(bx-s*0.07,by+s*0.06); g.lineTo(bx,by-s*0.2); g.lineTo(bx+s*0.07,by+s*0.06); g.closePath(); g.fill(); }
-  // head with snout, teeth and a bright eye
-  g.fillStyle = volumeGrad(g,s*0.4,-s*0.36,s*0.4,'#ffa860','#c9360c');
-  g.beginPath(); g.ellipse(s*0.36,-s*0.22,s*0.34,s*0.3,0.1,0,Math.PI*2); g.fill();
-  g.beginPath(); g.ellipse(s*0.66,-s*0.14,s*0.24,s*0.16,0.1,0,Math.PI*2); g.fill();
-  g.fillStyle = '#fff'; for (let i=0;i<3;i++){ g.beginPath(); g.moveTo(s*(0.56+i*0.08),-s*0.04); g.lineTo(s*(0.6+i*0.08),s*0.05); g.lineTo(s*(0.64+i*0.08),-s*0.04); g.closePath(); g.fill(); }
-  g.fillStyle = '#fff'; g.beginPath(); g.arc(s*0.42,-s*0.3,s*0.09,0,Math.PI*2); g.fill();
-  g.fillStyle = '#3a1000'; g.beginPath(); g.arc(s*0.44,-s*0.3,s*0.045,0,Math.PI*2); g.fill();
-  g.fillStyle = '#2a0a00'; g.beginPath(); g.arc(s*0.78,-s*0.2,s*0.02,0,Math.PI*2); g.fill();
-  // tiny arms
-  g.fillStyle = '#b02808'; g.beginPath(); g.ellipse(s*0.32,s*0.16,s*0.09,s*0.05,0.5,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#7a8592'; g.lineWidth = s*0.025;
+  for (let i=0;i<3;i++){ g.beginPath(); g.moveTo(-s*0.4,s*(0.0+i*0.16)); g.lineTo(s*0.3,s*(0.0+i*0.16)); g.stroke(); }
+  g.fillStyle = '#6a7280'; [[-0.3,0.02],[0.02,0.02],[-0.3,0.34],[0.02,0.34]].forEach(([rx,ry])=>{ g.beginPath(); g.arc(rx*s,ry*s,s*0.025,0,Math.PI*2); g.fill(); });
+  g.fillStyle = volumeGrad(g,s*0.1,s*0.28,s*0.32,'#1a2a3a','#0a141c'); g.beginPath(); roundRect(g,-s*0.16,s*0.06,s*0.32,s*0.44,s*0.08); g.fill();  // chest panel
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(80,220,255,${0.7+0.3*Math.sin(t*4)})`; g.beginPath(); g.arc(0,s*0.28,s*0.09,0,Math.PI*2); g.fill(); g.restore();
+  g.strokeStyle = 'rgba(140,230,255,0.8)'; g.lineWidth = s*0.02; g.beginPath(); g.arc(0,s*0.28,s*0.09,0,Math.PI*2); g.stroke();
+  for (let i=0;i<5;i++){ const bx = -s*0.36+i*s*0.18, by = -s*0.18+Math.abs(i-2)*s*0.06;     // plated back spikes
+    g.fillStyle = '#b8c0ca'; g.beginPath(); g.moveTo(bx-s*0.06,by+s*0.05); g.lineTo(bx,by-s*0.18); g.lineTo(bx+s*0.06,by+s*0.05); g.closePath(); g.fill();
+    g.fillStyle = '#7a8492'; g.beginPath(); g.moveTo(bx,by-s*0.18); g.lineTo(bx+s*0.06,by+s*0.05); g.lineTo(bx+s*0.01,by+s*0.02); g.closePath(); g.fill(); }
+  g.fillStyle = volumeGrad(g,s*0.4,-s*0.36,s*0.4,'#dfe6ec','#a8b2bc');                        // head
+  g.beginPath(); g.ellipse(s*0.36,-s*0.22,s*0.32,s*0.28,0.08,0,Math.PI*2); g.fill();
+  g.fillStyle = '#c4ccd4'; g.beginPath(); g.ellipse(s*0.64,-s*0.14,s*0.2,s*0.14,0.08,0,Math.PI*2); g.fill();               // snout plate
+  g.fillStyle = '#2a2e34'; g.beginPath(); g.moveTo(s*0.5,-s*0.06); g.lineTo(s*0.78,-s*0.1); g.lineTo(s*0.5,-s*0.16); g.closePath(); g.fill();
+  g.fillStyle = volumeGrad(g,s*0.4,-s*0.32,s*0.18,'#7ae8ff','#0a3a4a'); g.beginPath(); g.ellipse(s*0.4,-s*0.3,s*0.13,s*0.1,0.1,0,Math.PI*2); g.fill(); // visor eye
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(150,240,255,${0.7+0.3*Math.sin(t*5)})`; g.beginPath(); g.arc(s*0.42,-s*0.3,s*0.05,0,Math.PI*2); g.fill(); g.restore();
+  g.strokeStyle = '#5a6270'; g.lineWidth = s*0.03; g.beginPath(); g.moveTo(s*0.3,-s*0.46); g.lineTo(s*0.26,-s*0.62); g.stroke();   // antenna
+  g.fillStyle = `rgba(255,90,90,${0.7+0.3*Math.sin(t*7)})`; g.beginPath(); g.arc(s*0.26,-s*0.63,s*0.035,0,Math.PI*2); g.fill();
+  g.fillStyle = '#5a6270'; g.beginPath(); g.ellipse(s*0.28,s*0.16,s*0.09,s*0.05,0.5,0,Math.PI*2); g.fill();                 // tiny arm
   g.restore();
 }
 /* ---- the villains ---- */
@@ -1633,7 +1632,7 @@ function eyesBig(g,s,white,pupil,yOff){
 const DRAW = { duo:drawDuo, astro:drawAstro, plant:drawEyePlant, drone:drawDrone, huggy:drawHuggy, father:drawFatherOwl, mother:drawMotherOwl, villager:drawVillagerOwl, predator:drawVulcromPredator, chest:drawChest, weapon:drawAlienWeapon, energyCell:drawEnergyCell, mechaOff:drawMechaOff, mechaPlayer:drawMechaPlayer, mechaEnemy:drawMechaEnemy, rocket:drawRocketShip, hunter:drawAlienHunter, armaGuardia:drawArmaGuardia, teleportGem:drawTeleportGem, astroDown:drawAstroDown, huggyDown:drawHuggyDown, titan:drawTitan, elementalEmerald:drawElementalEmerald, cueio:drawCueio,
   shadowPredator:drawShadowPredator, king:drawKing, disguiseEmerald:drawDisguiseEmerald,
   giant:drawGiant, monsterEmerald:drawMonsterEmerald,
-  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totoziho:drawTotoziho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler };
+  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler };
 
 /* ---------------- dialogue system ---------------- */
 let dialogueQueue = [], dialogueIdx = 0, dialogueActive = false, dialogueOnEnd = null;
@@ -5003,7 +5002,7 @@ function unlockChar(id, msg){ if (!progress.chars[id]){ progress.chars[id] = tru
 function checkUnlocks(){
   if (progress.arenaWins >= 1) unlockChar('hunter','Caçador');
   if (emeraldCount() >= 3) unlockChar('king','Rei');
-  if (progress.kills >= 20) unlockChar('totoziho','Totoziho');
+  if (progress.kills >= 20) unlockChar('totozinho','Totozinho');
   if (emeraldCount() >= 2) unlockChar('ice','Ice');
   if (progress.emeralds.crit) unlockChar('glard','Glard');
   if (progress.kills >= 40) unlockChar('raphidash','Raphidash');
