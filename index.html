@@ -1160,11 +1160,16 @@ function drawExitDoor(g,x,y,s){         // the Backrooms' hidden emergency exit:
   if (on){ g.save(); g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(0,-s*0.87,0,0,-s*0.87,s*0.9); rg.addColorStop(0,'rgba(90,255,150,0.35)'); rg.addColorStop(1,'rgba(90,255,150,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.87,s*0.9,0,Math.PI*2); g.fill(); g.restore(); }
   g.restore();
 }
-function drawSecretDoor(g,x,y,s,found){  // a barely-visible seam in the wall, shimmering; once found it becomes a glitching doorway
+function drawSecretDoor(g,x,y,s,found){  // a faint crack in the wall that glows just enough to be noticed; once found it becomes a glitching doorway
   const t = Date.now()/1000;
   g.save(); g.translate(x,y);
   if (!found){
-    g.strokeStyle = `rgba(170,255,240,${0.08+0.07*Math.sin(t*2.4)})`; g.lineWidth = 2;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const rg = g.createRadialGradient(0,0,0,0,0,s*0.9); rg.addColorStop(0,`rgba(150,255,240,${0.16+0.08*Math.sin(t*2)})`); rg.addColorStop(1,'rgba(150,255,240,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(0,0,s*0.9,0,Math.PI*2); g.fill();
+    for (let i=0;i<3;i++){ const u = (t*0.3+i/3)%1; g.fillStyle = `rgba(200,255,245,${(1-u)*0.6})`; g.beginPath(); g.arc(Math.sin(i*2+t)*s*0.3,s*0.7-u*s*1.5,2,0,Math.PI*2); g.fill(); }
+    g.restore();
+    g.strokeStyle = `rgba(190,255,245,${0.55+0.3*Math.sin(t*2.4)})`; g.lineWidth = 2.5;
     g.beginPath(); g.moveTo(0,-s*0.9); g.lineTo(s*0.06,-s*0.4); g.lineTo(-s*0.04,0); g.lineTo(s*0.05,s*0.4); g.lineTo(0,s*0.9); g.stroke();
   } else {
     g.fillStyle = '#04080a'; g.fillRect(-s*0.4,-s*0.9,s*0.8,s*1.8);
@@ -5434,8 +5439,9 @@ function buildOpenWorld(){
     return sc;
   }
   for (let y=0;y<BR_N;y++) for (let x=0;x<BR_N;x++) brRooms[brKey(x,y)] = makeBackroom(x,y);
-  areas[key(2,2)].npcs.push({ x:W-140, y:100, w:60, h:90, type:'secretDoor', scale:60, persistent:true, talking:false,
+  areas[key(2,2)].npcs.push({ x:W-140, y:100, w:60, h:90, type:'secretDoor', scale:60, persistent:true, talking:false, label:'???',
     onInteract: function(){
+      this.talking = true; this.label = '';
       startDialogue([
         {speaker:ROSTER[progress.main].name, text:'Essa parede... está vibrando. Tem uma fenda escondida aqui!', color:'#7ef9ff'},
         {speaker:'???', text:upgrades.teleportGem ? 'Você sente a Joia do Teleporte pulsando. Dá pra voltar de lá. Entrar?' : 'Você não sente nenhuma Joia do Teleporte com você. Sem ela, só voltando por uma porta de emergência escondida lá dentro. Entrar mesmo assim?', color:'#ffd54a'}
