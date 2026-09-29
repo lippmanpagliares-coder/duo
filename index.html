@@ -162,6 +162,8 @@
   }
   .coopEmotes button:active { transform:scale(0.92); }
   .coopDivider { border:none; border-top:1px solid #204030; margin:0; }
+  .coopCharList { display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
+  .coopCharList .pBtn { text-align:center; }
   #panelOverlay { position:absolute; inset:0; z-index:45; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.86); }
   #panelOverlay.open { display:flex; }
   #panelBox {
@@ -1835,6 +1837,11 @@ function updateActionButton(){
     return;
   }
   actionBtn.classList.remove('duringDialogue');
+  if (duelActive){
+    actionBtn.style.display = 'flex';
+    actionBtn.textContent = '⚔️ Atacar';
+    return;
+  }
   if (sceneLocked || !currentScene){
     actionBtn.style.display = 'none';
     return;
@@ -1868,6 +1875,7 @@ function updateInventoryHud(){
 
 function handleInteractKey(){
   if (battle){ battleAttack(); return; }
+  if (duelActive){ duelAttack(); return; }
   if (dialogueActive){ advanceDialogue(); return; }
   if (sceneLocked || !currentScene) return;
   const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
@@ -1917,7 +1925,7 @@ function updateExploration(dt){
     const maxLen = (followers.length+1)*FOLLOWER_SPACING + 4;
     if (followerTrail.length > maxLen) followerTrail.length = maxLen;
   }
-  if (battle) return; // fighting on top of this room — exits/interact stay off until the battle ends
+  if (battle || duelActive) return; // fighting (a monster or a duel) on top of this room — exits/interact stay off until it ends
   // exits
   const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
   for (const ex of (currentScene.exits||[])){
@@ -2280,6 +2288,7 @@ function renderScene(){
   if (battle) drawBattleHud(ctx, tSec);
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
   else drawChapterMiniMap(ctx);
+  if (duelActive) drawDuelHud(ctx);
   if (mapOpen && !battle) drawBigMap(ctx);
   if (saveIndicatorT > 0){                                             // a quiet "saved" flash, bottom-left, fading out
     ctx.save(); ctx.globalAlpha = Math.min(1, saveIndicatorT*2.5);
@@ -2571,6 +2580,7 @@ function tryDash(){
   player.dashDX = dx/l; player.dashDY = dy/l;
   player.dashT = 0.16; player.dashCd = (battle ? 0.85 : 0.55)*((battle && battle.mods) ? battle.mods.dashCdMul : 1);
   if (battle){ battle.iframes = Math.max(battle.iframes, 0.32); battle.dashStrikeT = 0.55; }   // i-frames + dash-strike window
+  if (duelActive) duelIframes = Math.max(duelIframes, 0.32);   // dash through a PvP hit to dodge it
   sfxDash();
   fxBurst(player.x+player.w/2, player.y+player.h/2, 8, '150,230,255', 130, 2.4, 0.3, 0);
   fxSpeed = Math.max(fxSpeed, 0.14);
@@ -5952,7 +5962,68 @@ refreshSettingsUI();
 // synced, so it only "just works" in the deterministic areas that have a stable mpKey (open world, the Ilha
 // Celestial, the Backrooms). Chapters stay single-player, since two people replaying the same story scene
 // out of step would break scripted cutscenes.
-let mpPeer = null, mpConn = null, mpRole = null, mpMyCode = '', mpStatus = '', mpRemote = null, mpSendT = 0, mpConnectTO = null;
+let mpPeer = null, mpConn = null, mpRole = null, mpMyCode = '', mpStatus = '', mpRemote = null, mpSendT = 0, mpConnectTO = null, mpMyChar = null, mpPendingHost = false;
+function mpCharList(){ return Object.keys(ROSTER).filter(id=> progress.chars[id]); }
+function mpPickChar(id){    // the room's admin (host) picks first, before the room even opens; whoever joins after picks once they connect
+  if (!progress.chars[id]) return;
+  if (id === progress.sub) progress.sub = progress.main;
+  progress.main = id; player.type = id; refreshFollowers(); sfxPickup(); saveGame();
+  mpMyChar = id;
+  if (mpPendingHost){ mpPendingHost = false; mpHost(); }
+  else { mpRenderPanel(); mpSendState(); }
+}
+function mpBeginHost(){ mpCleanup(); mpRole = 'host'; mpPendingHost = true; mpRenderPanel(); }
+
+/* ---- PvP duel: a lightweight real-time fight against the co-op partner, riding the same data link ---- */
+// Each side is authoritative for its own HP: landing a hit just sends a "you took X" message, the same way
+// the normal solo battle does damage locally — nothing about world state needs to agree between the two.
+let duelActive = false, duelPending = false, duelHp = 100, duelMaxHp = 100, duelOppHp = 100, duelOppMaxHp = 100, duelAtkCd = 0, duelIframes = 0;
+function requestDuel(){
+  if (!mpConn || !mpConn.open) return;
+  if (!mpRemote || !currentScene || mpRemote.area !== currentScene.mpKey){ mpSetStatus('Vocês precisam estar na mesma área pra duelar — fique perto do seu amigo.'); return; }
+  mpSendRaw({ t:'duelReq' });
+  mpSetStatus('Desafio enviado! Esperando '+(mpRemote ? mpRemote.name : 'seu amigo')+' responder...');
+}
+function acceptDuel(){ duelPending = false; mpSendRaw({ t:'duelAccept' }); startDuel(); }
+function declineDuel(){ duelPending = false; mpSendRaw({ t:'duelDecline' }); mpRenderPanel(); }
+function startDuel(){
+  duelActive = true; duelPending = false; duelHp = duelMaxHp = 100; duelOppHp = duelOppMaxHp = 100; duelAtkCd = 0; duelIframes = 0;
+  closeCoop();
+  showBanner('⚔️ Duelo contra '+(mpRemote ? mpRemote.name : 'seu amigo')+'! Primeiro a zerar a vida perde.');
+  sfxSpecial();
+}
+function endDuel(result){
+  if (!duelActive){ duelPending = false; return; }
+  duelActive = false;
+  if (result === 'left'){ showBanner('O duelo acabou — o outro jogador saiu.'); return; }
+  fxWhite = result === 'win' ? 0.6 : 0.3; fxShakeNow(0.4, 6);
+  if (result === 'win'){ sfxVictory(); showBanner('🏆 Você venceu o duelo!'); }
+  else { sfxDefeat(); showBanner('💀 Você perdeu o duelo...'); }
+}
+function duelAttack(){
+  if (!duelActive || duelAtkCd > 0) return;
+  if (!mpRemote || mpRemote.area !== (currentScene && currentScene.mpKey)) return;
+  duelAtkCd = 0.42;
+  const ex = mpRemote.dispX+player.w/2, ey = mpRemote.dispY+player.h/2;
+  const dist = Math.hypot((player.x+player.w/2)-ex, (player.y+player.h/2)-ey);
+  if (dist > 95){ fxText(player.x+player.w/2, player.y-30, 'Chegue mais perto!', '#ffcc66', 18, 0.8); return; }
+  const dmg = rnd(7,13);
+  mpSendRaw({ t:'duelHit', dmg });
+  fxSlash(ex, ey, Math.random()*Math.PI*2, 100, '255,140,140');
+  fxBurst(ex, ey, 10, '255,120,120', 220, 2.6, 0.4, 0);
+  sfxAttack();
+}
+function drawDuelHud(g){
+  const bar = (x,label,hp,maxHp,color)=>{
+    g.fillStyle = 'rgba(10,10,20,0.6)'; g.fillRect(x,14,170,26);
+    g.fillStyle = color; g.fillRect(x+4,18,162*Math.max(0,hp/maxHp),8);
+    g.strokeStyle = 'rgba(255,255,255,0.4)'; g.lineWidth=1; g.strokeRect(x+4,18,162,8);
+    g.fillStyle = '#fff'; g.font = 'bold 11px sans-serif'; g.textAlign = 'left'; g.fillText(label, x+4, 34);
+  };
+  bar(W/2-180, ROSTER[player.type] ? ROSTER[player.type].name : 'Você', duelHp, duelMaxHp, '#5aff96');
+  bar(W/2+10, mpRemote && mpRemote.name || 'Amigo', duelOppHp, duelOppMaxHp, '#ff6a6a');
+  g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.7)'; g.font = '11px sans-serif'; g.fillText('DUELO', W/2, 12);
+}
 function mpClearTO(){ if (mpConnectTO){ clearTimeout(mpConnectTO); mpConnectTO = null; } }
 const coopBtn = document.getElementById('coopBtn');
 const coopOverlay = document.getElementById('coopOverlay');
@@ -5962,8 +6033,8 @@ function mpGenCode(){ let s=''; for (let i=0;i<4;i++) s += MP_ALPHA[Math.floor(M
 function mpSetStatus(s){ mpStatus = s; mpRenderPanel(); }
 function mpTeardownConn(){ try{ mpConn && mpConn.close(); }catch(e){} mpConn = null; coopBtn.classList.remove('connected'); }
 function mpTeardownPeer(){ mpClearTO(); mpTeardownConn(); try{ mpPeer && mpPeer.destroy(); }catch(e){} mpPeer = null; mpRole = null; mpMyCode = ''; }
-function mpCleanup(){ mpTeardownPeer(); mpRemote = null; }
-function mpOnDisconnect(msg){ mpCleanup(); mpSetStatus(msg); }
+function mpCleanup(){ mpTeardownPeer(); mpRemote = null; mpMyChar = null; mpPendingHost = false; duelActive = false; duelPending = false; }
+function mpOnDisconnect(msg){ if (duelActive) endDuel('left'); mpCleanup(); mpSetStatus(msg); }
 function mpSendRaw(d){ if (mpConn && mpConn.open){ try{ mpConn.send(d); }catch(e){} } }
 function mpSendState(){
   mpSendRaw({ t:'state', x:player.x, y:player.y, facing:player.facing||1, type:player.type, form:progress.form,
@@ -5979,6 +6050,26 @@ function mpOnData(d){
     if (mpRemote){ mpRemote.emote = d.e; mpRemote.emoteT = 2.2; }
   } else if (d.t === 'bye'){
     mpOnDisconnect('O outro jogador saiu da sala.');
+  } else if (d.t === 'duelReq'){
+    if (duelActive) { mpSendRaw({ t:'duelDecline' }); return; }
+    duelPending = true; coopOverlay.classList.add('open'); mpRenderPanel();
+    showBanner('⚔️ '+(mpRemote ? mpRemote.name : 'Seu amigo')+' te desafiou pra um duelo!');
+  } else if (d.t === 'duelAccept'){
+    startDuel();
+  } else if (d.t === 'duelDecline'){
+    mpSetStatus('O duelo foi recusado.');
+  } else if (d.t === 'duelHit'){
+    if (!duelActive || duelIframes > 0) return;
+    duelHp = Math.max(0, duelHp - d.dmg);
+    duelIframes = 0.25; fxPlayerHit = 0.5; fxShakeNow(0.2, 5); sfxEnemyHit();
+    fxText(player.x+player.w/2, player.y-6, '-'+d.dmg, '#ff6a6a', 26);
+    mpSendRaw({ t:'duelHp', hp:duelHp });
+    if (duelHp <= 0) endDuel('lose');
+  } else if (d.t === 'duelHp'){
+    duelOppHp = d.hp;
+    if (duelOppHp <= 0 && duelActive) endDuel('win');
+  } else if (d.t === 'duelLeave'){
+    if (duelActive) endDuel('left');
   }
 }
 function mpWireConn(){
@@ -5987,9 +6078,9 @@ function mpWireConn(){
   mpConn.on('close', ()=> mpOnDisconnect('O outro jogador saiu da sala.'));
   mpConn.on('error', ()=> mpOnDisconnect('A conexão caiu. Tente criar ou entrar de novo.'));
 }
-function mpHost(){
+function mpHost(){   // called once the admin has already picked a character (mpBeginHost + mpPickChar) — actually opens the room
   if (typeof Peer === 'undefined'){ mpSetStatus('Carregando o sistema online... espera uns segundos e tenta de novo.'); return; }
-  mpCleanup(); mpRole = 'host';
+  mpRole = 'host';
   const code = mpGenCode();
   mpSetStatus('Criando a sala...');
   try{
@@ -6024,6 +6115,10 @@ function mpJoin(codeRaw){
 }
 function mpLeave(){ mpSendRaw({ t:'bye' }); mpCleanup(); mpSetStatus('Desconectado.'); }
 function mpUpdate(dt){
+  if (duelActive){
+    if (duelAtkCd > 0) duelAtkCd -= dt;
+    if (duelIframes > 0) duelIframes -= dt;
+  }
   if (mpConn && mpConn.open){
     mpSendT -= dt;
     if (mpSendT <= 0){ mpSendT = 0.12; mpSendState(); }
@@ -6037,9 +6132,18 @@ function mpUpdate(dt){
 }
 function mpRenderPanel(){
   let h = `<div class="coopStatus">${mpStatus || 'Ninguém conectado ainda.'}</div>`;
-  if (mpConn && mpConn.open){
+  const needsPick = mpPendingHost || (mpConn && mpConn.open && !mpMyChar);
+  if (duelPending){
+    h += `<div class="coopNote">⚔️ ${mpRemote ? mpRemote.name : 'Seu amigo'} te desafiou pra um duelo!</div>`;
+    h += `<div class="settingsActions"><button class="gameBtn" id="coopDuelAccept">Aceitar</button><button class="gameBtn secondary" id="coopDuelDecline">Recusar</button></div>`;
+  } else if (needsPick){
+    h += `<div class="coopNote">${mpPendingHost ? 'Você é o dono da sala — escolha seu personagem antes de abrir o código:' : 'Escolha seu personagem para entrar na sala:'}</div>`;
+    h += `<div class="coopCharList">${mpCharList().map(id=>`<button class="pBtn" data-pick="${id}">${ROSTER[id].name}${progress.main===id?' (atual)':''}</button>`).join('')}</div>`;
+  } else if (mpConn && mpConn.open){
+    h += `<div class="coopStatus">Você é: <b>${ROSTER[mpMyChar].name}</b>${mpRemote && mpRemote.name ? ' · Amigo: <b>'+mpRemote.name+'</b>' : ''}</div>`;
     h += `<div class="coopEmotes">${['👋','😂','❤️','⚔️'].map(e=>`<button data-emote="${e}">${e}</button>`).join('')}</div>`;
-    h += `<hr class="coopDivider"><div class="settingsActions"><button class="gameBtn secondary" id="coopLeave">Sair da sala</button></div>`;
+    h += `<hr class="coopDivider"><div class="settingsActions"><button class="gameBtn" id="coopDuel" ${duelActive?'disabled':''}>⚔️ Desafiar pra um duelo</button></div>`;
+    h += `<div class="settingsActions"><button class="gameBtn secondary" id="coopLeave">Sair da sala</button></div>`;
   } else {
     if (mpRole === 'host' && mpMyCode){
       h += `<div class="coopCode">${mpMyCode}</div>`;
@@ -6050,11 +6154,15 @@ function mpRenderPanel(){
     }
   }
   coopBody.innerHTML = h;
-  const hb = document.getElementById('coopHostBtn'); if (hb) hb.onclick = mpHost;
+  const hb = document.getElementById('coopHostBtn'); if (hb) hb.onclick = mpBeginHost;
   const jb = document.getElementById('coopJoinBtn'); if (jb) jb.onclick = ()=> mpJoin(document.getElementById('coopCodeInput').value);
   const ci = document.getElementById('coopCodeInput'); if (ci) ci.addEventListener('keydown', e=>{ if (e.key === 'Enter') mpJoin(ci.value); });
   const lv = document.getElementById('coopLeave'); if (lv) lv.onclick = mpLeave;
+  const dc = document.getElementById('coopDuel'); if (dc) dc.onclick = requestDuel;
+  const da = document.getElementById('coopDuelAccept'); if (da) da.onclick = acceptDuel;
+  const dd = document.getElementById('coopDuelDecline'); if (dd) dd.onclick = declineDuel;
   coopBody.querySelectorAll('[data-emote]').forEach(b=> b.onclick = ()=> mpSendEmote(b.dataset.emote));
+  coopBody.querySelectorAll('[data-pick]').forEach(b=> b.onclick = ()=> mpPickChar(b.dataset.pick));
 }
 function openCoop(){ coopOverlay.classList.add('open'); mpRenderPanel(); }
 function closeCoop(){ coopOverlay.classList.remove('open'); }
