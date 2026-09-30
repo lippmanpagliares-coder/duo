@@ -540,12 +540,12 @@ const EMERALD_DEFS = {   // permanent bonuses earned from open-world challenges
 // Joias Perdidas: a side-quest collectible layer, one hidden in each of six quiet biomes — small stacking bonuses,
 // plus a cosmetic sparkle once you've found all six. Separate from the challenge emeralds (those gate the final boss).
 const LOST_GEMS = {
-  forest:  { name:'Joia da Floresta', icon:'🍃', color:'110,220,120', area:[1,0], text:'+8 de vida máxima',           bonus:{hp:8} },
-  fungo:   { name:'Joia dos Cogumelos', icon:'🍄', color:'255,120,220', area:[3,0], text:'+5% de carga do especial',  bonus:{sp:0.05} },
-  pantano: { name:'Joia do Pântano',  icon:'🟣', color:'150,90,220', area:[0,1], text:'+2% de chance crítica',        bonus:{crit:0.02} },
-  deserto: { name:'Joia do Deserto',  icon:'🟡', color:'240,200,80', area:[3,1], text:'+10% de cristais ganhos',      bonus:{crystals:0.10} },
-  lava:    { name:'Joia da Lava',     icon:'🔴', color:'255,90,60', area:[3,2], text:'+2 de ataque',                  bonus:{atk:2} },
-  costa:   { name:'Joia da Costa',    icon:'🔵', color:'80,200,230', area:[3,3], text:'-8% de recarga do dash',       bonus:{dash:0.08} }
+  forest:  { name:'Joia da Floresta', icon:'🍃', color:'110,220,120', area:[1,0], text:'+8 de vida máxima · +5% no golpe especial',           bonus:{hp:8}, specialBoost:0.05 },
+  fungo:   { name:'Joia dos Cogumelos', icon:'🍄', color:'255,120,220', area:[3,0], text:'+5% de carga do especial · +5% no golpe especial',  bonus:{sp:0.05}, specialBoost:0.05 },
+  pantano: { name:'Joia do Pântano',  icon:'🟣', color:'150,90,220', area:[0,1], text:'+2% de chance crítica · +5% no golpe especial',        bonus:{crit:0.02}, specialBoost:0.05 },
+  deserto: { name:'Joia do Deserto',  icon:'🟡', color:'240,200,80', area:[3,1], text:'+10% de cristais ganhos · +5% no golpe especial',      bonus:{crystals:0.10}, specialBoost:0.05 },
+  lava:    { name:'Joia da Lava',     icon:'🔴', color:'255,90,60', area:[3,2], text:'+2 de ataque · +5% no golpe especial',                  bonus:{atk:2}, specialBoost:0.05 },
+  costa:   { name:'Joia da Costa',    icon:'🔵', color:'80,200,230', area:[3,3], text:'-8% de recarga do dash · +5% no golpe especial',       bonus:{dash:0.08}, specialBoost:0.05 }
 };
 function lostGemCount(){ return Object.keys(LOST_GEMS).filter(id=> progress.lostGems[id]).length; }
 function lostGemBonus(){    // small stacking totals from every Joia Perdida found so far
@@ -595,11 +595,11 @@ const EQUIP_DEFS = {
     singularity: { name:'Singularidade', icon:'🕳️', cost:0, hp:70, atk:6, rarity:'ultra', secret:true }
   },
   accessory: {
-    bandana: { name:'Bandana da Sorte', icon:'🎽', cost:45,  dash:0.04, rarity:'comum' },
-    cape:    { name:'Capa Veloz',       icon:'🧣', cost:120, dash:0.08, rarity:'raro' },
-    ring:    { name:'Anel Crítico',     icon:'💍', cost:220, crit:0.08, rarity:'epico' },
-    cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario' },
-    leviathan: { name:'Dente do Leviatã', icon:'🦷', cost:0, atk:8, crit:0.06, sp:0.15, dash:0.05, rarity:'ultra', secret:true }
+    bandana: { name:'Bandana da Sorte', icon:'🎽', cost:45,  dash:0.04, rarity:'comum',    specialBoost:0.08 },
+    cape:    { name:'Capa Veloz',       icon:'🧣', cost:120, dash:0.08, rarity:'raro',     specialBoost:0.12 },
+    ring:    { name:'Anel Crítico',     icon:'💍', cost:220, crit:0.08, rarity:'epico',    specialBoost:0.18, specialCrit:true },
+    cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario', specialBoost:0.30 },
+    leviathan: { name:'Dente do Leviatã', icon:'🦷', cost:0, atk:8, crit:0.06, sp:0.15, dash:0.05, rarity:'ultra', secret:true, specialBoost:0.45, specialCrit:true }
   }
 };
 const EQUIP_SLOTS = ['weapon','armor','accessory'];
@@ -632,6 +632,19 @@ function equipBonus(){
     if (d) Object.keys(out).forEach(k=>{ if (k in d) out[k] += d[k]; });
   });
   return out;
+}
+// Joias Perdidas and the equipped acessório both feed the golpe especial (K): each found gem adds a small stacking
+// boost, and the accessory adds its own (bigger) boost, sometimes with a guaranteed critical hit on top
+function specialPowerMul(){
+  let mul = 1;
+  Object.entries(LOST_GEMS).forEach(([id,d])=>{ if (progress.lostGems[id] && d.specialBoost) mul += d.specialBoost; });
+  const acc = progress.equip.accessory && EQUIP_DEFS.accessory[progress.equip.accessory];
+  if (acc && acc.specialBoost) mul += acc.specialBoost;
+  return mul;
+}
+function specialForcesCrit(){
+  const acc = progress.equip.accessory && EQUIP_DEFS.accessory[progress.equip.accessory];
+  return !!(acc && acc.specialCrit);
 }
 // a 0..1 read of "how maxed out is this save" — used to make the final boss (and its secret rematches) scale to
 // how strong the player actually is, not just how many times they've already won
@@ -2843,15 +2856,16 @@ function battleSpecial(){
 }
 function updateSpecial(dt){
   const marks = [0.85, 0.68, 0.52, 0.36, 0.2, 0.05];
+  const specMul = specialPowerMul(), specCrit = specialForcesCrit();   // Joias Perdidas + acessório boost the special move
   battle.specialT -= dt;
   while (battle && battle.specialStep < marks.length && battle.specialT <= marks[battle.specialStep]){
     const last = battle.specialStep === marks.length-1;
-    const dmg = Math.round(battle.player.atk*(last ? 2.2 : 0.95)*(0.9 + Math.random()*0.2));
+    const dmg = Math.round(battle.player.atk*(last ? 2.2 : 0.95)*(0.9 + Math.random()*0.2)*specMul*(specCrit ? 1.3 : 1));
     const ang = battle.specialStep*0.9 + Math.random()*0.4 - 1.2;
     battle.specialStep++;
     if (last){ fxZoom = 0.09; fxWhite = 0.7; fxShakeNow(0.35, 8); }
-    fxSlash(battle.enemyPos.x, battle.enemyPos.y, ang, last ? 200 : 145, last ? '255,220,120' : '160,230,255');
-    if (hitEnemy(dmg, { heavy:true, ang, noGauge:true, stop:0.03 }) || !battle) return true;
+    fxSlash(battle.enemyPos.x, battle.enemyPos.y, ang, last ? 200 : 145, last ? '255,220,120' : (specCrit ? '255,150,60' : '160,230,255'));
+    if (hitEnemy(dmg, { heavy:true, ang, noGauge:true, stop:0.03, crit:specCrit }) || !battle) return true;
     if (last) fxHitStop = Math.max(fxHitStop, 0.14);
   }
   return false;
@@ -5695,6 +5709,7 @@ function renderPanel(){
         let stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
           .map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ');
         if (d.ranged) stat += ' · 🎯 longo alcance (atira à distância)';
+        if (d.specialBoost) stat += ` · +${Math.round(d.specialBoost*100)}% no golpe especial (K)${d.specialCrit ? ' + crítico garantido' : ''}`;
         h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
           <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
           ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
