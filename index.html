@@ -390,6 +390,7 @@
             <button class="segBtn" data-val="facil">Fácil</button>
             <button class="segBtn" data-val="normal">Normal</button>
             <button class="segBtn" data-val="dificil">Difícil</button>
+            <button class="segBtn" data-val="impossivel">Impossível</button>
           </div>
         </div>
 
@@ -629,9 +630,21 @@ function equipBonus(){
   });
   return out;
 }
+// a 0..1 read of "how maxed out is this save" — used to make the final boss (and its secret rematches) scale to
+// how strong the player actually is, not just how many times they've already won
+function computePowerScore(){
+  const p = progress;
+  const lvlS = Math.min(1, p.level/FINAL_LEVEL);
+  const emS = emeraldCount()/6;
+  const upMax = UPGRADE_DEFS.hp.max+UPGRADE_DEFS.atk.max+UPGRADE_DEFS.sp.max+UPGRADE_DEFS.dash.max+UPGRADE_DEFS.crit.max;
+  const upS = (p.hpLv+p.atkLv+p.spLv+p.dashLv+p.critLv) / upMax;
+  const gearS = EQUIP_SLOTS.filter(s=> p.equip[s]).length / 3;
+  const ultraS = EQUIP_SLOTS.some(s=> p.equip[s] && EQUIP_DEFS[s][p.equip[s]].rarity === 'ultra') ? 1 : 0;
+  return Math.min(1, (lvlS+emS+upS+gearS)/4) * 0.85 + ultraS*0.15;
+}
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0,
+    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
@@ -694,9 +707,10 @@ function progressMods(){
 let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0, music:60 };
 const hadSave = loadGame();      // runs once at boot, now that progress/upgrades/unlocked/settings all exist — everything below sees the restored state
 const DIFFICULTY_MULT = {
-  facil:   { hp:0.75, atk:0.7 },
-  normal:  { hp:1,    atk:1 },
-  dificil: { hp:1.3,  atk:1.4 },
+  facil:      { hp:0.75, atk:0.7 },
+  normal:     { hp:1,    atk:1 },
+  dificil:    { hp:1.3,  atk:1.4 },
+  impossivel: { hp:2.0,  atk:2.2 },
 };
 
 /* ---------------- sound (synthesized, no audio files needed) ---------------- */
@@ -3557,6 +3571,25 @@ function drawTinyBot(g,x,y,s,color){
   g.fillStyle = lighten(color,-20); g.fillRect(-s*0.58,-s*0.05,s*0.18,s*0.6); g.fillRect(s*0.4,-s*0.05,s*0.18,s*0.6);
   g.restore();
 }
+// Além do Véu: a post-game bonus dimension, calm and golden rather than threatening — reality itself floats in slow, broken shards
+function drawBeyondVeil(g){
+  const t = Date.now()/1000;
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#1a1030'); bg.addColorStop(0.5,'#2a1848'); bg.addColorStop(1,'#120a20');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<40;i++){ const a = t*0.05+i*0.7, r = 60+((i*53)%420); const x = W/2+Math.cos(a)*r, y = H/2+Math.sin(a)*r*0.5;
+    g.fillStyle = `rgba(255,${210+((i*7)%40)},150,${0.15+0.1*Math.sin(t+i)})`; g.fillRect(x,y,2,2); }
+  g.restore();
+  for (let i=0;i<7;i++){        // slow floating shards of broken reality
+    const a = t*0.12+i*1.4, r = 140+i*40, x = W/2+Math.cos(a)*r, y = H*0.55+Math.sin(a*0.7)*80-i*6, s2 = 30+i*6;
+    g.save(); g.translate(x,y); g.rotate(t*0.15+i);
+    g.fillStyle = `rgba(255,225,180,0.12)`; g.beginPath(); g.moveTo(0,-s2); g.lineTo(s2*0.7,0); g.lineTo(0,s2); g.lineTo(-s2*0.7,0); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,230,190,0.4)'; g.lineWidth = 1.5; g.stroke();
+    g.restore();
+  }
+  g.fillStyle = 'rgba(255,240,210,0.85)'; g.font = '12px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar', W/2, H-16);
+}
 function drawDuoLab(g){
   const t = Date.now()/1000;
   const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#0c1018'); bg.addColorStop(0.5,'#141c28'); bg.addColorStop(1,'#0a0e14');
@@ -4251,7 +4284,7 @@ function brItems(bx,by){
   const avoid = [{x:W/2-46,y:H/2-46,w:92,h:92}].concat(BR_AVOID[bx+','+by]||[]);
   return OW_ITEM_CACHE[key] = scatterItems(bx+11,by+5,['bwall'],11,avoid,dimFn);
 }
-const BR_AVOID = { '0,2':[{x:90,y:90,w:130,h:150}], '1,1':[{x:W/2-70,y:H/2-90,w:140,h:180}], '2,0':[{x:W-260,y:96,w:200,h:150}], '0,0':[{x:80,y:96,w:140,h:130}] };
+const BR_AVOID = { '0,2':[{x:90,y:90,w:130,h:150}], '1,1':[{x:W/2-70,y:H/2-90,w:140,h:180}], '2,0':[{x:W-260,y:96,w:200,h:150}], '0,0':[{x:80,y:96,w:140,h:130}], '2,2':[{x:W/2-80,y:H/2-80,w:160,h:160}] };
 function brObstacles(bx,by){ return brItems(bx,by).map(o=>({x:o.x,y:o.y+8,w:o.w,h:o.h-8})); }
 function drawBackrooms(g,bx,by,t){
   const flick = fxRand(Math.floor(t*9),bx*3+by+80) > 0.955, slot = Math.floor(t*12);
@@ -4460,6 +4493,18 @@ function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring 
   g.fillStyle = '#fff'; for (let i=0;i<10;i++){ const a = t*0.3+i*0.63, r = s*0.7*fxRand(i,95); g.fillRect(Math.cos(a)*r*0.9,Math.sin(a)*r,1.8,1.8); }
   g.restore();
 }
+// the portal to Além do Véu: only appears once the universe has already been saved — golden and calm, not menacing
+function drawVeilPortal(g,x,y,s){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  g.save(); g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(0,0,s*0.2,0,0,s*1.5); rg.addColorStop(0,`rgba(255,220,140,${0.4+0.1*Math.sin(t*2)})`); rg.addColorStop(1,'rgba(255,220,140,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0,0,s*1.5,0,Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = '#1a140a'; g.beginPath(); g.ellipse(0,0,s*0.85,s,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(255,225,150,0.9)'; g.lineWidth = 3; g.beginPath(); g.ellipse(0,0,s*0.85,s,0,0,Math.PI*2); g.stroke();
+  for (let i=0;i<3;i++){ g.strokeStyle = `rgba(255,${200+i*15},${120+i*30},0.5)`; g.lineWidth = 2; g.beginPath(); g.ellipse(0,0,s*(0.6-i*0.16),s*(0.7-i*0.19),t*0.3+i,0,Math.PI*2); g.stroke(); }
+  g.fillStyle = '#fff8e0'; for (let i=0;i<8;i++){ const a = t*0.25+i*0.78, r = s*0.65*fxRand(i,97); g.fillRect(Math.cos(a)*r*0.9,Math.sin(a)*r,1.8,1.8); }
+  g.restore();
+}
+DRAW.veilPortal = drawVeilPortal;
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
 DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot;
@@ -5518,7 +5563,10 @@ const ACHIEVEMENTS = [
   { id:'gearall', name:'Colecionador de Equipamentos', desc:'Compre todos os itens de equipamento da loja', reward:300, test:p=> EQUIP_SLOTS.every(s=> Object.entries(EQUIP_DEFS[s]).filter(([,d])=>!d.secret).every(([k])=> p.equipOwned[s][k])) },
   { id:'ultra',   name:'Poder Cósmico',           desc:'Consiga um item de raridade Ultra',                  reward:400, test:p=> EQUIP_SLOTS.some(s=> Object.entries(EQUIP_DEFS[s]).some(([k,d])=> d.rarity==='ultra' && p.equipOwned[s][k])) },
   { id:'legendary', name:'Lendário',             desc:'Compre um item de raridade Lendária',                reward:200, test:p=> EQUIP_SLOTS.some(s=> Object.entries(EQUIP_DEFS[s]).some(([k,d])=> d.rarity==='lendario' && p.equipOwned[s][k])) },
-  { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
+  { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 },
+  { id:'cronos',  name:'Mestre do Tempo',        desc:'Derrote o chefe final em menos de 3 minutos e enfrente Cronos', reward:600, test:p=> p.secretBossWins >= 1 },
+  { id:'entidade',name:'A Verdade das Backrooms',desc:'Derrote a Entidade Suprema nas Backrooms', reward:500, test:p=> p.backroomsBossWon },
+  { id:'veil',    name:'Além do Véu',            desc:'Encontre e derrote o Arquiteto do Vazio', reward:700, test:p=> p.veilBossWon }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -5932,6 +5980,21 @@ function buildOpenWorld(){
     const sp = { l:{x:60,y:H/2-20}, r:{x:W-100,y:H/2-20}, t:{x:W/2-17,y:110}, b:{x:W/2-17,y:H-110} }[from];
     goToScene(brRooms[brKey(x,y)], sp);
   }
+  function startBackroomsBoss(){
+    owBattle({
+      title:'A Entidade Suprema', intro:'Ela sempre esteve aqui, observando cada sala...', fleeChance:0.1, ranged:false,
+      enemy:{ name:'Entidade Suprema', type:'faceless', hp:2400, maxHp:2400, atk:25, speed:135, scale:82, reach:82, hitColor:'220,220,230' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.backroomsBossWon = true;
+        fxWhite = 0.9; fxShakeNow(0.5,7); sfxVictory(); grantCrystals(400); grantXp(400); checkAchievements();
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Conseguimos... isso explica os arrepios que eu sentia aqui. Ela não vai mais incomodar ninguém.', color:'#7ef9ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Ela é forte demais... preciso treinar mais antes de voltar aqui.', color:'#7ef9ff'}]);
+      }
+    });
+  }
   function makeBackroom(bx, by){
     const sc = { banner:'BACKROOMS — NÍVEL 0', isOpenWorld:false, mpKey:'br:'+bx+','+by, draw:(g)=> drawBackrooms(g,bx,by,Date.now()/1000),
       obstacles: brObstacles(bx,by), npcs:[], exits:[], fx:BR_FX };
@@ -5969,6 +6032,17 @@ function buildOpenWorld(){
             startDialogue([{speaker:'Saída', text:'Uma fenda estável... mas só a energia de uma Joia do Teleporte consegue atravessá-la. Ela estava no bunker do Capítulo 3. Mas dizem que existe outra saída, escondida em alguma sala: procure uma porta com um sinal verde de SAÍDA.', color:'#ffd54a'}]); return; }
           startDialogue([{speaker:'Saída', text:'A Joia do Teleporte brilha e abre a fenda. Voltar às Cavernas?', color:'#c9a8ff'}], ()=>{
             fxWhite = 0.8; sfxPickup(); goToScene(areas[key(2,2)], {x:W/2-17, y:430}); });
+        } });
+    }
+    if (bx === 2 && by === 2){
+      sc.npcs.push({ x:W/2-30, y:H/2-30, w:60, h:60, type:'faceless', scale:74, persistent:true,
+        get label(){ return progress.backroomsBossWon ? 'Entidade Suprema (derrotada)' : '??? uma presença enorme'; },
+        onInteract: function(){
+          if (progress.backroomsBossWon){ startDialogue([{speaker:'???', text:'Só resta silêncio onde ela estava.', color:'#9dffb8'}]); return; }
+          startDialogue([
+            {speaker:'???', text:'Uma sombra maior que qualquer outra aqui se ergue, bloqueando o caminho...', color:'#ffd54a'},
+            {speaker:'Entidade Suprema', text:'VOCÊ NÃO DEVERIA TER VINDO TÃO LONGE.', color:'#ff8888'}
+          ], ()=> startBackroomsBoss());
         } });
     }
     sc.onEnter = ()=>{ progress.backrooms = true; checkAchievements(); populate(sc, BR_ROAM, 1.7, 3 + (Math.random() < 0.5 ? 1 : 0)); };
@@ -6068,9 +6142,33 @@ function buildOpenWorld(){
     onInteract: ()=> startFishing() });
 
   // ---- the final boss portal (Terras Devastadas) ----
+  let finalBossStartT = 0;
+  function startSecretTimeBoss(){
+    showBanner('⏱ Você foi rápido demais... algo mais antigo que o universo acordou!');
+    startDialogue([
+      {speaker:'???', text:'Poucos chegam até aqui tão depressa. Isso desperta o interesse de CRONOS.', color:'#ffe27a'},
+      {speaker:'Cronos', text:'O tempo não perdoa pressa. Vamos ver se você aguenta o que vem a seguir.', color:'#ffe27a'}
+    ], ()=>{
+      owBattle({
+        title:'⏱ Chefe Secreto: Cronos, Senhor do Tempo', intro:'Uma recompensa por vencer rápido demais...', fleeChance:0, ranged:false,
+        enemy:{ name:'Cronos, Senhor do Tempo', type:'universeDevourer', hp:5200, maxHp:5200, atk:38, speed:85, scale:126, reach:106, hitColor:'255,225,90' },
+        onVictory: ()=>{
+          player.type = progress.main; progress.secretBossWins = (progress.secretBossWins||0)+1;
+          fxWhite = 1; fxShakeNow(0.6,8); sfxVictory(); grantCrystals(800); grantXp(800); checkAchievements();
+          startDialogue([{speaker:'Cronos', text:'Impressionante... o tempo se curva a quem o respeita. Até a próxima, viajante.', color:'#ffe27a'}]);
+        },
+        onDefeat: ()=>{
+          player.type = progress.main;
+          startDialogue([{speaker:ROSTER[progress.main].name, text:'Cronos foi longe demais dessa vez... mas só de tê-lo despertado já é uma vitória e tanto.', color:'#7ef9ff'}]);
+        }
+      });
+    });
+  }
   function startFinalBoss(){
-    // NG+: every rematch (finalWins) makes the trio a bit tougher and pays out a bit more, up to +75% at 5 wins
-    const ngK = Math.min(progress.finalWins, 5), mul = 1 + 0.15*ngK;
+    finalBossStartT = performance.now();
+    // NG+ (replays) and how maxed-out the save is both push the fight harder — a fully-geared veteran gets a real fight every time
+    const ngK = Math.min(progress.finalWins, 5), powerScore = computePowerScore();
+    const mul = 1 + 0.15*ngK + 0.5*powerScore;
     const sc = e=> Object.assign({}, e, { hp:Math.round(e.hp*mul), maxHp:Math.round(e.maxHp*mul), atk:Math.round(e.atk*mul) });
     owBattle({
       title: progress.finalWins > 0 ? `O FIM DO UNIVERSO — Investida ${progress.finalWins+1}` : 'O FIM DO UNIVERSO',
@@ -6082,12 +6180,12 @@ function buildOpenWorld(){
       ],
       onVictory: ()=>{
         player.type = progress.main; progress.finalWins++;
-        const gain = Math.round(500*mul);
+        const gain = Math.round(500*mul), elapsed = performance.now() - finalBossStartT, speedrun = elapsed < 180000;
         fxWhite = 1; sfxVictory(); grantCrystals(gain); grantXp(gain);
         startDialogue([
           {speaker:'Portal', text:'O Mega Universe Devourer se desfaz em estrelas. O universo respira aliviado.', color:'#e8b0ff'},
           {speaker:ROSTER[progress.main].name, text:`Conseguimos... +${gain} 💎. O mundo está a salvo! (vitória nº ${progress.finalWins})`, color:'#7ef9ff'}
-        ]);
+        ], ()=>{ if (speedrun) startSecretTimeBoss(); });
         checkAchievements();
       },
       onDefeat: ()=>{
@@ -6102,6 +6200,38 @@ function buildOpenWorld(){
         const story = [upgrades.elementalEmerald, upgrades.disguiseEmerald, upgrades.monsterEmerald].filter(Boolean).length;
         startDialogue([{speaker:'Portal do Vazio', text:`Selado. Requer: nível ${FINAL_LEVEL} (você: ${progress.level}), as 6 esmeraldas de desafio (${emeraldCount()}/6) e as 3 da história (${story}/3).`, color:'#e8b0ff'}]); return; }
       startDialogue([{speaker:'Portal do Vazio', text:'Ortsa, o Word Devourer e o Mega Universe Devourer esperam. Não haverá recuo. Entrar?', color:'#e8b0ff'}], ()=> startFinalBoss());
+    } });
+  // Além do Véu: a bonus world that only opens once the universe has already been saved at least once
+  function startVeilBoss(){
+    owBattle({
+      title:'O Arquiteto do Vazio', intro:'Ele observa as fendas entre os mundos, silencioso, há tempos.', fleeChance:0.1, ranged:false,
+      enemy:{ name:'O Arquiteto do Vazio', type:'giant', hp:4200, maxHp:4200, atk:30, speed:60, scale:110, reach:98, hitColor:'255,225,150' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.veilBossWon = true;
+        fxWhite = 0.9; fxShakeNow(0.5,7); sfxVictory(); grantCrystals(600); grantXp(600); checkAchievements();
+        startDialogue([{speaker:'O Arquiteto', text:'Você entende, então. Que todo fim... é só outra porta se abrindo.', color:'#ffe8c0'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Ele é sereno, mas imenso... preciso ficar mais forte pra voltar aqui.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  const beyondVeil = {
+    banner:'ALÉM DO VÉU', isOpenWorld:false, draw:drawBeyondVeil, obstacles:[],
+    npcs:[ { x:W/2-30, y:H/2-30, w:60, h:60, type:'giant', scale:70, persistent:true,
+      get label(){ return progress.veilBossWon ? 'O Arquiteto (em paz)' : 'O Arquiteto do Vazio'; },
+      onInteract: function(){
+        if (progress.veilBossWon){ startDialogue([{speaker:'O Arquiteto', text:'Descanse, viajante. Já provou seu valor aqui.', color:'#ffe8c0'}]); return; }
+        startDialogue([{speaker:'O Arquiteto do Vazio', text:'Poucos atravessam o véu. Quer mesmo testar o que fica depois do fim?', color:'#ffe8c0'}], ()=> startVeilBoss());
+      } } ],
+    exits:[ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], {x:260,y:500}) } ]
+  };
+  areas[key(4,3)].npcs.push({ x:100, y:420, w:90, h:90, type:'veilPortal', scale:44, persistent:true,
+    get label(){ return progress.finalWins >= 1 ? 'Além do Véu →' : ''; },
+    onInteract: ()=>{
+      if (progress.finalWins < 1){ startDialogue([{speaker:'???', text:'Nada aqui... por enquanto. Talvez depois de salvar o universo.', color:'#8a7aa0'}]); return; }
+      startDialogue([{speaker:'???', text:'Com o universo salvo, uma fresta se abre para outro lugar — mais calmo, mas não menos perigoso.', color:'#ffe8c0'}], ()=> goToScene(beyondVeil, {x:W/2-17, y:H-90}));
     } });
   return { areas, brRooms, island, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
     goToScene(village, {x:W/2-17, y:430});
