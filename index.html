@@ -560,10 +560,11 @@ function robotBonus(){    // only the equipped robot's power applies — one acc
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
+    duelWins:0, duelLosses:0, fishCaught:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
-    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
+    quests:{}, chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
@@ -585,10 +586,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','robots','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','robots','quests','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, quests:fresh.quests, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -1874,7 +1875,7 @@ function updateActionButton(){
   const menuVisible = !menuOverlay.classList.contains('hidden');
   const endVisible = !endOverlay.classList.contains('hidden');
   const battleVisible = battleOverlay.style.display === 'flex';
-  dpad.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
+  dpad.style.display = (menuVisible || endVisible || dialogueActive || fishing) ? 'none' : '';
   dashBtn.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
   {
     const uiOk = !battleVisible && !dialogueActive && !menuVisible && !endVisible;
@@ -1901,6 +1902,11 @@ function updateActionButton(){
   if (duelActive){
     actionBtn.style.display = 'flex';
     actionBtn.textContent = '⚔️ Atacar';
+    return;
+  }
+  if (fishing){
+    actionBtn.style.display = 'flex';
+    actionBtn.textContent = '🎣 Puxar!';
     return;
   }
   if (sceneLocked || !currentScene){
@@ -1937,6 +1943,7 @@ function updateInventoryHud(){
 function handleInteractKey(){
   if (battle){ battleAttack(); return; }
   if (duelActive){ duelAttack(); return; }
+  if (fishing){ reelFish(); return; }
   if (dialogueActive){ advanceDialogue(); return; }
   if (sceneLocked || !currentScene) return;
   const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
@@ -2354,6 +2361,7 @@ function renderScene(){
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
   else drawChapterMiniMap(ctx);
   if (duelActive) drawDuelHud(ctx);
+  if (fishing) drawFishingHud(ctx);
   if (mapOpen && !battle) drawBigMap(ctx);
   if (saveIndicatorT > 0){                                             // a quiet "saved" flash, bottom-left, fading out
     ctx.save(); ctx.globalAlpha = Math.min(1, saveIndicatorT*2.5);
@@ -4215,6 +4223,17 @@ function drawRobotBadge(g,x,y,t,robot){
   g.textBaseline = 'alphabetic';
   g.restore();
 }
+// a little fishing dock: a post, a taut line dipping into a ripple, a bobber that bobs
+function drawFishSpot(g,x,y,s){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  g.fillStyle = 'rgba(60,140,200,0.35)'; g.beginPath(); g.ellipse(s*0.3,s*0.5,s*0.7,s*0.18,0,0,Math.PI*2); g.fill();
+  g.fillStyle = '#7a5a30'; g.fillRect(-s*0.12,-s*0.9,s*0.24,s*1.0);
+  g.strokeStyle = 'rgba(230,230,230,0.7)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(0,-s*0.85); g.lineTo(s*0.32,s*0.4+Math.sin(t*2)*3); g.stroke();
+  g.fillStyle = '#ff5a4a'; g.beginPath(); g.arc(s*0.32,s*0.42+Math.sin(t*2)*3,s*0.09,0,Math.PI*2); g.fill();
+  g.restore();
+}
 function drawIsland(g,t,info){
   const sg = g.createLinearGradient(0,0,0,H); sg.addColorStop(0,'#2a5ac8'); sg.addColorStop(0.18,'#6ad4f0'); sg.addColorStop(1,'#1a8ab8');
   g.fillStyle = sg; g.fillRect(0,0,W,H);
@@ -4261,7 +4280,7 @@ function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring 
 }
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
-DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole;
+DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot;
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -5311,6 +5330,8 @@ const ACHIEVEMENTS = [
   { id:'lostgems',name:'Caçador de Joias',       desc:'Encontre as 6 Joias Perdidas espalhadas pelo mundo', reward:200, test:p=> lostGemCount() >= 6 },
   { id:'robot1',  name:'Engenheiro',             desc:'Construa seu primeiro robô no Laboratório do Duo',   reward:40,  test:p=> Object.values(p.robots).some(Boolean) },
   { id:'robotall',name:'Fábrica de Robôs',       desc:'Construa todos os robôs do Laboratório',             reward:250, test:p=> Object.values(p.robots).every(Boolean) },
+  { id:'quests',  name:'Ajudante do Povo',       desc:'Complete as 3 missões secundárias',                  reward:150, test:p=> QUESTS.every(q=> p.quests[q.id]) },
+  { id:'fisher',  name:'Pescador',               desc:'Pesque 10 peixes na Praia Calma',                    reward:80,  test:p=> p.fishCaught >= 10 },
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
@@ -5396,6 +5417,12 @@ function renderPanel(){
       h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
         <div class="pSub">${d.text} · escondida em ${OW_NAMES[owBiome(d.area[0],d.area[1])]} · ${got ? 'ENCONTRADA' : 'ainda não encontrada'}</div></div></div>`;
     });
+    h += `<div class="pHead" style="margin-top:6px"><span>Missões</span></div>`;
+    QUESTS.forEach(q=>{
+      const done = progress.quests[q.id], ready = !done && q.test(progress);
+      h += `<div class="pRow ${done ? 'done' : (ready?'':'locked')}"><div style="font-size:22px">${done?'✅':(ready?'❗':'📜')}</div><div class="pInfo"><div class="pTitle">${q.giver}</div>
+        <div class="pSub">${q.desc} · recompensa ${q.reward} 💎 · em ${OW_NAMES[owBiome(q.area[0],q.area[1])]} · ${done?'CONCLUÍDA':(ready?'pronta pra resgatar!':'em andamento')}</div></div></div>`;
+    });
   } else if (panelTab === 'chars'){
     h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span></div>`;
     h += `<div class="pRow ${(progress.forms.super || progress.forms.max) ? '' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Forma de poder: ${FORMS[progress.form].name}</div>
@@ -5452,6 +5479,27 @@ panelTabs.addEventListener('click', e=>{ const b = e.target.closest('button'); i
 document.getElementById('panelClose').addEventListener('click', closePanel);
 packBtn.addEventListener('click', ()=> openPanel());
 
+// side quests: simple objectives tracked from stuff you're probably already doing, each with its own NPC out in the world
+const QUESTS = [
+  { id:'q_kills', area:[2,0], giver:'Colono Apavorado', npcType:'father',
+    desc:'Derrote 15 monstros selvagens', reward:100, xp:60, test:p=> p.kills >= 15 },
+  { id:'q_level', area:[1,1], giver:'Guardião das Ruínas', npcType:'mother',
+    desc:'Chegue ao nível 12', reward:130, xp:80, test:p=> p.level >= 12 },
+  { id:'q_gems',  area:[2,3], giver:'Andarilho da Neve', npcType:'villager',
+    desc:'Encontre 3 Joias Perdidas', reward:150, xp:100, test:p=> lostGemCount() >= 3 }
+];
+function questNpc(q){
+  return { x:W/2+90, y:H/2-20, w:44, h:60, scale:34, persistent:true, type:q.npcType, label:q.giver,
+    onInteract: ()=>{
+      if (progress.quests[q.id]){ startDialogue([{speaker:q.giver, text:'Valeu de novo por aquilo! Já te paguei.', color:'#9fd88a'}]); return; }
+      if (q.test(progress)){
+        progress.quests[q.id] = true; grantCrystals(q.reward); grantXp(q.xp);
+        startDialogue([{speaker:q.giver, text:`Você conseguiu! Aqui está sua recompensa: +${q.reward} 💎 +${q.xp} XP.`, color:'#9fd88a'}]);
+      } else {
+        startDialogue([{speaker:q.giver, text:`Missão: ${q.desc}. Volte quando terminar!`, color:'#9fd88a'}]);
+      }
+    } };
+}
 /* ---------------- OPEN WORLD (unlocked by finishing chapter 5) ---------------- */
 // emerald challenges: a mini-boss gauntlet at a fixed shrine; harder ones unlock as more emeralds are collected
 const CHALLENGES = [
@@ -5604,6 +5652,8 @@ function buildOpenWorld(){
           startDialogue([{speaker:'???', text:`${d.icon} Você encontrou a ${d.name}! ${d.text}. (${lostGemCount()}/6 Joias Perdidas)`, color:'#5aff96'}]);
         } });
     }
+    const q = QUESTS.find(q=> q.area[0] === ix && q.area[1] === iy);
+    if (q) sc.npcs.push(questNpc(q));
     sc.onEnter = ()=>{
       progress.visited[key(ix,iy)] = true; checkAchievements();
       if (biome !== 'village') populate(sc, ROAM, 1 + 0.22*(Math.abs(ix-VIL[0]) + Math.abs(iy-VIL[1])));   // tougher the further you roam
@@ -5802,22 +5852,29 @@ function buildOpenWorld(){
       if (!i.open){ startDialogue([{speaker:'Barqueiro', text:`A Ilha Celestial só surge a cada 5 minutos, por 1 minuto e meio. Próxima abertura em ${fmt(i.secs)}. Lá você conquista as formas Super e Max!`, color:'#9fe0ff'}]); return; }
       startDialogue([{speaker:'Barqueiro', text:`A ilha está aberta! Fecha em ${fmt(i.secs)}. Embarcar?`, color:'#9fe0ff'}], ()=>{ fxWhite = 0.6; sfxPickup(); goToScene(island, {x:W/2-17, y:H-130}); });
     } });
+  areas[key(4,2)].npcs.push({ x:250, y:420, w:50, h:40, type:'fishSpot', scale:30, persistent:true, label:'Ponto de Pesca 🎣',
+    onInteract: ()=> startFishing() });
 
   // ---- the final boss portal (Terras Devastadas) ----
   function startFinalBoss(){
+    // NG+: every rematch (finalWins) makes the trio a bit tougher and pays out a bit more, up to +75% at 5 wins
+    const ngK = Math.min(progress.finalWins, 5), mul = 1 + 0.15*ngK;
+    const sc = e=> Object.assign({}, e, { hp:Math.round(e.hp*mul), maxHp:Math.round(e.maxHp*mul), atk:Math.round(e.atk*mul) });
     owBattle({
-      title:'O FIM DO UNIVERSO', intro:'Ortsa surge das trevas...', fleeChance:0, ranged:false,
-      enemy:{ name:'Ortsa', type:'ortsa', hp:700, maxHp:700, atk:20, speed:170, scale:56, reach:62, hitColor:'255,50,100' },
+      title: progress.finalWins > 0 ? `O FIM DO UNIVERSO — Investida ${progress.finalWins+1}` : 'O FIM DO UNIVERSO',
+      intro: progress.finalWins > 0 ? `Eles voltam mais fortes (+${Math.round((mul-1)*100)}%)...` : 'Ortsa surge das trevas...', fleeChance:0, ranged:false,
+      enemy: sc({ name:'Ortsa', type:'ortsa', hp:700, maxHp:700, atk:20, speed:170, scale:56, reach:62, hitColor:'255,50,100' }),
       waves:[
-        { enemy:{ name:'Word Devourer', type:'wordDevourer', hp:1500, maxHp:1500, atk:26, speed:75, scale:92, reach:90, hitColor:'200,150,255' } },
-        { enemy:{ name:'Mega Universe Devourer', type:'universeDevourer', hp:3600, maxHp:3600, atk:32, speed:65, scale:118, reach:104, hitColor:'255,80,240' } }
+        { enemy: sc({ name:'Word Devourer', type:'wordDevourer', hp:1500, maxHp:1500, atk:26, speed:75, scale:92, reach:90, hitColor:'200,150,255' }) },
+        { enemy: sc({ name:'Mega Universe Devourer', type:'universeDevourer', hp:3600, maxHp:3600, atk:32, speed:65, scale:118, reach:104, hitColor:'255,80,240' }) }
       ],
       onVictory: ()=>{
         player.type = progress.main; progress.finalWins++;
-        fxWhite = 1; sfxVictory(); grantCrystals(500); grantXp(500);
+        const gain = Math.round(500*mul);
+        fxWhite = 1; sfxVictory(); grantCrystals(gain); grantXp(gain);
         startDialogue([
           {speaker:'Portal', text:'O Mega Universe Devourer se desfaz em estrelas. O universo respira aliviado.', color:'#e8b0ff'},
-          {speaker:ROSTER[progress.main].name, text:'Conseguimos... +500 💎. O mundo está a salvo!', color:'#7ef9ff'}
+          {speaker:ROSTER[progress.main].name, text:`Conseguimos... +${gain} 💎. O mundo está a salvo! (vitória nº ${progress.finalWins})`, color:'#7ef9ff'}
         ]);
         checkAchievements();
       },
@@ -6261,8 +6318,9 @@ function endDuel(result){
   duelActive = false;
   if (result === 'left'){ showBanner('O duelo acabou — o outro jogador saiu.'); return; }
   fxWhite = result === 'win' ? 0.6 : 0.3; fxShakeNow(0.4, 6);
-  if (result === 'win'){ sfxVictory(); showBanner('🏆 Você venceu o duelo!'); }
-  else { sfxDefeat(); showBanner('💀 Você perdeu o duelo...'); }
+  if (result === 'win'){ progress.duelWins++; sfxVictory(); showBanner(`🏆 Você venceu o duelo! (${progress.duelWins}V - ${progress.duelLosses}D)`); }
+  else { progress.duelLosses++; sfxDefeat(); showBanner(`💀 Você perdeu o duelo... (${progress.duelWins}V - ${progress.duelLosses}D)`); }
+  saveGame();
 }
 function duelAttack(){
   if (!duelActive || duelAtkCd > 0) return;
@@ -6405,6 +6463,7 @@ function mpRenderPanel(){
     h += `<div class="coopCharList">${mpCharList().map(id=>`<button class="pBtn" data-pick="${id}">${ROSTER[id].name}${progress.main===id?' (atual)':''}</button>`).join('')}</div>`;
   } else if (mpConn && mpConn.open){
     h += `<div class="coopStatus">Você é: <b>${ROSTER[mpMyChar].name}</b>${mpRemote && mpRemote.name ? ' · Amigo: <b>'+mpRemote.name+'</b>' : ''}</div>`;
+    h += `<div class="coopStatus">Placar de duelos: 🏆 ${progress.duelWins} vitórias · 💀 ${progress.duelLosses} derrotas</div>`;
     h += `<div class="coopEmotes">${['👋','😂','❤️','⚔️'].map(e=>`<button data-emote="${e}">${e}</button>`).join('')}</div>`;
     h += `<hr class="coopDivider"><div class="settingsActions"><button class="gameBtn" id="coopDuel" ${duelActive?'disabled':''}>⚔️ Desafiar pra um duelo</button></div>`;
     h += `<div class="settingsActions"><button class="gameBtn secondary" id="coopLeave">Sair da sala</button></div>`;
@@ -6433,6 +6492,34 @@ function closeCoop(){ coopOverlay.classList.remove('open'); }
 coopBtn.addEventListener('click', openCoop);
 document.getElementById('coopClose').addEventListener('click', closeCoop);
 
+/* ---------------- fishing minigame: press the action button right as the bobber crosses the highlighted zone ---------------- */
+let fishing = null;   // { t, zoneStart, zoneLen } while active
+function startFishing(){ fishing = { t:0, zoneStart:0.3+Math.random()*0.35, zoneLen:0.16 }; sceneLocked = true; }
+function fishPos(){ return Math.abs(Math.sin(fishing.t*3)); }
+function reelFish(){
+  if (!fishing) return;
+  const pos = fishPos(), hit = pos >= fishing.zoneStart && pos <= fishing.zoneStart+fishing.zoneLen;
+  fishing = null; sceneLocked = false;
+  if (hit){
+    const gain = rnd(15,35); grantCrystals(gain); grantXp(10); progress.fishCaught++; sfxPickup(); fxWhite = 0.3; checkAchievements();
+    startDialogue([{speaker:ROSTER[progress.main].name, text:`🐟 Pesquei um peixe! +${gain} 💎`, color:'#7ef9ff'}]);
+  } else {
+    startDialogue([{speaker:ROSTER[progress.main].name, text:'Escapou... vou tentar de novo!', color:'#7ef9ff'}]);
+  }
+}
+function updateFishing(dt){ if (fishing) fishing.t += dt; }
+function drawFishingHud(g){
+  const bx = W/2-140, by = H-70, bw = 280, bh = 22;
+  g.save();
+  g.fillStyle = 'rgba(10,10,20,0.7)'; roundRect(g,bx,by,bw,bh,10); g.fill();
+  g.fillStyle = 'rgba(90,220,255,0.35)'; g.fillRect(bx+fishing.zoneStart*bw,by,fishing.zoneLen*bw,bh);
+  const px = bx+fishPos()*bw;
+  g.fillStyle = '#ffd54a'; g.beginPath(); g.arc(px,by+bh/2,9,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth=2; roundRect(g,bx,by,bw,bh,10); g.stroke();
+  g.fillStyle = '#fff'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center'; g.fillText('🎣 Aperte quando o marcador estiver na área azul!', W/2, by-10);
+  g.restore();
+}
+
 /* ---------------- main loop ---------------- */
 let lastT = performance.now();
 function loop(t){
@@ -6448,6 +6535,7 @@ function loop(t){
       updateFx(dt);
     }
     mpUpdate(dt);
+    updateFishing(dt);
     updateActionButton();
     updateInventoryHud();
     renderScene();
