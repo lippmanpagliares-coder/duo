@@ -363,6 +363,7 @@
           <button class="segBtn" data-tab="up">⬆ Melhorias</button>
           <button class="segBtn" data-tab="chars">🧑 Personagens</button>
           <button class="segBtn" data-tab="robots">🤖 Robôs</button>
+          <button class="segBtn" data-tab="equip">🗡️ Equipamento</button>
           <button class="segBtn" data-tab="ach">🏆 Conquistas</button>
         </div>
         <div id="panelBody"></div>
@@ -558,13 +559,42 @@ function robotBonus(){    // only the equipped robot's power applies — one acc
   const id = progress.robotEquipped, d = id && ROBOT_DEFS[id];
   return (d && progress.robots[id]) ? d.bonus : {};
 }
+// gear: three slots (weapon/armor/acessório), bought with crystals, each shows as a little badge on the character
+// and adds a bit of stat power — separate from the robot accessory, so you can run both at once
+const EQUIP_DEFS = {
+  weapon: {
+    iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:80,  atk:6 },
+    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:180, atk:11 },
+    elemental: { name:'Lança Elemental',    icon:'⚡', cost:320, atk:17 }
+  },
+  armor: {
+    leather: { name:'Colete de Couro',    icon:'🥋', cost:70,  hp:10 },
+    iron:    { name:'Armadura de Ferro',  icon:'🛡️', cost:160, hp:22 },
+    crystal: { name:'Armadura de Cristal',icon:'💎', cost:300, hp:38 }
+  },
+  accessory: {
+    cape:  { name:'Capa Veloz',     icon:'🧣', cost:90,  dash:0.08 },
+    ring:  { name:'Anel Crítico',   icon:'💍', cost:140, crit:0.06 },
+    cloak: { name:'Manto Arcano',   icon:'🔮', cost:200, sp:0.15 }
+  }
+};
+const EQUIP_SLOTS = ['weapon','armor','accessory'];
+function equipBonus(){
+  const out = { hp:0, atk:0, crit:0, dash:0, sp:0 };
+  EQUIP_SLOTS.forEach(slot=>{
+    const id = progress.equip[slot], d = id && EQUIP_DEFS[slot][id];
+    if (d) Object.keys(out).forEach(k=>{ if (k in d) out[k] += d[k]; });
+  });
+  return out;
+}
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
     duelWins:0, duelLosses:0, fishCaught:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
-    quests:{}, chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
+    quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} },
+    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
@@ -586,10 +616,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','robots','quests','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','robots','quests','equipOwned','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, quests:fresh.quests, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -601,19 +631,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), rb = robotBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), rb = robotBonus(), eq = equipBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + (rb.hp||0))*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + (rb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + (rb.atk||0))*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + (rb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), rb = robotBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), rb = robotBonus(), eq = equipBonus();
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + (rb.sp||0))*FORMS[p.form||'normal'].sp,
-    dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0))*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + (rb.crit||0),
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
+    dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + (rb.crit||0) + eq.crit,
     bug: !!p.bugGem
   };
 }
@@ -2307,6 +2337,7 @@ function renderScene(){
   if (lostGemCount() >= 6 && !battle) drawLostGemsSparkle(ctx, player.x+player.w/2, player.y+player.h/2, tSec);   // cosmetic reward for finding every Joia Perdida
   DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
   if (progress.robotEquipped && !battle) drawRobotBadge(ctx, player.x+player.w/2, player.y+player.h/2, tSec, ROBOT_DEFS[progress.robotEquipped]);
+  if (!battle) drawEquipBadges(ctx, player.x+player.w/2, player.y+player.h/2, tSec);
   ctx.globalAlpha = 1;
   if (battle){
     const ex = battle.enemyPos.x, ey = battle.enemyPos.y, base = battle.enemy.scale||52;
@@ -4223,6 +4254,23 @@ function drawRobotBadge(g,x,y,t,robot){
   g.textBaseline = 'alphabetic';
   g.restore();
 }
+// equipped gear: small badges hugging the character — one per slot, only drawn when something's equipped there
+function drawEquipBadges(g,x,y,t){
+  const badge = (bx,by,icon,color)=>{
+    g.save();
+    g.fillStyle = 'rgba(0,0,0,0.2)'; g.beginPath(); g.ellipse(bx,y+18,8,2.6,0,0,Math.PI*2); g.fill();
+    g.fillStyle = 'rgba(10,14,26,0.88)'; g.beginPath(); g.arc(bx,by,11,0,Math.PI*2); g.fill();
+    g.strokeStyle = color; g.lineWidth = 1.5; g.stroke();
+    g.font = '12px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(icon, bx, by+1);
+    g.textBaseline = 'alphabetic';
+    g.restore();
+  };
+  const eq = progress.equip;
+  if (eq.weapon) badge(x+27+Math.sin(t*2.4)*2, y+8, EQUIP_DEFS.weapon[eq.weapon].icon, 'rgba(255,160,110,0.7)');
+  if (eq.armor) badge(x-27+Math.sin(t*2.1+1)*2, y+8, EQUIP_DEFS.armor[eq.armor].icon, 'rgba(140,200,255,0.7)');
+  if (eq.accessory) badge(x+Math.sin(t*1.8+2)*2, y-44, EQUIP_DEFS.accessory[eq.accessory].icon, 'rgba(220,150,255,0.7)');
+}
 // a little fishing dock: a post, a taut line dipping into a ripple, a bobber that bobs
 function drawFishSpot(g,x,y,s){
   const t = Date.now()/1000;
@@ -5332,6 +5380,8 @@ const ACHIEVEMENTS = [
   { id:'robotall',name:'Fábrica de Robôs',       desc:'Construa todos os robôs do Laboratório',             reward:250, test:p=> Object.values(p.robots).every(Boolean) },
   { id:'quests',  name:'Ajudante do Povo',       desc:'Complete as 3 missões secundárias',                  reward:150, test:p=> QUESTS.every(q=> p.quests[q.id]) },
   { id:'fisher',  name:'Pescador',               desc:'Pesque 10 peixes na Praia Calma',                    reward:80,  test:p=> p.fishCaught >= 10 },
+  { id:'geared',  name:'Bem Equipado',           desc:'Equipe uma arma, uma armadura e um acessório ao mesmo tempo', reward:100, test:p=> p.equip.weapon && p.equip.armor && p.equip.accessory },
+  { id:'gearall', name:'Colecionador de Equipamentos', desc:'Compre todos os itens de equipamento',         reward:300, test:p=> EQUIP_SLOTS.every(s=> Object.keys(EQUIP_DEFS[s]).every(k=> p.equipOwned[s][k])) },
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
@@ -5443,6 +5493,21 @@ function renderPanel(){
         <div class="pSub">${d.desc}${built ? '' : ` · custa ${d.cost} 💎`}</div></div>
         ${built ? `<button class="pBtn ${equipped?'alt':''}" data-equip="${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-build="${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Construir</button>`}</div>`;
     });
+  } else if (panelTab === 'equip'){
+    h += `<div class="pHead"><span>🗡️ Equipamento</span><span>💎 ${progress.crystals}</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Arma, armadura e acessório — um de cada, ao mesmo tempo. Cada item comprado é seu pra sempre; troque quando quiser.</div>`;
+    const slotNames = { weapon:'⚔️ Arma', armor:'🛡️ Armadura', accessory:'✨ Acessório' };
+    EQUIP_SLOTS.forEach(slot=>{
+      h += `<div class="pHead" style="margin-top:6px"><span>${slotNames[slot]}</span></div>`;
+      Object.entries(EQUIP_DEFS[slot]).forEach(([k,d])=>{
+        const owned = progress.equipOwned[slot][k], equipped = progress.equip[slot] === k;
+        const stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
+          .map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ');
+        h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''}</div>
+          <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
+          ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
+      });
+    });
   } else {
     const got = ACHIEVEMENTS.filter(a=> progress.achievements[a.id]).length;
     h += `<div class="pHead"><span>🏆 ${got}/${ACHIEVEMENTS.length} conquistas</span><span>Monstros derrotados: ${progress.kills}</span></div>`;
@@ -5471,6 +5536,12 @@ panelBody.addEventListener('click', e=>{
     if (!progress.robots[k] && progress.crystals >= d.cost){ progress.crystals -= d.cost; progress.robots[k] = true; progress.robotEquipped = k; sfxPickup(); fxWhite = 0.4; checkAchievements(); }
   } else if (b.dataset.equip){
     if (progress.robots[b.dataset.equip]) { progress.robotEquipped = b.dataset.equip; sfxPickup(); }
+  } else if (b.dataset.gearbuy){
+    const [slot,k] = b.dataset.gearbuy.split(':'), d = EQUIP_DEFS[slot][k];
+    if (!progress.equipOwned[slot][k] && progress.crystals >= d.cost){ progress.crystals -= d.cost; progress.equipOwned[slot][k] = true; progress.equip[slot] = k; sfxPickup(); fxWhite = 0.4; checkAchievements(); }
+  } else if (b.dataset.gearset){
+    const [slot,k] = b.dataset.gearset.split(':');
+    if (progress.equipOwned[slot][k]) { progress.equip[slot] = k; sfxPickup(); }
   }
   saveGame();
   renderPanel();
