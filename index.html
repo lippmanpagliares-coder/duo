@@ -418,6 +418,11 @@
           <input type="range" id="rangeSafe" min="0" max="40" step="2" value="0">
         </div>
 
+        <div class="settingsRow">
+          <label>Volume da música <span class="settingsVal" id="valMusic">60%</span></label>
+          <input type="range" id="rangeMusic" min="0" max="100" step="5" value="60">
+        </div>
+
         <hr class="settingsHr">
 
         <div class="settingsActions">
@@ -561,21 +566,30 @@ function robotBonus(){    // only the equipped robot's power applies — one acc
 }
 // gear: three slots (weapon/armor/acessório), bought with crystals, each shows as a little badge on the character
 // and adds a bit of stat power — separate from the robot accessory, so you can run both at once
+const RARITY_DEFS = {
+  comum:    { label:'Comum',    color:'#b8bcc4' },
+  raro:     { label:'Raro',     color:'#4fa8ff' },
+  epico:    { label:'Épico',    color:'#c07dff' },
+  lendario: { label:'Lendário', color:'#ffb347' }
+};
 const EQUIP_DEFS = {
   weapon: {
-    iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:80,  atk:6 },
-    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:180, atk:11 },
-    elemental: { name:'Lança Elemental',    icon:'⚡', cost:320, atk:17 }
+    rusty:     { name:'Adaga Enferrujada',  icon:'🔪', cost:40,  atk:3,  rarity:'comum' },
+    iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:100, atk:8,  rarity:'raro' },
+    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico' },
+    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario' }
   },
   armor: {
-    leather: { name:'Colete de Couro',    icon:'🥋', cost:70,  hp:10 },
-    iron:    { name:'Armadura de Ferro',  icon:'🛡️', cost:160, hp:22 },
-    crystal: { name:'Armadura de Cristal',icon:'💎', cost:300, hp:38 }
+    leather:  { name:'Colete de Couro',     icon:'🥋', cost:35,  hp:8,  rarity:'comum' },
+    iron:     { name:'Armadura de Ferro',   icon:'🛡️', cost:110, hp:18, rarity:'raro' },
+    crystal:  { name:'Armadura de Cristal', icon:'💎', cost:240, hp:32, rarity:'epico' },
+    guardian: { name:'Manto do Guardião',   icon:'🦺', cost:420, hp:50, rarity:'lendario' }
   },
   accessory: {
-    cape:  { name:'Capa Veloz',     icon:'🧣', cost:90,  dash:0.08 },
-    ring:  { name:'Anel Crítico',   icon:'💍', cost:140, crit:0.06 },
-    cloak: { name:'Manto Arcano',   icon:'🔮', cost:200, sp:0.15 }
+    bandana: { name:'Bandana da Sorte', icon:'🎽', cost:45,  dash:0.04, rarity:'comum' },
+    cape:    { name:'Capa Veloz',       icon:'🧣', cost:120, dash:0.08, rarity:'raro' },
+    ring:    { name:'Anel Crítico',     icon:'💍', cost:220, crit:0.08, rarity:'epico' },
+    cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario' }
   }
 };
 const EQUIP_SLOTS = ['weapon','armor','accessory'];
@@ -605,7 +619,7 @@ let saveIndicatorT = 0;   // brief "💾 salvo" flash after each save, purely vi
 function saveGame(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({ v:1, ts:Date.now(), progress, upgrades, unlocked,
-      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language } }));
+      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language, music:settings.music } }));
     saveIndicatorT = 1.4;
   } catch(e){ /* private browsing / storage disabled — the game still works, it just won't remember next time */ }
 }
@@ -649,7 +663,7 @@ function progressMods(){
 }
 
 /* ---------------- settings (session-only, no storage) ---------------- */
-let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0 };
+let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0, music:60 };
 const hadSave = loadGame();      // runs once at boot, now that progress/upgrades/unlocked/settings all exist — everything below sees the restored state
 const DIFFICULTY_MULT = {
   facil:   { hp:0.75, atk:0.7 },
@@ -662,7 +676,84 @@ let audioCtx = null;
 function getAudioCtx(){
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (!musicOn) initMusic();
   return audioCtx;
+}
+/* ---------------- background music: a small procedural synth, no audio files — mood shifts with what's on screen ---------------- */
+// each mood is a chord loop (safe, plain triads — no dissonant intervals to risk sounding "wrong") plus a sparse
+// plucked arpeggio; battle/boss moods just cycle faster and add a soft low pulse, rather than using different,
+// riskier harmony
+const MUSIC_MOODS = {
+  village:  { chords:[[261.63,329.63,392.00],[220.00,261.63,329.63],[174.61,220.00,261.63],[196.00,246.94,293.66]], dur:8.0, gap:[1.8,3.0], pulse:false, vol:1.0 },
+  explore:  { chords:[[220.00,261.63,329.63],[174.61,220.00,261.63],[261.63,329.63,392.00],[196.00,246.94,293.66]], dur:7.0, gap:[1.6,2.8], pulse:false, vol:1.0 },
+  battle:   { chords:[[146.83,174.61,220.00],[116.54,146.83,174.61],[174.61,220.00,261.63],[261.63,329.63,392.00]], dur:4.0, gap:[0.5,0.9], pulse:true,  vol:1.15 },
+  boss:     { chords:[[146.83,174.61,220.00],[116.54,146.83,174.61],[98.00,116.54,146.83],[220.00,277.18,329.63]], dur:3.0, gap:[0.4,0.7], pulse:true,  vol:1.3 },
+  backrooms:{ chords:[[220.00,261.63,329.63]], dur:12.0, gap:[2.4,4.2], pulse:false, vol:0.85 }
+};
+function getMusicMood(){
+  if (battle){
+    const et = battle.enemy && battle.enemy.type;
+    return (et==='universeDevourer'||et==='wordDevourer'||et==='ortsa'||et==='giant'||et==='titan') ? 'boss' : 'battle';
+  }
+  if (duelActive) return 'battle';
+  if (!currentScene) return 'explore';
+  if (currentScene.banner === 'BACKROOMS — NÍVEL 0') return 'backrooms';
+  if (currentScene.banner === 'VILA CENTRAL' || currentScene.banner === 'LABORATÓRIO DO DUO') return 'village';
+  return 'explore';
+}
+let musicOn = false, musicGain = null, musicChordIdx = -1, musicChordNodes = [], musicChordTO = null, musicArpTO = null, musicMood = 'explore';
+function musicVol(){ return (settings.music/100) * 0.065 * (MUSIC_MOODS[musicMood].vol||1); }
+function applyMusicVolume(){
+  if (musicGain) musicGain.gain.value = musicVol();
+  const el = document.getElementById('valMusic'); if (el) el.textContent = settings.music + '%';
+}
+function musicPulse(){
+  const ctx = getAudioCtx(), now = ctx.currentTime;
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.type = 'sine'; osc.frequency.value = 80;
+  g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.5, now+0.02); g.gain.exponentialRampToValueAtTime(0.001, now+0.35);
+  osc.connect(g); g.connect(musicGain); osc.start(now); osc.stop(now+0.4);
+}
+function musicChordStep(){
+  if (!musicOn) return;
+  musicMood = getMusicMood();
+  const mood = MUSIC_MOODS[musicMood];
+  musicChordIdx = (musicChordIdx+1) % mood.chords.length;
+  const freqs = mood.chords[musicChordIdx];
+  const ctx = getAudioCtx(), now = ctx.currentTime, fadeIn = 1.1, fadeOut = 0.9;
+  const oldNodes = musicChordNodes;
+  oldNodes.forEach(({gain})=>{ try{ gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(gain.gain.value, now); gain.gain.linearRampToValueAtTime(0, now+fadeOut); }catch(e){} });
+  setTimeout(()=> oldNodes.forEach(({osc})=>{ try{ osc.stop(); }catch(e){} }), (fadeOut+0.15)*1000);
+  musicChordNodes = freqs.map((f,i)=>{
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = i===0 ? 'sine' : 'triangle'; osc.frequency.value = f; osc.detune.value = (i-1)*2;
+    g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(1/freqs.length, now+fadeIn);
+    osc.connect(g); g.connect(musicGain); osc.start(now);
+    return { osc, gain:g };
+  });
+  if (mood.pulse) musicPulse();
+  musicGain.gain.linearRampToValueAtTime(musicVol(), now+fadeIn);   // volume/mood can change between cycles
+  musicChordTO = setTimeout(musicChordStep, mood.dur*1000);
+}
+function musicArpStep(){
+  if (!musicOn) return;
+  const mood = MUSIC_MOODS[musicMood], freqs = mood.chords[Math.max(0,musicChordIdx)] || mood.chords[0];
+  if (Math.random() < 0.85){
+    const f = freqs[Math.floor(Math.random()*freqs.length)] * (Math.random() < 0.4 ? 2 : 1);
+    const ctx = getAudioCtx(), now = ctx.currentTime, g = ctx.createGain(), osc = ctx.createOscillator();
+    osc.type = 'sine'; osc.frequency.value = f;
+    g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.4, now+0.03); g.gain.exponentialRampToValueAtTime(0.001, now+0.9);
+    osc.connect(g); g.connect(musicGain); osc.start(now); osc.stop(now+1);
+  }
+  const [a,b] = mood.gap; musicArpTO = setTimeout(musicArpStep, (a+Math.random()*(b-a))*1000);
+}
+function initMusic(){
+  if (musicOn) return;
+  musicOn = true;
+  const ctx = getAudioCtx();
+  musicGain = ctx.createGain(); musicGain.gain.value = musicVol(); musicGain.connect(ctx.destination);
+  musicChordStep();
+  musicArpStep();
 }
 function beep(freq, duration, type, volume, delay){
   try{
@@ -4267,9 +4358,9 @@ function drawEquipBadges(g,x,y,t){
     g.restore();
   };
   const eq = progress.equip;
-  if (eq.weapon) badge(x+27+Math.sin(t*2.4)*2, y+8, EQUIP_DEFS.weapon[eq.weapon].icon, 'rgba(255,160,110,0.7)');
-  if (eq.armor) badge(x-27+Math.sin(t*2.1+1)*2, y+8, EQUIP_DEFS.armor[eq.armor].icon, 'rgba(140,200,255,0.7)');
-  if (eq.accessory) badge(x+Math.sin(t*1.8+2)*2, y-44, EQUIP_DEFS.accessory[eq.accessory].icon, 'rgba(220,150,255,0.7)');
+  if (eq.weapon) badge(x+27+Math.sin(t*2.4)*2, y+8, EQUIP_DEFS.weapon[eq.weapon].icon, RARITY_DEFS[EQUIP_DEFS.weapon[eq.weapon].rarity].color);
+  if (eq.armor) badge(x-27+Math.sin(t*2.1+1)*2, y+8, EQUIP_DEFS.armor[eq.armor].icon, RARITY_DEFS[EQUIP_DEFS.armor[eq.armor].rarity].color);
+  if (eq.accessory) badge(x+Math.sin(t*1.8+2)*2, y-44, EQUIP_DEFS.accessory[eq.accessory].icon, RARITY_DEFS[EQUIP_DEFS.accessory[eq.accessory].rarity].color);
 }
 // a little fishing dock: a post, a taut line dipping into a ripple, a bobber that bobs
 function drawFishSpot(g,x,y,s){
@@ -5382,6 +5473,7 @@ const ACHIEVEMENTS = [
   { id:'fisher',  name:'Pescador',               desc:'Pesque 10 peixes na Praia Calma',                    reward:80,  test:p=> p.fishCaught >= 10 },
   { id:'geared',  name:'Bem Equipado',           desc:'Equipe uma arma, uma armadura e um acessório ao mesmo tempo', reward:100, test:p=> p.equip.weapon && p.equip.armor && p.equip.accessory },
   { id:'gearall', name:'Colecionador de Equipamentos', desc:'Compre todos os itens de equipamento',         reward:300, test:p=> EQUIP_SLOTS.every(s=> Object.keys(EQUIP_DEFS[s]).every(k=> p.equipOwned[s][k])) },
+  { id:'legendary', name:'Lendário',             desc:'Compre um item de raridade Lendária',                reward:200, test:p=> EQUIP_SLOTS.some(s=> Object.entries(EQUIP_DEFS[s]).some(([k,d])=> d.rarity==='lendario' && p.equipOwned[s][k])) },
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
@@ -5500,10 +5592,10 @@ function renderPanel(){
     EQUIP_SLOTS.forEach(slot=>{
       h += `<div class="pHead" style="margin-top:6px"><span>${slotNames[slot]}</span></div>`;
       Object.entries(EQUIP_DEFS[slot]).forEach(([k,d])=>{
-        const owned = progress.equipOwned[slot][k], equipped = progress.equip[slot] === k;
+        const owned = progress.equipOwned[slot][k], equipped = progress.equip[slot] === k, rar = RARITY_DEFS[d.rarity];
         const stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
           .map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ');
-        h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''}</div>
+        h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
           <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
           ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
       });
@@ -6278,6 +6370,7 @@ const segQuality = document.getElementById('segQuality');
 const selLanguage = document.getElementById('selLanguage');
 const rangeScale = document.getElementById('rangeScale');
 const rangeSafe = document.getElementById('rangeSafe');
+const rangeMusic = document.getElementById('rangeMusic');
 let settingsOpen = false;
 
 function applyScale(){
@@ -6297,7 +6390,8 @@ function refreshSettingsUI(){
   selLanguage.value = settings.language;
   rangeScale.value = settings.scale;
   rangeSafe.value = settings.safe;
-  applyScale(); applySafeArea(); applyQuality();
+  rangeMusic.value = settings.music;
+  applyScale(); applySafeArea(); applyQuality(); applyMusicVolume();
 }
 function toggleSettings(){ settingsOpen ? closeSettings() : openSettings(); }
 function openSettings(){
@@ -6346,6 +6440,7 @@ segQuality.addEventListener('click', e=>{
 selLanguage.addEventListener('change', ()=>{ settings.language = selLanguage.value; });
 rangeScale.addEventListener('input', ()=>{ settings.scale = +rangeScale.value; applyScale(); });
 rangeSafe.addEventListener('input', ()=>{ settings.safe = +rangeSafe.value; applySafeArea(); });
+rangeMusic.addEventListener('input', ()=>{ settings.music = +rangeMusic.value; applyMusicVolume(); saveGame(); });
 refreshSettingsUI();
 
 /* ---------------- co-op: play together over a direct peer-to-peer link (no server, no accounts) ---------------- */
