@@ -553,6 +553,19 @@ function lostGemBonus(){    // small stacking totals from every Joia Perdida fou
   Object.entries(LOST_GEMS).forEach(([id,d])=>{ if (progress.lostGems[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
   return out;
 }
+// Joias Celestiais: a smaller trio hidden in Além do Véu (the post-game bonus world) — same stacking-bonus idea as
+// the Joias Perdidas, but finding all three also unlocks the trial at the Altar Celestial
+const VEIL_GEMS = {
+  luz:        { name:'Joia da Luz',        icon:'✨', color:'255,240,180', text:'+10 de vida máxima',      bonus:{hp:10} },
+  graca:      { name:'Joia da Graça',      icon:'🕊️', color:'210,235,255', text:'+3% de chance crítica',  bonus:{crit:0.03} },
+  eternidade: { name:'Joia da Eternidade', icon:'⏳', color:'230,205,255', text:'+4 de ataque',            bonus:{atk:4} }
+};
+function veilGemCount(){ return Object.keys(VEIL_GEMS).filter(id=> progress.veilGems[id]).length; }
+function veilGemBonus(){
+  const out = { hp:0, atk:0, crit:0 };
+  Object.entries(VEIL_GEMS).forEach(([id,d])=>{ if (progress.veilGems[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
 // Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
 // an "accessory" that grants a passive power and shows up as a little badge following you around
 const ROBOT_DEFS = {
@@ -641,6 +654,7 @@ function specialPowerMul(){
   Object.entries(LOST_GEMS).forEach(([id,d])=>{ if (progress.lostGems[id] && d.specialBoost) mul += d.specialBoost; });
   const acc = progress.equip.accessory && EQUIP_DEFS.accessory[progress.equip.accessory];
   if (acc && acc.specialBoost) mul += acc.specialBoost;
+  if (progress.veilBlessed) mul += 0.15;   // Bênção Celestial do Altar, em Além do Véu
   return mul;
 }
 function specialForcesCrit(){
@@ -661,9 +675,10 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false,
+    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
+    veilGems:{ luz:false, graca:false, eternidade:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
     quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
@@ -688,10 +703,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','veilGems','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -703,19 +718,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), rb = robotBonus(), eq = equipBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), rb = robotBonus(), eq = equipBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + (rb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + (rb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + (rb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + (rb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), rb = robotBonus(), eq = equipBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), rb = robotBonus(), eq = equipBonus();
   return {
     spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
     dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + (rb.crit||0) + eq.crit,
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + (rb.crit||0) + eq.crit,
     bug: !!p.bugGem
   };
 }
@@ -1510,6 +1525,48 @@ function drawEyePlant(g,x,y,s,talking){
   g.stroke();
   g.restore();
 }
+// Serafim Caído: the signature monster of Além do Véu — a lone floating eye wrapped in a pair of angel wings,
+// crowned with golden spikes and ringed by a halo. Wings flap, halo spins slowly, pupil tracks nothing in particular.
+function drawWingedEye(g,x,y,s,talking){
+  const t = Date.now()/1000, bob = Math.sin(t*2.2)*s*0.08, flap = Math.sin(t*5)*0.32;
+  g.save(); g.translate(x,y+bob);
+  groundShadow(g, s, s*0.75-bob*0.4);
+  [-1,1].forEach(sd=>{
+    g.save(); g.scale(sd,1); g.rotate(-0.1+flap*0.5);
+    for (let i=0;i<4;i++){
+      const a = -0.25+i*0.26, len = s*(0.98-i*0.1);
+      g.fillStyle = `rgba(255,250,238,${0.95-i*0.1})`;
+      g.beginPath(); g.moveTo(s*0.08,-s*0.05);
+      g.quadraticCurveTo(s*0.08+Math.cos(a)*len*0.55,Math.sin(a)*len*0.85,s*0.08+Math.cos(a)*len,Math.sin(a)*len);
+      g.quadraticCurveTo(s*0.08+Math.cos(a)*len*0.4,Math.sin(a)*len*0.35,s*0.08,s*0.04);
+      g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(225,215,255,0.55)'; g.lineWidth = 1; g.stroke();
+    }
+    g.restore();
+  });
+  g.save(); g.globalCompositeOperation = 'lighter';       // the halo, floating just above the eye
+  const rg = g.createRadialGradient(0,-s*0.82,0,0,-s*0.82,s*0.6); rg.addColorStop(0,'rgba(255,238,175,0.55)'); rg.addColorStop(1,'rgba(255,238,175,0)');
+  g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.82,s*0.6,0,Math.PI*2); g.fill();
+  g.strokeStyle = `hsla(${45+8*Math.sin(t*1.3)},90%,78%,0.9)`; g.lineWidth = s*0.07;
+  g.save(); g.translate(0,-s*0.82); g.rotate(t*0.6); g.scale(1,0.34); g.beginPath(); g.arc(0,0,s*0.4,0,Math.PI*2); g.stroke(); g.restore();
+  g.restore();
+  g.fillStyle = '#ffd54a';                                 // a small golden crown resting atop the eye
+  for (let i=-2;i<=2;i++){ const cx = i*s*0.13;
+    g.beginPath(); g.moveTo(cx-s*0.06,-s*0.4); g.lineTo(cx,-s*0.58-Math.abs(i)*s*0.02); g.lineTo(cx+s*0.06,-s*0.4); g.closePath(); g.fill(); }
+  g.fillStyle = '#c99a2a'; g.fillRect(-s*0.3,-s*0.42,s*0.6,s*0.06);
+  g.fillStyle = volumeGrad(g,-s*0.12,-s*0.12,s*0.48,'#fffaf0','#e6dcc0');   // the eyeball itself
+  g.beginPath(); g.arc(0,0,s*0.46,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(170,140,70,0.5)'; g.lineWidth = s*0.03; g.stroke();
+  const irisCol = talking ? '#ff6a7a' : '#7a5fe0';
+  g.fillStyle = volumeGrad(g,-s*0.06,-s*0.06,s*0.24,lighten(irisCol,50),irisCol);
+  g.beginPath(); g.arc(0,0,s*0.22,0,Math.PI*2); g.fill();
+  g.fillStyle = '#100a20'; g.beginPath(); g.ellipse(0,0,s*0.07,s*0.16,0,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.arc(-s*0.12,-s*0.14,s*0.05,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#e6dcc0'; g.lineWidth = s*0.05; g.lineCap = 'round';      // a slow blink-line, lid creases
+  g.beginPath(); g.arc(0,0,s*0.46,Math.PI*1.08,Math.PI*1.42); g.stroke();
+  g.beginPath(); g.arc(0,0,s*0.46,Math.PI*1.58,Math.PI*1.92); g.stroke();
+  g.restore();
+}
 function drawDrone(g,x,y,s){
   g.save(); g.translate(x,y);
   const bob = Math.sin(Date.now()/220)*s*0.05;
@@ -1948,7 +2005,7 @@ function eyesBig(g,s,white,pupil,yOff){
 const DRAW = { duo:drawDuo, astro:drawAstro, plant:drawEyePlant, drone:drawDrone, huggy:drawHuggy, father:drawFatherOwl, mother:drawMotherOwl, villager:drawVillagerOwl, predator:drawVulcromPredator, chest:drawChest, weapon:drawAlienWeapon, energyCell:drawEnergyCell, mechaOff:drawMechaOff, mechaPlayer:drawMechaPlayer, mechaEnemy:drawMechaEnemy, rocket:drawRocketShip, hunter:drawAlienHunter, armaGuardia:drawArmaGuardia, teleportGem:drawTeleportGem, astroDown:drawAstroDown, huggyDown:drawHuggyDown, titan:drawTitan, elementalEmerald:drawElementalEmerald, cueio:drawCueio,
   shadowPredator:drawShadowPredator, king:drawKing, disguiseEmerald:drawDisguiseEmerald,
   giant:drawGiant, monsterEmerald:drawMonsterEmerald,
-  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler };
+  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler, eyeAngel:drawWingedEye };
 
 /* ---------------- dialogue system ---------------- */
 let dialogueQueue = [], dialogueIdx = 0, dialogueActive = false, dialogueOnEnd = null;
@@ -3635,23 +3692,48 @@ function drawTinyBot(g,x,y,s,color){
   g.fillStyle = lighten(color,-20); g.fillRect(-s*0.58,-s*0.05,s*0.18,s*0.6); g.fillRect(s*0.4,-s*0.05,s*0.18,s*0.6);
   g.restore();
 }
-// Além do Véu: a post-game bonus dimension, calm and golden rather than threatening — reality itself floats in slow, broken shards
+// Além do Véu: a post-game bonus dimension — a heaven, not a void, all bright sky, gold light and cloud marble
 function drawBeyondVeil(g){
   const t = Date.now()/1000;
-  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#1a1030'); bg.addColorStop(0.5,'#2a1848'); bg.addColorStop(1,'#120a20');
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#a6ddff'); bg.addColorStop(0.45,'#fff3d2'); bg.addColorStop(1,'#ffe0a0');
   g.fillStyle = bg; g.fillRect(0,0,W,H);
-  g.save(); g.globalCompositeOperation = 'lighter';
-  for (let i=0;i<40;i++){ const a = t*0.05+i*0.7, r = 60+((i*53)%420); const x = W/2+Math.cos(a)*r, y = H/2+Math.sin(a)*r*0.5;
-    g.fillStyle = `rgba(255,${210+((i*7)%40)},150,${0.15+0.1*Math.sin(t+i)})`; g.fillRect(x,y,2,2); }
-  g.restore();
-  for (let i=0;i<7;i++){        // slow floating shards of broken reality
-    const a = t*0.12+i*1.4, r = 140+i*40, x = W/2+Math.cos(a)*r, y = H*0.55+Math.sin(a*0.7)*80-i*6, s2 = 30+i*6;
-    g.save(); g.translate(x,y); g.rotate(t*0.15+i);
-    g.fillStyle = `rgba(255,225,180,0.12)`; g.beginPath(); g.moveTo(0,-s2); g.lineTo(s2*0.7,0); g.lineTo(0,s2); g.lineTo(-s2*0.7,0); g.closePath(); g.fill();
-    g.strokeStyle = 'rgba(255,230,190,0.4)'; g.lineWidth = 1.5; g.stroke();
+  g.save(); g.globalCompositeOperation = 'lighter';       // a sunburst fanning out from high overhead
+  const sx = W/2, sy = H*0.16;
+  for (let i=0;i<14;i++){
+    const a = (i/14)*Math.PI*2 + t*0.04;
+    g.fillStyle = `rgba(255,250,205,${0.05+0.03*Math.sin(t*0.6+i)})`;
+    g.save(); g.translate(sx,sy); g.rotate(a);
+    g.beginPath(); g.moveTo(0,0); g.lineTo(-30,0); g.lineTo(0,-H*1.2); g.lineTo(30,0); g.closePath(); g.fill();
     g.restore();
   }
-  g.fillStyle = 'rgba(255,240,210,0.85)'; g.font = '12px sans-serif'; g.textAlign = 'center';
+  const sg = g.createRadialGradient(sx,sy,0,sx,sy,150); sg.addColorStop(0,'rgba(255,255,240,0.95)'); sg.addColorStop(1,'rgba(255,255,240,0)');
+  g.fillStyle = sg; g.beginPath(); g.arc(sx,sy,150,0,Math.PI*2); g.fill();
+  for (let i=0;i<30;i++){ const a = t*0.05+i*0.7, r = 60+((i*53)%420); const x = W/2+Math.cos(a)*r, y = H/2+Math.sin(a)*r*0.5;     // drifting golden motes
+    g.fillStyle = `rgba(255,${230+((i*7)%25)},170,${0.2+0.12*Math.sin(t+i)})`; g.fillRect(x,y,2,2); }
+  g.restore();
+  g.fillStyle = 'rgba(255,255,255,0.75)';                 // soft drifting clouds
+  for (let i=0;i<6;i++){
+    const cx = ((t*10+i*220)%(W+240))-120, cy = 70+(i*55)%230, cs = 28+i*6;
+    [[-1,0],[0,-0.4],[1,0],[0.4,0.3],[-0.5,0.3]].forEach(([dx,dy])=>{ g.beginPath(); g.ellipse(cx+dx*cs,cy+dy*cs,cs*0.8,cs*0.5,0,0,Math.PI*2); g.fill(); });
+  }
+  [-1,1].forEach(sd=>{        // a pair of marble columns flanking the scene, like a temple resting in the clouds
+    const cx = W/2+sd*360;
+    g.fillStyle = '#f2ecda'; g.fillRect(cx-22,H*0.28,44,H*0.62);
+    g.fillStyle = '#ded4b8'; g.fillRect(cx-28,H*0.26,56,14); g.fillRect(cx-28,H*0.9,56,14);
+    g.strokeStyle = 'rgba(180,165,120,0.4)'; g.lineWidth = 2;
+    for (let i=0;i<5;i++){ g.beginPath(); g.moveTo(cx-22+i*10,H*0.28+14); g.lineTo(cx-22+i*10,H*0.9); g.stroke(); }
+  });
+  g.fillStyle = 'rgba(255,255,255,0.9)';                  // the cloud floor everyone actually stands on
+  g.beginPath(); g.ellipse(W/2,H-60,W*0.62,50,0,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(255,240,205,0.5)'; g.beginPath(); g.ellipse(W/2,H-70,W*0.5,34,0,0,Math.PI*2); g.fill();
+  for (let i=0;i<7;i++){        // slow floating relics of broken reality — gold-white here instead of dark violet
+    const a = t*0.12+i*1.4, r = 140+i*40, x = W/2+Math.cos(a)*r, y = H*0.5+Math.sin(a*0.7)*80-i*6, s2 = 26+i*5;
+    g.save(); g.translate(x,y); g.rotate(t*0.15+i);
+    g.fillStyle = 'rgba(255,248,225,0.4)'; g.beginPath(); g.moveTo(0,-s2); g.lineTo(s2*0.7,0); g.lineTo(0,s2); g.lineTo(-s2*0.7,0); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,240,190,0.7)'; g.lineWidth = 1.5; g.stroke();
+    g.restore();
+  }
+  g.fillStyle = 'rgba(120,90,40,0.85)'; g.font = '12px sans-serif'; g.textAlign = 'center';
   g.fillText('↓ Voltar', W/2, H-16);
 }
 function drawDuoLab(g){
@@ -4406,23 +4488,29 @@ function drawBoat(g,x,y,s){
   g.restore();
 }
 function drawAltarBase(g,x,y,s,done,kind){
-  const t = Date.now()/1000, max = kind === 'max';
+  const t = Date.now()/1000, max = kind === 'max', celestial = kind === 'celestial';
   g.save(); g.translate(x,y);
   groundShadow(g, s, s*0.8);
-  g.fillStyle = '#8a8fa0'; g.beginPath(); g.moveTo(-s*0.6,s*0.8); g.lineTo(-s*0.44,s*0.3); g.lineTo(s*0.44,s*0.3); g.lineTo(s*0.6,s*0.8); g.closePath(); g.fill();
-  g.fillStyle = '#b8bccb'; g.fillRect(-s*0.5,s*0.22,s,s*0.12);
-  g.fillStyle = '#6a6f80'; g.fillRect(-s*0.36,s*0.5,s*0.72,s*0.06);
-  const hue = max ? (t*90)%360 : 45, col = done ? 'rgba(160,160,170,0.5)' : (max ? `hsl(${hue},95%,68%)` : '#ffd54a');
-  if (!done){ g.save(); g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(0,-s*0.15,0,0,-s*0.15,s*1.1); rg.addColorStop(0,max ? `hsla(${hue},95%,65%,0.5)` : 'rgba(255,210,60,0.5)'); rg.addColorStop(1,'rgba(255,210,60,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.15,s*1.1,0,Math.PI*2); g.fill(); g.restore(); }
+  g.fillStyle = celestial ? '#e8e0f8' : '#8a8fa0'; g.beginPath(); g.moveTo(-s*0.6,s*0.8); g.lineTo(-s*0.44,s*0.3); g.lineTo(s*0.44,s*0.3); g.lineTo(s*0.6,s*0.8); g.closePath(); g.fill();
+  g.fillStyle = celestial ? '#fdf8ea' : '#b8bccb'; g.fillRect(-s*0.5,s*0.22,s,s*0.12);
+  g.fillStyle = celestial ? '#c8b8e8' : '#6a6f80'; g.fillRect(-s*0.36,s*0.5,s*0.72,s*0.06);
+  const hue = max ? (t*90)%360 : 45, col = done ? 'rgba(160,160,170,0.5)' : (celestial ? '#fff2c8' : (max ? `hsl(${hue},95%,68%)` : '#ffd54a'));
+  if (!done){ g.save(); g.globalCompositeOperation = 'lighter'; const rg = g.createRadialGradient(0,-s*0.15,0,0,-s*0.15,s*1.1); rg.addColorStop(0,celestial ? 'rgba(255,245,210,0.55)' : (max ? `hsla(${hue},95%,65%,0.5)` : 'rgba(255,210,60,0.5)')); rg.addColorStop(1,'rgba(255,210,60,0)'); g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.15,s*1.1,0,Math.PI*2); g.fill(); g.restore(); }
   const fl = done ? 0 : Math.sin(t*3)*s*0.05;
   g.fillStyle = col; g.beginPath(); g.moveTo(0,-s*0.62+fl); g.lineTo(s*0.24,-s*0.2+fl); g.lineTo(0,s*0.16+fl); g.lineTo(-s*0.24,-s*0.2+fl); g.closePath(); g.fill();
   g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.moveTo(0,-s*0.62+fl); g.lineTo(-s*0.24,-s*0.2+fl); g.lineTo(-s*0.06,-s*0.16+fl); g.closePath(); g.fill();
+  if (celestial && !done){    // a slow-spinning halo hovers over the flame instead of a text label
+    g.save(); g.globalCompositeOperation = 'lighter'; g.translate(0,-s*0.75); g.rotate(t*0.5); g.scale(1,0.32);
+    g.strokeStyle = `hsla(${45+8*Math.sin(t)},90%,78%,0.85)`; g.lineWidth = s*0.06; g.beginPath(); g.arc(0,0,s*0.3,0,Math.PI*2); g.stroke();
+    g.restore();
+  }
   if (max && !done){ g.font = `bold ${Math.round(s*0.3)}px sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillText('MAX', 0, s*0.52); }
-  else if (!done){ g.font = `bold ${Math.round(s*0.26)}px sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(80,50,0,0.85)'; g.fillText('SUPER', 0, s*0.52); }
+  else if (kind === 'super' && !done){ g.font = `bold ${Math.round(s*0.26)}px sans-serif`; g.textAlign = 'center'; g.fillStyle = 'rgba(80,50,0,0.85)'; g.fillText('SUPER', 0, s*0.52); }
   g.restore();
 }
 function drawAltarSuper(g,x,y,s,done){ drawAltarBase(g,x,y,s,done,'super'); }
 function drawAltarMax(g,x,y,s,done){ drawAltarBase(g,x,y,s,done,'max'); }
+function drawAltarCelestial(g,x,y,s,done){ drawAltarBase(g,x,y,s,done,'celestial'); }
 // Super: gold flames. Max: rainbow flames, a shifting ring and feathered wings — drawn behind the sprite of whoever leads the group
 function drawFormAura(g,x,y,form,t){
   const max = form === 'max';
@@ -4544,7 +4632,7 @@ const ISLAND_ITEMS = [
   {k:'palm',x:60,y:130,w:56,h:96}, {k:'palm',x:W-116,y:130,w:56,h:96}, {k:'palm',x:80,y:420,w:56,h:96}, {k:'palm',x:W-136,y:420,w:56,h:96},
   {k:'rock',x:300,y:150,w:50,h:34}, {k:'rock',x:W-350,y:150,w:50,h:34}
 ].sort((a,b)=>(a.y+a.h)-(b.y+b.h));
-DRAW.boat = drawBoat; DRAW.altarSuper = drawAltarSuper; DRAW.altarMax = drawAltarMax;
+DRAW.boat = drawBoat; DRAW.altarSuper = drawAltarSuper; DRAW.altarMax = drawAltarMax; DRAW.altarCelestial = drawAltarCelestial;
 
 function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring of dark stars around a swirling void
   const t = Date.now()/1000;
@@ -4571,6 +4659,7 @@ function drawVeilPortal(g,x,y,s){
 DRAW.veilPortal = drawVeilPortal;
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
+Object.keys(VEIL_GEMS).forEach(id=>{ DRAW['veilgem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,VEIL_GEMS[id].color); });
 DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot;
 
 /* ---------------- CHAPTER 1 ---------------- */
@@ -6283,6 +6372,49 @@ function buildOpenWorld(){
       }
     });
   }
+  // Serafins Caídos: the roaming monsters of Além do Véu — eyes wrapped in angel wings, drawn to whoever enters
+  function fightVeilMonster(sc, npc){
+    owBattle({
+      title:'Um Serafim Caído!', intro:'Um único olho, alado e coroado, se vira pra encarar vocês.', fleeChance:0.15, ranged:false,
+      enemy:{ name:'Serafim Caído', type:'eyeAngel', hp:260, maxHp:260, atk:16, speed:95, scale:56, reach:64, hitColor:'255,235,170' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.kills++;
+        sc.npcs = sc.npcs.filter(n=> n !== npc);
+        grantCrystals(14); grantXp(45);
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'O Serafim se desfaz em luz. +14 💎  +45 XP', color:'#7ef9ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Forte demais por agora... preciso treinar mais.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  // Altar Celestial: once the 3 Joias Celestiais are found, prova o Anjo Guardião libera a Bênção permanente (+15% no golpe especial)
+  function veilAltarFight(){
+    owBattle({
+      title:'Prova do Altar Celestial', intro:'Um anjo de muitos olhos desce para testar seu valor.', fleeChance:0.05, ranged:false,
+      enemy:{ name:'Anjo Guardião', type:'eyeAngel', hp:1600, maxHp:1600, atk:24, speed:80, scale:96, reach:88, hitColor:'255,240,190' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.veilBlessed = true;
+        fxWhite = 0.8; sfxVictory(); fxShakeNow(0.4,6); grantCrystals(200); grantXp(300); checkAchievements();
+        startDialogue([{speaker:'Altar Celestial', text:'✨ Bênção concedida: +15% permanente no golpe especial (K)!', color:'#ffe8c0'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'O anjo era forte demais... preciso ficar mais forte e voltar.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function veilGemNpc(id, x, y){
+    const d = VEIL_GEMS[id];
+    return { x, y, w:50, h:50, type:'veilgem_'+id, scale:34, persistent:true, talking:!!progress.veilGems[id], label:d.name,
+      onInteract: function(){
+        if (progress.veilGems[id]){ startDialogue([{speaker:'Você', text:`Já peguei a ${d.name}.`, color:'#7ef9ff'}]); return; }
+        progress.veilGems[id] = true; this.talking = true;
+        sfxPickup(); fxWhite = 0.35; checkAchievements(); saveGame();
+        startDialogue([{speaker:'Você', text:`${d.icon} ${d.name}! ${d.text}. (${veilGemCount()}/3 Joias Celestiais)`, color:'#ffe8c0'}]);
+      } };
+  }
   const beyondVeil = {
     banner:'ALÉM DO VÉU', isOpenWorld:false, draw:drawBeyondVeil, obstacles:[],
     npcs:[ { x:W/2-30, y:H/2-30, w:60, h:60, type:'giant', scale:70, persistent:true,
@@ -6290,7 +6422,17 @@ function buildOpenWorld(){
       onInteract: function(){
         if (progress.veilBossWon){ startDialogue([{speaker:'O Arquiteto', text:'Descanse, viajante. Já provou seu valor aqui.', color:'#ffe8c0'}]); return; }
         startDialogue([{speaker:'O Arquiteto do Vazio', text:'Poucos atravessam o véu. Quer mesmo testar o que fica depois do fim?', color:'#ffe8c0'}], ()=> startVeilBoss());
-      } } ],
+      } },
+      veilGemNpc('luz', 130, 170), veilGemNpc('graca', W-170, 170), veilGemNpc('eternidade', 130, H-170),
+      { x:W-210, y:H-210, w:56, h:56, type:'eyeAngel', scale:48, label:'Serafim Caído', onInteract: function(){ fightVeilMonster(beyondVeil, this); } },
+      { x:W/2+190, y:150, w:56, h:56, type:'eyeAngel', scale:48, label:'Serafim Caído', onInteract: function(){ fightVeilMonster(beyondVeil, this); } },
+      { x:W/2-35, y:95, w:70, h:80, type:'altarCelestial', scale:42, persistent:true, label:'Altar Celestial',
+        get talking(){ return !!progress.veilBlessed; },
+        onInteract: function(){
+          if (progress.veilBlessed){ startDialogue([{speaker:'Altar Celestial', text:'A Bênção já corre em você: +15% permanente no golpe especial (K).', color:'#ffe8c0'}]); return; }
+          if (veilGemCount() < 3){ startDialogue([{speaker:'Altar Celestial', text:`Reúna as 3 Joias Celestiais espalhadas por Além do Véu para despertar este altar. (${veilGemCount()}/3)`, color:'#c8b8e8'}]); return; }
+          startDialogue([{speaker:'Altar Celestial', text:'As joias estão completas. Um anjo guardião desperta para testar seu valor. Aceita a prova?', color:'#ffe8c0'}], ()=> veilAltarFight());
+        } } ],
     exits:[ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], {x:260,y:500}) } ]
   };
   areas[key(4,3)].npcs.push({ x:100, y:420, w:90, h:90, type:'veilPortal', scale:44, persistent:true,
