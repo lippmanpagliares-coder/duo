@@ -573,26 +573,30 @@ const RARITY_DEFS = {
   comum:    { label:'Comum',    color:'#b8bcc4' },
   raro:     { label:'Raro',     color:'#4fa8ff' },
   epico:    { label:'Épico',    color:'#c07dff' },
-  lendario: { label:'Lendário', color:'#ffb347' }
+  lendario: { label:'Lendário', color:'#ffb347' },
+  ultra:    { label:'Ultra',    color:'#ff3df0' }   // above lendário — code-only, never sold in the shop
 };
 const EQUIP_DEFS = {
   weapon: {
     rusty:     { name:'Adaga Enferrujada',  icon:'🔪', cost:40,  atk:3,  rarity:'comum' },
     iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:100, atk:8,  rarity:'raro' },
     crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico' },
-    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario' }
+    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario' },
+    universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true }
   },
   armor: {
     leather:  { name:'Colete de Couro',     icon:'🥋', cost:35,  hp:8,  rarity:'comum' },
     iron:     { name:'Armadura de Ferro',   icon:'🛡️', cost:110, hp:18, rarity:'raro' },
     crystal:  { name:'Armadura de Cristal', icon:'💎', cost:240, hp:32, rarity:'epico' },
-    guardian: { name:'Manto do Guardião',   icon:'🦺', cost:420, hp:50, rarity:'lendario' }
+    guardian: { name:'Manto do Guardião',   icon:'🦺', cost:420, hp:50, rarity:'lendario' },
+    singularity: { name:'Singularidade', icon:'🕳️', cost:0, hp:70, atk:6, rarity:'ultra', secret:true }
   },
   accessory: {
     bandana: { name:'Bandana da Sorte', icon:'🎽', cost:45,  dash:0.04, rarity:'comum' },
     cape:    { name:'Capa Veloz',       icon:'🧣', cost:120, dash:0.08, rarity:'raro' },
     ring:    { name:'Anel Crítico',     icon:'💍', cost:220, crit:0.08, rarity:'epico' },
-    cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario' }
+    cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario' },
+    leviathan: { name:'Dente do Leviatã', icon:'🦷', cost:0, atk:8, crit:0.06, sp:0.15, dash:0.05, rarity:'ultra', secret:true }
   }
 };
 const EQUIP_SLOTS = ['weapon','armor','accessory'];
@@ -600,7 +604,12 @@ const EQUIP_SLOTS = ['weapon','armor','accessory'];
 const REDEEM_CODES = {
   'ARMADURALENDARIA': { text:'Manto do Guardião (armadura lendária) de graça!', apply:()=>{ progress.equipOwned.armor.guardian = true; progress.equip.armor = 'guardian'; } },
   'ESPADALENDARIA':   { text:'Lança Elemental (arma lendária) de graça!',       apply:()=>{ progress.equipOwned.weapon.elemental = true; progress.equip.weapon = 'elemental'; } },
-  'AMIGOSDUO':        { text:'+150 cristais!',                                  apply:()=>{ grantCrystals(150); } }
+  'AMIGOSDUO':        { text:'+150 cristais!',                                  apply:()=>{ grantCrystals(150); } },
+  '198': { text:'Conjunto Ultra completo: Matadora de Universos, Singularidade e Dente do Leviatã!', apply:()=>{
+    progress.equipOwned.weapon.universlayer = true; progress.equip.weapon = 'universlayer';
+    progress.equipOwned.armor.singularity = true; progress.equip.armor = 'singularity';
+    progress.equipOwned.accessory.leviathan = true; progress.equip.accessory = 'leviathan';
+  } }
 };
 function redeemCode(raw){
   const code = (raw||'').trim().toUpperCase();
@@ -5506,7 +5515,8 @@ const ACHIEVEMENTS = [
   { id:'quests',  name:'Ajudante do Povo',       desc:'Complete as 3 missões secundárias',                  reward:150, test:p=> QUESTS.every(q=> p.quests[q.id]) },
   { id:'fisher',  name:'Pescador',               desc:'Pesque 10 peixes na Praia Calma',                    reward:80,  test:p=> p.fishCaught >= 10 },
   { id:'geared',  name:'Bem Equipado',           desc:'Equipe uma arma, uma armadura e um acessório ao mesmo tempo', reward:100, test:p=> p.equip.weapon && p.equip.armor && p.equip.accessory },
-  { id:'gearall', name:'Colecionador de Equipamentos', desc:'Compre todos os itens de equipamento',         reward:300, test:p=> EQUIP_SLOTS.every(s=> Object.keys(EQUIP_DEFS[s]).every(k=> p.equipOwned[s][k])) },
+  { id:'gearall', name:'Colecionador de Equipamentos', desc:'Compre todos os itens de equipamento da loja', reward:300, test:p=> EQUIP_SLOTS.every(s=> Object.entries(EQUIP_DEFS[s]).filter(([,d])=>!d.secret).every(([k])=> p.equipOwned[s][k])) },
+  { id:'ultra',   name:'Poder Cósmico',           desc:'Consiga um item de raridade Ultra',                  reward:400, test:p=> EQUIP_SLOTS.some(s=> Object.entries(EQUIP_DEFS[s]).some(([k,d])=> d.rarity==='ultra' && p.equipOwned[s][k])) },
   { id:'legendary', name:'Lendário',             desc:'Compre um item de raridade Lendária',                reward:200, test:p=> EQUIP_SLOTS.some(s=> Object.entries(EQUIP_DEFS[s]).some(([k,d])=> d.rarity==='lendario' && p.equipOwned[s][k])) },
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
 ];
@@ -5628,6 +5638,7 @@ function renderPanel(){
       h += `<div class="pHead" style="margin-top:6px"><span>${slotNames[slot]}</span></div>`;
       Object.entries(EQUIP_DEFS[slot]).forEach(([k,d])=>{
         const owned = progress.equipOwned[slot][k], equipped = progress.equip[slot] === k, rar = RARITY_DEFS[d.rarity];
+        if (d.secret && !owned) return;   // Ultra items are code-only secrets — they don't spoil themselves in the shop list
         const stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
           .map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ');
         h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
