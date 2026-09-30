@@ -583,7 +583,9 @@ const EQUIP_DEFS = {
     iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:100, atk:8,  rarity:'raro' },
     crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico' },
     elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario' },
-    universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true }
+    plasma:    { name:'Bazuca de Plasma',   icon:'🚀', cost:260, atk:13, ranged:true, projColor:'#ff8a3a', rarity:'epico' },
+    universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true },
+    icebazooka:   { name:'Bazuca de Gelo',  icon:'🧊', cost:0, atk:27, ranged:true, projColor:'#aef0ff', rarity:'ultra', secret:true }
   },
   armor: {
     leather:  { name:'Colete de Couro',     icon:'🥋', cost:35,  hp:8,  rarity:'comum' },
@@ -606,11 +608,12 @@ const REDEEM_CODES = {
   'ARMADURALENDARIA': { text:'Manto do Guardião (armadura lendária) de graça!', apply:()=>{ progress.equipOwned.armor.guardian = true; progress.equip.armor = 'guardian'; } },
   'ESPADALENDARIA':   { text:'Lança Elemental (arma lendária) de graça!',       apply:()=>{ progress.equipOwned.weapon.elemental = true; progress.equip.weapon = 'elemental'; } },
   'AMIGOSDUO':        { text:'+150 cristais!',                                  apply:()=>{ grantCrystals(150); } },
-  '198': { text:'Conjunto Ultra completo: Matadora de Universos, Singularidade e Dente do Leviatã!', apply:()=>{
-    progress.equipOwned.weapon.universlayer = true; progress.equip.weapon = 'universlayer';
+  '198': { text:'Conjunto Ultra completo: Matadora de Universos, Bazuca de Gelo (longo alcance), Singularidade e Dente do Leviatã!', apply:()=>{
+    progress.equipOwned.weapon.universlayer = true; progress.equipOwned.weapon.icebazooka = true; progress.equip.weapon = 'icebazooka';
     progress.equipOwned.armor.singularity = true; progress.equip.armor = 'singularity';
     progress.equipOwned.accessory.leviathan = true; progress.equip.accessory = 'leviathan';
-  } }
+  } },
+  'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } }
 };
 function redeemCode(raw){
   const code = (raw||'').trim().toUpperCase();
@@ -644,7 +647,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false,
+    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
@@ -2570,6 +2573,8 @@ function rnd(a,b){ return Math.round(a + Math.random()*(b-a)); }
 // The fight plays out on top of whatever room is already on screen — no separate arena backdrop.
 function startBattle(config){
   battle = config;
+  const wpn = progress.equip.weapon && EQUIP_DEFS.weapon[progress.equip.weapon];   // a long-range weapon switches the whole fight to ranged mode
+  if (wpn && wpn.ranged){ battle.playerRanged = true; battle.playerProjColor = wpn.projColor || battle.playerProjColor; }
   scaleEnemyForDifficulty(battle.enemy);
   // the Emerald of Elements is a real power-up: +40 attack for the whole party in every fight
   if (upgrades.elementalEmerald){
@@ -5687,8 +5692,9 @@ function renderPanel(){
       Object.entries(EQUIP_DEFS[slot]).forEach(([k,d])=>{
         const owned = progress.equipOwned[slot][k], equipped = progress.equip[slot] === k, rar = RARITY_DEFS[d.rarity];
         if (d.secret && !owned) return;   // Ultra items are code-only secrets — they don't spoil themselves in the shop list
-        const stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
+        let stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
           .map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ');
+        if (d.ranged) stat += ' · 🎯 longo alcance (atira à distância)';
         h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
           <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
           ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
@@ -6228,9 +6234,9 @@ function buildOpenWorld(){
     exits:[ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], {x:260,y:500}) } ]
   };
   areas[key(4,3)].npcs.push({ x:100, y:420, w:90, h:90, type:'veilPortal', scale:44, persistent:true,
-    get label(){ return progress.finalWins >= 1 ? 'Além do Véu →' : ''; },
+    get label(){ return (progress.finalWins >= 1 || progress.veilUnlocked) ? 'Além do Véu →' : ''; },
     onInteract: ()=>{
-      if (progress.finalWins < 1){ startDialogue([{speaker:'???', text:'Nada aqui... por enquanto. Talvez depois de salvar o universo.', color:'#8a7aa0'}]); return; }
+      if (progress.finalWins < 1 && !progress.veilUnlocked){ startDialogue([{speaker:'???', text:'Nada aqui... por enquanto. Talvez depois de salvar o universo.', color:'#8a7aa0'}]); return; }
       startDialogue([{speaker:'???', text:'Com o universo salvo, uma fresta se abre para outro lugar — mais calmo, mas não menos perigoso.', color:'#ffe8c0'}], ()=> goToScene(beyondVeil, {x:W/2-17, y:H-90}));
     } });
   return { areas, brRooms, island, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
