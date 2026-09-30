@@ -2197,6 +2197,8 @@ let fxRage = 0;                    // 0..1, read by boss draw functions (phase 2
 // anime-style combat juice
 const fxTexts = [];                // floating damage numbers / move names / KO
 const fxSlashes = [];              // bright crescent slash streaks
+const fxGemFx = [];                // themed one-shot creature effects from Joias Perdidas during the golpe especial
+function spawnGemFx(kind,x,y){ fxGemFx.push({ kind, x, y, life:0.5, max:0.5 }); }
 const fxAfter = [];                // dash afterimages of the player sprite
 let fxHitStop = 0;                 // brief freeze-frame on heavy hits
 let fxZoom = 0;                    // camera punch-in, decays fast
@@ -2235,6 +2237,7 @@ function updateFx(dt){
     p.vy += p.grav*dt; p.x += p.vx*dt; p.y += p.vy*dt;
     p.vx *= (1 - 1.5*dt);
   }
+  for (let i=fxGemFx.length-1;i>=0;i--){ fxGemFx[i].life -= dt; if (fxGemFx[i].life <= 0) fxGemFx.splice(i,1); }
   if (fxShake > 0){ fxShake -= dt; if (fxShake <= 0){ fxShake = 0; fxShakeMag = 0; } }
   if (fxPlayerHit > 0) fxPlayerHit = Math.max(0, fxPlayerHit - dt);
   for (let i=fxTexts.length-1;i>=0;i--){ const t = fxTexts[i]; t.life -= dt; t.y -= 46*dt; if (t.life <= 0) fxTexts.splice(i,1); }
@@ -2257,6 +2260,41 @@ function fxDrawSlashes(g){
     g.restore();
   });
   g.restore();
+}
+// each Joia Perdida adds its own one-shot creature/effect to the golpe especial instead of just a number —
+// a snake for the forest, a mouth for the coast, and so on. Rises, strikes, fades — same life/max convention as slashes.
+function drawGemFxList(g){
+  fxGemFx.forEach(e=>{
+    const k = e.life/e.max, rise = Math.min(1, (1-k)*4), bite = Math.max(0, Math.sin(Math.min(1,(1-k)*3)*Math.PI));
+    g.save(); g.translate(e.x, e.y); g.globalAlpha = Math.min(1, k*2.5);
+    if (e.kind === 'forest'){         // a viper lunges up out of the ground and strikes
+      const y0 = 40*(1-rise);
+      g.strokeStyle = '#2fbf4a'; g.lineWidth = 10; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(0,y0+30); g.quadraticCurveTo(-14,y0,0,y0-30*rise); g.stroke();
+      g.fillStyle = '#3fd85a'; g.beginPath(); g.arc(0,y0-30*rise,9,0,Math.PI*2); g.fill();
+      g.fillStyle = '#0a3a10'; g.beginPath(); g.moveTo(-6,y0-30*rise-2); g.lineTo(-2,y0-30*rise-10*bite); g.lineTo(2,y0-30*rise-2); g.closePath(); g.fill();
+    } else if (e.kind === 'fungo'){   // a mushroom bursts up and puffs a cloud of spores
+      const y0 = 30*(1-rise);
+      g.fillStyle = '#efe4d4'; g.fillRect(-5,y0-4,10,20*rise);
+      g.fillStyle = volumeGrad(g,0,y0-18*rise,20,'#ff9ae0','#a02a88'); g.beginPath(); g.ellipse(0,y0-18*rise,18*rise,12*rise,0,Math.PI,0); g.closePath(); g.fill();
+      g.fillStyle = `rgba(255,180,230,${0.5*bite})`; for (let i=0;i<6;i++){ const a=i*1.05; g.beginPath(); g.arc(Math.cos(a)*20*bite,y0-18*rise-Math.sin(a)*14*bite,3,0,Math.PI*2); g.fill(); }
+    } else if (e.kind === 'pantano'){ // dark tendrils reach up and grab
+      g.strokeStyle = '#3a5a3a'; g.lineWidth = 6; g.lineCap = 'round';
+      [-1,0,1].forEach(sd=>{ g.beginPath(); g.moveTo(sd*14,30); g.quadraticCurveTo(sd*20+sd*6*bite,10-30*rise*0.6,sd*6,-32*rise); g.stroke(); });
+    } else if (e.kind === 'deserto'){ // a coil of sand spirals up like a serpent
+      g.strokeStyle = 'rgba(230,190,100,0.9)'; g.lineWidth = 7;
+      g.beginPath(); for (let i=0;i<=20;i++){ const u=i/20, a=u*Math.PI*3, r=6+u*10; const px=Math.cos(a)*r, py=30-u*55*rise; if(i===0) g.moveTo(px,py); else g.lineTo(px,py); } g.stroke();
+    } else if (e.kind === 'lava'){    // spikes of molten rock erupt
+      [-14,0,14].forEach((dx,i)=>{ const h = 42*rise*(1-i*0.12);
+        g.fillStyle = `rgba(255,${140+Math.round(60*bite)},50,0.95)`; g.beginPath(); g.moveTo(dx-6,20); g.lineTo(dx,20-h); g.lineTo(dx+6,20); g.closePath(); g.fill(); });
+    } else if (e.kind === 'costa'){   // a big toothy sea-maw bites down from above
+      const open = 18*bite+4;
+      g.fillStyle = '#0a2a3a'; g.beginPath(); g.ellipse(0,-30*rise,26*rise,open,0,0,Math.PI*2); g.fill();
+      g.fillStyle = '#fff'; for (let i=-3;i<=3;i++){ g.beginPath(); g.moveTo(i*7,-30*rise-open*0.7); g.lineTo(i*7+3,-30*rise-open*0.7+9); g.lineTo(i*7-3,-30*rise-open*0.7+9); g.closePath(); g.fill();
+        g.beginPath(); g.moveTo(i*7,-30*rise+open*0.7); g.lineTo(i*7+3,-30*rise+open*0.7-9); g.lineTo(i*7-3,-30*rise+open*0.7-9); g.closePath(); g.fill(); }
+    }
+    g.restore();
+  });
 }
 function fxDrawTexts(g){
   g.save(); g.textAlign = 'center'; g.lineJoin = 'round';
@@ -2531,6 +2569,7 @@ function renderScene(){
   }
   fxDrawParticles(ctx);
   fxDrawSlashes(ctx);
+  drawGemFxList(ctx);
   fxDrawTexts(ctx);
   ctx.restore();
   // screen-wide finishing: colour grade, drifting ambience, soft dark edges
@@ -2854,6 +2893,7 @@ function battleSpecial(){
   fxText(W/2, 150, 'GOLPE ESPECIAL!', '#ffe27a', 56, 1.15);
   sfxSpecial(); refreshSpecialUI();
 }
+const GEM_ORDER = ['forest','fungo','pantano','deserto','lava','costa'];   // maps each golpe especial hit to the gem whose themed creature shows up there
 function updateSpecial(dt){
   const marks = [0.85, 0.68, 0.52, 0.36, 0.2, 0.05];
   const specMul = specialPowerMul(), specCrit = specialForcesCrit();   // Joias Perdidas + acessório boost the special move
@@ -2862,9 +2902,11 @@ function updateSpecial(dt){
     const last = battle.specialStep === marks.length-1;
     const dmg = Math.round(battle.player.atk*(last ? 2.2 : 0.95)*(0.9 + Math.random()*0.2)*specMul*(specCrit ? 1.3 : 1));
     const ang = battle.specialStep*0.9 + Math.random()*0.4 - 1.2;
+    const gemId = GEM_ORDER[battle.specialStep];
     battle.specialStep++;
     if (last){ fxZoom = 0.09; fxWhite = 0.7; fxShakeNow(0.35, 8); }
     fxSlash(battle.enemyPos.x, battle.enemyPos.y, ang, last ? 200 : 145, last ? '255,220,120' : (specCrit ? '255,150,60' : '160,230,255'));
+    if (gemId && progress.lostGems[gemId]) spawnGemFx(gemId, battle.enemyPos.x, battle.enemyPos.y);
     if (hitEnemy(dmg, { heavy:true, ang, noGauge:true, stop:0.03, crit:specCrit }) || !battle) return true;
     if (last) fxHitStop = Math.max(fxHitStop, 0.14);
   }
