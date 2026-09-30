@@ -162,6 +162,9 @@
   }
   .coopEmotes button:active { transform:scale(0.92); }
   .coopDivider { border:none; border-top:1px solid #204030; margin:0; }
+  .coopChatLog { max-height:110px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; background:#0d1a14; border:1px solid #204030; border-radius:8px; padding:6px 8px; }
+  .coopChatMsg { font-size:12px; color:#dfffe8; word-break:break-word; }
+  .coopChatMsg.me { color:#9fe8ff; }
   .coopCharList { display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
   .coopCharList .pBtn { text-align:center; }
   #panelOverlay { position:absolute; inset:0; z-index:45; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.86); }
@@ -593,6 +596,22 @@ const EQUIP_DEFS = {
   }
 };
 const EQUIP_SLOTS = ['weapon','armor','accessory'];
+// redeem codes: type one into the Equipamento tab for a free reward — each works once per save
+const REDEEM_CODES = {
+  'ARMADURALENDARIA': { text:'Manto do Guardião (armadura lendária) de graça!', apply:()=>{ progress.equipOwned.armor.guardian = true; progress.equip.armor = 'guardian'; } },
+  'ESPADALENDARIA':   { text:'Lança Elemental (arma lendária) de graça!',       apply:()=>{ progress.equipOwned.weapon.elemental = true; progress.equip.weapon = 'elemental'; } },
+  'AMIGOSDUO':        { text:'+150 cristais!',                                  apply:()=>{ grantCrystals(150); } }
+};
+function redeemCode(raw){
+  const code = (raw||'').trim().toUpperCase();
+  if (!code) return;
+  const def = REDEEM_CODES[code];
+  if (!def){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Esse código não existe. Confere a digitação!', color:'#ff9977'}]); return; }
+  if (progress.redeemedCodes[code]){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Já usei esse código antes.', color:'#ff9977'}]); return; }
+  progress.redeemedCodes[code] = true; def.apply();
+  sfxPickup(); fxWhite = 0.5; checkAchievements(); saveGame(); renderPanel();
+  startDialogue([{speaker:ROSTER[progress.main].name, text:`🎁 Código resgatado! ${def.text}`, color:'#7ef9ff'}]);
+}
 function equipBonus(){
   const out = { hp:0, atk:0, crit:0, dash:0, sp:0 };
   EQUIP_SLOTS.forEach(slot=>{
@@ -607,7 +626,7 @@ function freshProgress(){
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
-    quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} },
+    quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
@@ -630,10 +649,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','robots','quests','equipOwned','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -2411,8 +2430,10 @@ function renderScene(){
         ctx.fillText(mpRemote.emote, rx, mpRemote.dispY-42);
         ctx.restore();
       }
+      if (mpRemote.chatT > 0) drawChatBubble(ctx, rx, mpRemote.dispY-46, mpRemote.chatMsg, mpRemote.chatT);
     }
   }
+  if (myChatT > 0 && !battle) drawChatBubble(ctx, player.x+player.w/2, player.y-40, myChatMsg, myChatT);
   // dash afterimages: fading cyan-tinted ghosts of the sprite along the dash path
   fxAfter.forEach(a=>{
     ctx.save(); ctx.globalAlpha = 0.42*(a.life/0.24);
@@ -4362,6 +4383,19 @@ function drawEquipBadges(g,x,y,t){
   if (eq.armor) badge(x-27+Math.sin(t*2.1+1)*2, y+8, EQUIP_DEFS.armor[eq.armor].icon, RARITY_DEFS[EQUIP_DEFS.armor[eq.armor].rarity].color);
   if (eq.accessory) badge(x+Math.sin(t*1.8+2)*2, y-44, EQUIP_DEFS.accessory[eq.accessory].icon, RARITY_DEFS[EQUIP_DEFS.accessory[eq.accessory].rarity].color);
 }
+// a small speech-bubble for co-op chat, floating above whoever said it, fading out over its last second
+function drawChatBubble(g,x,y,text,life){
+  if (!text) return;
+  g.save();
+  g.globalAlpha = Math.min(1, life);
+  g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+  const w = Math.min(220, g.measureText(text).width + 20), h = 24;
+  g.fillStyle = 'rgba(255,255,255,0.92)'; roundRect(g, x-w/2, y-h, w, h, 8); g.fill();
+  g.beginPath(); g.moveTo(x-6,y); g.lineTo(x+6,y); g.lineTo(x,y+7); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 1; roundRect(g, x-w/2, y-h, w, h, 8); g.stroke();
+  g.fillStyle = '#1a1a24'; g.fillText(text.length > 26 ? text.slice(0,25)+'…' : text, x, y-h/2+4);
+  g.restore();
+}
 // a little fishing dock: a post, a taut line dipping into a ripple, a bobber that bobs
 function drawFishSpot(g,x,y,s){
   const t = Date.now()/1000;
@@ -5588,6 +5622,7 @@ function renderPanel(){
   } else if (panelTab === 'equip'){
     h += `<div class="pHead"><span>🗡️ Equipamento</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">Arma, armadura e acessório — um de cada, ao mesmo tempo. Cada item comprado é seu pra sempre; troque quando quiser.</div>`;
+    h += `<div class="coopRow"><input id="codeInput" maxlength="24" placeholder="TEM UM CÓDIGO?"><button class="pBtn alt" data-redeem="1">Resgatar</button></div>`;
     const slotNames = { weapon:'⚔️ Arma', armor:'🛡️ Armadura', accessory:'✨ Acessório' };
     EQUIP_SLOTS.forEach(slot=>{
       h += `<div class="pHead" style="margin-top:6px"><span>${slotNames[slot]}</span></div>`;
@@ -5634,10 +5669,13 @@ panelBody.addEventListener('click', e=>{
   } else if (b.dataset.gearset){
     const [slot,k] = b.dataset.gearset.split(':');
     if (progress.equipOwned[slot][k]) { progress.equip[slot] = k; sfxPickup(); }
+  } else if (b.dataset.redeem){
+    const ci = document.getElementById('codeInput'); redeemCode(ci ? ci.value : ''); if (ci) ci.value = '';
   }
   saveGame();
   renderPanel();
 });
+panelBody.addEventListener('keydown', e=>{ if (e.key === 'Enter' && e.target.id === 'codeInput'){ redeemCode(e.target.value); e.target.value = ''; renderPanel(); } });
 panelTabs.addEventListener('click', e=>{ const b = e.target.closest('button'); if (b){ panelTab = b.dataset.tab; renderPanel(); } });
 document.getElementById('panelClose').addEventListener('click', closePanel);
 packBtn.addEventListener('click', ()=> openPanel());
@@ -6450,6 +6488,13 @@ refreshSettingsUI();
 // Celestial, the Backrooms). Chapters stay single-player, since two people replaying the same story scene
 // out of step would break scripted cutscenes.
 let mpPeer = null, mpConn = null, mpRole = null, mpMyCode = '', mpStatus = '', mpRemote = null, mpSendT = 0, mpConnectTO = null, mpMyChar = null, mpPendingHost = false;
+let chatLog = [], myChatMsg = '', myChatT = 0;   // session-only chat over the same P2P link — nothing is saved or sent anywhere else
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function mpSendChat(text){
+  text = (text||'').trim().slice(0,80); if (!text || !mpConn || !mpConn.open) return;
+  mpSendRaw({ t:'chat', text }); chatLog.push({ who:'me', text }); if (chatLog.length>20) chatLog.shift();
+  myChatMsg = text; myChatT = 3.5; mpRenderPanel();
+}
 function mpCharList(){ return Object.keys(ROSTER).filter(id=> progress.chars[id]); }
 function mpPickChar(id){    // the room's admin (host) picks first, before the room even opens; whoever joins after picks once they connect
   if (!progress.chars[id]) return;
@@ -6521,7 +6566,7 @@ function mpGenCode(){ let s=''; for (let i=0;i<4;i++) s += MP_ALPHA[Math.floor(M
 function mpSetStatus(s){ mpStatus = s; mpRenderPanel(); }
 function mpTeardownConn(){ try{ mpConn && mpConn.close(); }catch(e){} mpConn = null; coopBtn.classList.remove('connected'); }
 function mpTeardownPeer(){ mpClearTO(); mpTeardownConn(); try{ mpPeer && mpPeer.destroy(); }catch(e){} mpPeer = null; mpRole = null; mpMyCode = ''; }
-function mpCleanup(){ mpTeardownPeer(); mpRemote = null; mpMyChar = null; mpPendingHost = false; duelActive = false; duelPending = false; }
+function mpCleanup(){ mpTeardownPeer(); mpRemote = null; mpMyChar = null; mpPendingHost = false; duelActive = false; duelPending = false; chatLog = []; }
 function mpOnDisconnect(msg){ if (duelActive) endDuel('left'); mpCleanup(); mpSetStatus(msg); }
 function mpSendRaw(d){ if (mpConn && mpConn.open){ try{ mpConn.send(d); }catch(e){} } }
 function mpSendState(){
@@ -6558,6 +6603,11 @@ function mpOnData(d){
     if (duelOppHp <= 0 && duelActive) endDuel('win');
   } else if (d.t === 'duelLeave'){
     if (duelActive) endDuel('left');
+  } else if (d.t === 'chat'){
+    const text = String(d.text||'').slice(0,80);
+    chatLog.push({ who:'them', text }); if (chatLog.length>20) chatLog.shift();
+    if (mpRemote){ mpRemote.chatMsg = text; mpRemote.chatT = 3.5; }
+    mpRenderPanel();
   }
 }
 function mpWireConn(){
@@ -6616,7 +6666,9 @@ function mpUpdate(dt){
     mpRemote.dispX += ((mpRemote.x!=null ? mpRemote.x : mpRemote.dispX) - mpRemote.dispX)*k;
     mpRemote.dispY += ((mpRemote.y!=null ? mpRemote.y : mpRemote.dispY) - mpRemote.dispY)*k;
     if (mpRemote.emoteT > 0) mpRemote.emoteT -= dt;
+    if (mpRemote.chatT > 0) mpRemote.chatT -= dt;
   }
+  if (myChatT > 0) myChatT -= dt;
 }
 function mpRenderPanel(){
   let h = `<div class="coopStatus">${mpStatus || 'Ninguém conectado ainda.'}</div>`;
@@ -6631,6 +6683,9 @@ function mpRenderPanel(){
     h += `<div class="coopStatus">Você é: <b>${ROSTER[mpMyChar].name}</b>${mpRemote && mpRemote.name ? ' · Amigo: <b>'+mpRemote.name+'</b>' : ''}</div>`;
     h += `<div class="coopStatus">Placar de duelos: 🏆 ${progress.duelWins} vitórias · 💀 ${progress.duelLosses} derrotas</div>`;
     h += `<div class="coopEmotes">${['👋','😂','❤️','⚔️'].map(e=>`<button data-emote="${e}">${e}</button>`).join('')}</div>`;
+    h += `<hr class="coopDivider">`;
+    h += `<div class="coopChatLog" id="coopChatLog">${chatLog.length ? chatLog.map(m=>`<div class="coopChatMsg ${m.who}"><b>${m.who==='me'?'Você':escapeHtml(mpRemote?mpRemote.name:'Amigo')}:</b> ${escapeHtml(m.text)}</div>`).join('') : '<div class="coopChatMsg" style="opacity:0.6">Nenhuma mensagem ainda.</div>'}</div>`;
+    h += `<div class="coopRow"><input id="chatInput" maxlength="80" placeholder="Mensagem..."><button class="gameBtn secondary" id="chatSendBtn">Enviar</button></div>`;
     h += `<hr class="coopDivider"><div class="settingsActions"><button class="gameBtn" id="coopDuel" ${duelActive?'disabled':''}>⚔️ Desafiar pra um duelo</button></div>`;
     h += `<div class="settingsActions"><button class="gameBtn secondary" id="coopLeave">Sair da sala</button></div>`;
   } else {
@@ -6650,6 +6705,10 @@ function mpRenderPanel(){
   const dc = document.getElementById('coopDuel'); if (dc) dc.onclick = requestDuel;
   const da = document.getElementById('coopDuelAccept'); if (da) da.onclick = acceptDuel;
   const dd = document.getElementById('coopDuelDecline'); if (dd) dd.onclick = declineDuel;
+  const chatIn = document.getElementById('chatInput'); const chatBtn = document.getElementById('chatSendBtn');
+  if (chatBtn) chatBtn.onclick = ()=>{ mpSendChat(chatIn.value); chatIn.value = ''; };
+  if (chatIn) chatIn.addEventListener('keydown', e=>{ if (e.key === 'Enter'){ mpSendChat(chatIn.value); chatIn.value = ''; } });
+  const chatLogEl = document.getElementById('coopChatLog'); if (chatLogEl) chatLogEl.scrollTop = chatLogEl.scrollHeight;
   coopBody.querySelectorAll('[data-emote]').forEach(b=> b.onclick = ()=> mpSendEmote(b.dataset.emote));
   coopBody.querySelectorAll('[data-pick]').forEach(b=> b.onclick = ()=> mpPickChar(b.dataset.pick));
 }
