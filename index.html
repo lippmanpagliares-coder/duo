@@ -613,7 +613,8 @@ const REDEEM_CODES = {
     progress.equipOwned.armor.singularity = true; progress.equip.armor = 'singularity';
     progress.equipOwned.accessory.leviathan = true; progress.equip.accessory = 'leviathan';
   } },
-  'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } }
+  'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } },
+  'IMORTAL': { text:'Modo Imortal ativado! Você nunca mais sofre dano e cada golpe seu causa 10000000000000 de dano!', apply:()=>{ progress.immortalCode = true; } }
 };
 function redeemCode(raw){
   const code = (raw||'').trim().toUpperCase();
@@ -660,7 +661,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false,
+    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
@@ -2756,6 +2757,7 @@ function battleFlee(){
 }
 function battleTakeDamage(dmg){
   if (!battle) return;
+  if (progress.immortalCode) return;    // código IMORTAL: nunca sofre dano
   if (battle.iframes > 0) return;       // dashing / just hit / mid-special: nothing lands
   battle.player.hp -= dmg;
   battle.hitsTaken++;
@@ -2814,6 +2816,7 @@ function refreshSpecialUI(){
 function hitEnemy(dmg, o){
   if (!battle) return false;
   o = o || {};
+  if (progress.immortalCode) dmg = 10000000000000;   // código IMORTAL: todo golpe causa dano absurdo
   const b = battle, ex = b.enemyPos.x, ey = b.enemyPos.y;
   // Bug Gem: a small chance any hit "glitches" and lands for triple damage
   if (b.mods && b.mods.bug && !o.noGauge && Math.random() < 0.12){
