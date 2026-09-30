@@ -362,6 +362,7 @@
         <div class="panelTabs" id="panelTabs">
           <button class="segBtn" data-tab="up">⬆ Melhorias</button>
           <button class="segBtn" data-tab="chars">🧑 Personagens</button>
+          <button class="segBtn" data-tab="robots">🤖 Robôs</button>
           <button class="segBtn" data-tab="ach">🏆 Conquistas</button>
         </div>
         <div id="panelBody"></div>
@@ -526,9 +527,42 @@ const EMERALD_DEFS = {   // permanent bonuses earned from open-world challenges
   crit:   { name:'Esmeralda da Precisão',icon:'🎯', text:'+12% de chance crítica',        tier:4 },
   sky:    { name:'Esmeralda do Céu',     icon:'☁',  text:'+10 vida, +6 ataque, +25% especial', tier:4 }
 };
+// Joias Perdidas: a side-quest collectible layer, one hidden in each of six quiet biomes — small stacking bonuses,
+// plus a cosmetic sparkle once you've found all six. Separate from the challenge emeralds (those gate the final boss).
+const LOST_GEMS = {
+  forest:  { name:'Joia da Floresta', icon:'🍃', color:'110,220,120', area:[1,0], text:'+8 de vida máxima',           bonus:{hp:8} },
+  fungo:   { name:'Joia dos Cogumelos', icon:'🍄', color:'255,120,220', area:[3,0], text:'+5% de carga do especial',  bonus:{sp:0.05} },
+  pantano: { name:'Joia do Pântano',  icon:'🟣', color:'150,90,220', area:[0,1], text:'+2% de chance crítica',        bonus:{crit:0.02} },
+  deserto: { name:'Joia do Deserto',  icon:'🟡', color:'240,200,80', area:[3,1], text:'+10% de cristais ganhos',      bonus:{crystals:0.10} },
+  lava:    { name:'Joia da Lava',     icon:'🔴', color:'255,90,60', area:[3,2], text:'+2 de ataque',                  bonus:{atk:2} },
+  costa:   { name:'Joia da Costa',    icon:'🔵', color:'80,200,230', area:[3,3], text:'-8% de recarga do dash',       bonus:{dash:0.08} }
+};
+function lostGemCount(){ return Object.keys(LOST_GEMS).filter(id=> progress.lostGems[id]).length; }
+function lostGemBonus(){    // small stacking totals from every Joia Perdida found so far
+  const out = { hp:0, atk:0, sp:0, crit:0, dash:0, crystals:0 };
+  Object.entries(LOST_GEMS).forEach(([id,d])=>{ if (progress.lostGems[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
+// Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
+// an "accessory" that grants a passive power and shows up as a little badge following you around
+const ROBOT_DEFS = {
+  capsulabo:{ name:'Capsulabô', icon:'🛡️', cost:80,  desc:'Cápsula blindada: +12 de vida máxima.',            bonus:{hp:12} },
+  tanquebo: { name:'Tanquebô',  icon:'🚜', cost:130, desc:'Esteiras pesadas: +7 de ataque.',                   bonus:{atk:7} },
+  aviaobo:  { name:'Aviãobô',   icon:'✈️', cost:110, desc:'Hélices velozes: dash recarrega 10% mais rápido.',  bonus:{dash:0.10} },
+  duobo:    { name:'Duobô',     icon:'🦉', cost:100, desc:'Réplica do Duo: +12% de carga do especial.',        bonus:{sp:0.12} },
+  astrobo:  { name:'Astrobô',   icon:'👽', cost:100, desc:'Réplica do Astro: +5% de chance crítica.',          bonus:{crit:0.05} },
+  huggybo:  { name:'Huggybô',   icon:'🧸', cost:120, desc:'Casco macio e resistente: +18 de vida máxima.',     bonus:{hp:18} },
+  cueiobo:  { name:'Cueiobô',   icon:'🦎', cost:120, desc:'Robô ágil: +6 de ataque.',                          bonus:{atk:6} }
+};
+function robotBonus(){    // only the equipped robot's power applies — one accessory at a time
+  const id = progress.robotEquipped, d = id && ROBOT_DEFS[id];
+  return (d && progress.robots[id]) ? d.bonus : {};
+}
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
+    lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
+    robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
@@ -551,10 +585,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','robots','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, robots:fresh.robots, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -566,19 +600,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds;
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), rb = robotBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0))*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + (rb.hp||0))*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0))*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + (rb.atk||0))*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main];
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), rb = robotBonus();
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0))*FORMS[p.form||'normal'].sp,
-    dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0))*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0),
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + (rb.sp||0))*FORMS[p.form||'normal'].sp,
+    dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0))*FORMS[p.form||'normal'].dash),
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + (rb.crit||0),
     bug: !!p.bugGem
   };
 }
@@ -1582,6 +1616,33 @@ function drawTeleportGem(g,x,y,s,found){
   g.beginPath(); g.moveTo(0,-s*0.25); g.lineTo(s*0.16,0); g.lineTo(0,s*0.25); g.lineTo(-s*0.16,0); g.closePath(); g.fill();
   g.restore();
 }
+// a Joia Perdida: a floating faceted gem, always clearly visible so it's a fun find rather than an invisible trap;
+// settles into a duller, socketed look once collected so the spot still reads as a landmark you've already visited
+function drawLostGem(g,x,y,s,found,color){
+  const t = Date.now()/1000, bob = Math.sin(t*2)*s*0.08;
+  g.save(); g.translate(x,y+ (found?0:bob));
+  groundShadow(g, s, s*0.7);
+  if (found){
+    g.fillStyle = '#3a3a42'; g.beginPath(); g.ellipse(0,s*0.5,s*0.4,s*0.14,0,0,Math.PI*2); g.fill();
+    g.fillStyle = `rgba(${color},0.4)`; g.beginPath(); g.moveTo(0,-s*0.2); g.lineTo(s*0.16,s*0.05); g.lineTo(0,s*0.3); g.lineTo(-s*0.16,s*0.05); g.closePath(); g.fill();
+    g.strokeStyle = `rgba(${color},0.6)`; g.lineWidth = 1.5; g.stroke();
+    return;
+  }
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const rg = g.createRadialGradient(0,0,0,0,0,s*1.1); rg.addColorStop(0,`rgba(${color},${0.4+0.15*Math.sin(t*3)})`); rg.addColorStop(1,`rgba(${color},0)`);
+  g.fillStyle = rg; g.beginPath(); g.arc(0,0,s*1.1,0,Math.PI*2); g.fill();
+  for (let i=0;i<3;i++){ const a = t*1.5+i*2.1; g.fillStyle = `rgba(255,255,255,0.8)`; g.beginPath(); g.arc(Math.cos(a)*s*0.6,Math.sin(a)*s*0.5,1.6,0,Math.PI*2); g.fill(); }
+  g.restore();
+  g.save(); g.rotate(Math.sin(t*1.2)*0.25);
+  g.fillStyle = `rgb(${color})`;
+  g.beginPath(); g.moveTo(0,-s*0.5); g.lineTo(s*0.34,-s*0.08); g.lineTo(0,s*0.5); g.lineTo(-s*0.34,-s*0.08); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.beginPath(); g.moveTo(0,-s*0.5); g.lineTo(-s*0.34,-s*0.08); g.lineTo(-s*0.08,0); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(0,-s*0.5); g.lineTo(0,s*0.5); g.moveTo(-s*0.34,-s*0.08); g.lineTo(s*0.34,-s*0.08); g.stroke();
+  g.restore();
+  g.restore();
+}
 function drawChest(g,x,y,s,opened){
   g.save(); g.translate(x,y);
   g.fillStyle = '#5a3d20'; g.fillRect(-s*0.6,-s*0.05,s*1.2,s*0.65);
@@ -2234,7 +2295,9 @@ function renderScene(){
   if (fxPlayerHit > 0 && Math.floor(fxPlayerHit*22) % 2 === 0) ctx.globalAlpha = 0.45;   // blink after a hit
   else if (battle && battle.iframes > 0 && player.dashT > 0) ctx.globalAlpha = 0.7;
   if (progress.form !== 'normal' && player.type === progress.main && (currentScene.isOpenWorld || (battle && battle.mods))) drawFormAura(ctx, player.x+player.w/2, player.y+player.h/2, progress.form, tSec);
+  if (lostGemCount() >= 6 && !battle) drawLostGemsSparkle(ctx, player.x+player.w/2, player.y+player.h/2, tSec);   // cosmetic reward for finding every Joia Perdida
   DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
+  if (progress.robotEquipped && !battle) drawRobotBadge(ctx, player.x+player.w/2, player.y+player.h/2, tSec, ROBOT_DEFS[progress.robotEquipped]);
   ctx.globalAlpha = 1;
   if (battle){
     const ex = battle.enemyPos.x, ey = battle.enemyPos.y, base = battle.enemy.scale||52;
@@ -3999,6 +4062,29 @@ function drawFormAura(g,x,y,form,t){
   }
   g.restore();
 }
+// a quiet reward for the completionists: six tiny gem-colored motes orbiting whoever found all the Joias Perdidas
+const LOST_GEM_COLORS = ['110,220,120','255,120,220','150,90,220','240,200,80','255,90,60','80,200,230'];
+function drawLostGemsSparkle(g,x,y,t){
+  g.save(); g.translate(x,y); g.globalCompositeOperation = 'lighter';
+  LOST_GEM_COLORS.forEach((c,i)=>{
+    const a = t*1.4 + i*(Math.PI*2/6), r = 30 + 4*Math.sin(t*2+i);
+    g.fillStyle = `rgba(${c},${0.75+0.25*Math.sin(t*3+i)})`;
+    g.beginPath(); g.arc(Math.cos(a)*r, -10+Math.sin(a)*r*0.4, 3, 0, Math.PI*2); g.fill();
+  });
+  g.restore();
+}
+// the equipped robot companion: a small hovering badge that follows the player during exploration
+function drawRobotBadge(g,x,y,t,robot){
+  const bx = x + 24 + Math.sin(t*2)*3, by = y - 28 + Math.cos(t*2.3)*3;
+  g.save();
+  g.fillStyle = 'rgba(0,0,0,0.2)'; g.beginPath(); g.ellipse(bx,y+16,9,3,0,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(10,14,26,0.88)'; g.beginPath(); g.arc(bx,by,13,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(126,249,255,0.65)'; g.lineWidth = 1.5; g.stroke();
+  g.font = '14px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(robot.icon, bx, by+1);
+  g.textBaseline = 'alphabetic';
+  g.restore();
+}
 function drawIsland(g,t,info){
   const sg = g.createLinearGradient(0,0,0,H); sg.addColorStop(0,'#2a5ac8'); sg.addColorStop(0.18,'#6ad4f0'); sg.addColorStop(1,'#1a8ab8');
   g.fillStyle = sg; g.fillRect(0,0,W,H);
@@ -4044,6 +4130,7 @@ function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring 
   g.restore();
 }
 DRAW.voidPortal = drawVoidPortal;
+Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -5090,6 +5177,9 @@ const ACHIEVEMENTS = [
   { id:'bug',     name:'Erro de Sistema',       desc:'Pegue a Joia do Bug nas Backrooms',    reward:150, test:p=> p.bugGem },
   { id:'super',   name:'Além do Limite',        desc:'Conquiste a forma Super na Ilha Celestial', reward:150, test:p=> p.forms.super },
   { id:'max',     name:'Poder Máximo',          desc:'Conquiste a forma Max na Ilha Celestial',   reward:300, test:p=> p.forms.max },
+  { id:'lostgems',name:'Caçador de Joias',       desc:'Encontre as 6 Joias Perdidas espalhadas pelo mundo', reward:200, test:p=> lostGemCount() >= 6 },
+  { id:'robot1',  name:'Engenheiro',             desc:'Construa seu primeiro robô no Laboratório do Duo',   reward:40,  test:p=> Object.values(p.robots).some(Boolean) },
+  { id:'robotall',name:'Fábrica de Robôs',       desc:'Construa todos os robôs do Laboratório',             reward:250, test:p=> Object.values(p.robots).every(Boolean) },
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
@@ -5141,7 +5231,7 @@ function checkAchievements(){
   checkingAch = false;
   saveGame();
 }
-function grantCrystals(n){ progress.crystals += n; progress.earned += n; checkAchievements(); }
+function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
 function refreshFollowers(){
   const order = Object.keys(ROSTER).filter(id=> progress.chars[id] && id !== progress.main);
   order.sort((a,b)=> (a===progress.sub ? -1 : 0) - (b===progress.sub ? -1 : 0));
@@ -5169,6 +5259,12 @@ function renderPanel(){
       h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
         <div class="pSub">${d.text} · ${got ? 'CONQUISTADA' : (d.tier ? 'requer '+d.tier+' esmeraldas' : 'disponível no mapa')}</div></div></div>`;
     });
+    h += `<div class="pHead" style="margin-top:6px"><span>Joias Perdidas (${lostGemCount()}/6)</span></div>`;
+    Object.entries(LOST_GEMS).forEach(([k,d])=>{
+      const got = progress.lostGems[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · escondida em ${OW_NAMES[owBiome(d.area[0],d.area[1])]} · ${got ? 'ENCONTRADA' : 'ainda não encontrada'}</div></div></div>`;
+    });
   } else if (panelTab === 'chars'){
     h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span></div>`;
     h += `<div class="pRow ${(progress.forms.super || progress.forms.max) ? '' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Forma de poder: ${FORMS[progress.form].name}</div>
@@ -5179,6 +5275,15 @@ function renderPanel(){
       h += `<div class="pRow ${has ? '' : 'locked'}"><div class="pInfo"><div class="pTitle">${r.name} ${progress.main===id?'⭐ principal':(progress.sub===id?'🤝 reserva':'')}</div>
         <div class="pSub">${r.desc}${has ? ` · Vida ${st.hp} · Ataque ${st.atk}` : ' · 🔒 '+r.unlock}</div></div>
         ${has ? `<button class="pBtn" data-main="${id}" ${progress.main===id?'disabled':''}>Principal</button><button class="pBtn alt" data-sub="${id}" ${progress.sub===id||progress.main===id?'disabled':''}>Reserva</button>` : ''}</div>`;
+    });
+  } else if (panelTab === 'robots'){
+    h += `<div class="pHead"><span>🔧 Laboratório do Duo</span><span>💎 ${progress.crystals}</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Gaste cristais pra construir robôs na vila. Só um fica equipado por vez — o poder dele soma nas suas estatísticas.</div>`;
+    Object.entries(ROBOT_DEFS).forEach(([k,d])=>{
+      const built = progress.robots[k], equipped = progress.robotEquipped === k;
+      h += `<div class="pRow ${built ? (equipped?'done':'') : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''}</div>
+        <div class="pSub">${d.desc}${built ? '' : ` · custa ${d.cost} 💎`}</div></div>
+        ${built ? `<button class="pBtn ${equipped?'alt':''}" data-equip="${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-build="${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Construir</button>`}</div>`;
     });
   } else {
     const got = ACHIEVEMENTS.filter(a=> progress.achievements[a.id]).length;
@@ -5203,6 +5308,11 @@ panelBody.addEventListener('click', e=>{
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
+  } else if (b.dataset.build){
+    const k = b.dataset.build, d = ROBOT_DEFS[k];
+    if (!progress.robots[k] && progress.crystals >= d.cost){ progress.crystals -= d.cost; progress.robots[k] = true; progress.robotEquipped = k; sfxPickup(); fxWhite = 0.4; checkAchievements(); }
+  } else if (b.dataset.equip){
+    if (progress.robots[b.dataset.equip]) { progress.robotEquipped = b.dataset.equip; sfxPickup(); }
   }
   saveGame();
   renderPanel();
@@ -5352,6 +5462,17 @@ function buildOpenWorld(){
         } };
       sc.npcs.push(shrine);
     }
+    const lgId = Object.keys(LOST_GEMS).find(id=> LOST_GEMS[id].area[0] === ix && LOST_GEMS[id].area[1] === iy);
+    if (lgId){
+      const d = LOST_GEMS[lgId];
+      sc.npcs.push({ x:W/2-25, y:H/2-20, w:50, h:50, type:'gem_'+lgId, scale:34, persistent:true, talking:!!progress.lostGems[lgId], label:d.name,
+        onInteract: function(){
+          if (progress.lostGems[lgId]){ startDialogue([{speaker:'Você', text:`Já peguei a ${d.name}.`, color:'#7ef9ff'}]); return; }
+          progress.lostGems[lgId] = true; this.talking = true;
+          fxWhite = 0.5; sfxPickup(); fxBurst(this.x+25, this.y+25, 24, d.color, 240, 2.8, 0.8, -20); checkAchievements();
+          startDialogue([{speaker:'???', text:`${d.icon} Você encontrou a ${d.name}! ${d.text}. (${lostGemCount()}/6 Joias Perdidas)`, color:'#5aff96'}]);
+        } });
+    }
     sc.onEnter = ()=>{
       progress.visited[key(ix,iy)] = true; checkAchievements();
       if (biome !== 'village') populate(sc, ROAM, 1 + 0.22*(Math.abs(ix-VIL[0]) + Math.abs(iy-VIL[1])));   // tougher the further you roam
@@ -5371,6 +5492,8 @@ function buildOpenWorld(){
       onInteract: ()=> startDialogue([{speaker:'Recrutador', text:'Escolha quem lidera o grupo e quem fica de reserva. Novos aliados se juntam ao ganhar conquistas!', color:'#9fd88a'}], ()=> openPanel('chars')) },
     { x:600, y:230, w:50, h:50, type:'chest', scale:30, persistent:true, label:'Painel de Conquistas',
       onInteract: ()=> openPanel('ach') },
+    { x:150, y:400, w:56, h:66, type:'mechaOff', scale:40, persistent:true, label:'Laboratório do Duo',
+      onInteract: ()=> startDialogue([{speaker:'Duo', text:'Bem-vindo ao laboratório! Aqui a gente troca cristais por robôs — cada um dá um poder diferente.', color:'#7ef9ff'}], ()=> openPanel('robots')) },
     { x:450, y:200, w:50, h:60, type:'armaGuardia', scale:36, persistent:true, label:'Arena de Ondas',
       onInteract: ()=> startDialogue([{speaker:'Arena', text:'Desafiar 6 ondas de monstros seguidas?', color:'#ff9977'}], ()=>{
         owBattle({ title:'Arena de Ondas!', intro:'Sobreviva a todas as ondas!', fleeChance:0, ranged:true,
