@@ -2199,6 +2199,8 @@ function registerSceneFx(){
   SCENE_FX.set(drawBunker,        { ambient:{kind:'dust',count:24,color:'200,210,255'}, tint:'rgba(10,15,40,0.12)',
     lights:[{x:W/2,y:70,r:110,c:'255,95,58'}] });
   SCENE_FX.set(drawArmaRoom,      { ambient:{kind:'embers',count:22,color:'255,150,60'}, tint:'rgba(120,30,10,0.14)' });
+  SCENE_FX.set(drawDuoLab,        { ambient:{kind:'dust',count:26,color:'150,220,255'}, tint:'rgba(10,20,40,0.10)',
+    lights:[{x:W/2,y:130,r:170,c:'255,180,80'},{x:120,y:80,r:100,c:'150,220,255'},{x:W-120,y:80,r:100,c:'150,220,255'}] });
   SCENE_FX.set(drawBunkerOutside, { ambient:{kind:'dust',count:24,color:'200,180,150'}, tint:'rgba(40,10,40,0.10)',
     decor:(g,t)=>fxMist(g,'150,140,160',t,H-120,0.08) });
   SCENE_FX.set(drawPathToCastle,  { ambient:{kind:'embers',count:24,color:'255,130,60'}, tint:'rgba(100,35,10,0.10)',
@@ -3362,22 +3364,73 @@ function drawLabConsole(g,x,y,s){
   for (let i=0;i<4;i++){ g.fillStyle = i%2 ? '#ffd54a' : '#7dffb0'; g.beginPath(); g.arc(-s*0.36+i*s*0.24,s*0.24,s*0.035,0,Math.PI*2); g.fill(); }
   g.restore();
 }
+// a small robot silhouette used for "finished" shelf displays and the background assembly rig — deliberately simple,
+// it just needs to read as "a robot" at a glance from across a big room
+function drawTinyBot(g,x,y,s,color){
+  g.save(); g.translate(x,y);
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(0,s*0.98,s*0.5,s*0.12,0,0,Math.PI*2); g.fill();
+  g.fillStyle = color; g.fillRect(-s*0.4,-s*0.1,s*0.8,s*0.9);
+  g.fillStyle = lighten(color,-30); g.fillRect(-s*0.4,s*0.5,s*0.8,s*0.3);
+  g.fillStyle = color; g.beginPath(); g.arc(0,-s*0.42,s*0.4,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(120,220,255,0.85)'; g.fillRect(-s*0.2,-s*0.5,s*0.4,s*0.14);
+  g.fillStyle = lighten(color,-20); g.fillRect(-s*0.58,-s*0.05,s*0.18,s*0.6); g.fillRect(s*0.4,-s*0.05,s*0.18,s*0.6);
+  g.restore();
+}
 function drawDuoLab(g){
-  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#141a24'); bg.addColorStop(1,'#0a0e14');
+  const t = Date.now()/1000;
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#0c1018'); bg.addColorStop(0.5,'#141c28'); bg.addColorStop(1,'#0a0e14');
   g.fillStyle = bg; g.fillRect(0,0,W,H);
-  g.fillStyle = '#1c2430'; g.fillRect(20,60,W-40,H-90);
-  g.fillStyle = '#101418'; g.fillRect(20,60,W-40,10);
-  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 2;
-  for (let x=20;x<W-20;x+=40){ g.beginPath(); g.moveTo(x,70); g.lineTo(x,H-30); g.stroke(); }
-  [[80,150],[W-190,150]].forEach(([bx,by])=>{      // side workbenches with spare robot parts
-    g.fillStyle = '#3a4048'; g.fillRect(bx,by,110,130);
-    g.fillStyle = '#5a6270'; g.fillRect(bx,by,110,10);
-    g.fillStyle = '#7a8492'; g.beginPath(); g.arc(bx+30,by+50,18,0,Math.PI*2); g.fill();
-    g.fillStyle = '#4a5260'; g.fillRect(bx+60,by+30,36,50);
-    g.strokeStyle = 'rgba(120,220,255,0.4)'; g.lineWidth=2; g.strokeRect(bx+60,by+30,36,50);
+  // a cavernous ceiling: girders, catwalks and hanging lights receding far overhead — the scale cue for "huge factory"
+  g.strokeStyle = 'rgba(60,72,90,0.6)'; g.lineWidth = 5;
+  for (let x=-40;x<W+40;x+=110){ g.beginPath(); g.moveTo(x,0); g.lineTo(x+55,58); g.stroke(); }
+  g.fillStyle = '#1a222e'; g.fillRect(0,50,W,10);
+  g.fillStyle = 'rgba(255,213,120,0.5)'; for (let x=60;x<W;x+=160){ g.beginPath(); g.arc(x,55,4,0,Math.PI*2); g.fill();
+    g.save(); g.globalCompositeOperation='lighter'; const lg=g.createRadialGradient(x,55,0,x,55,60); lg.addColorStop(0,'rgba(255,213,120,0.25)'); lg.addColorStop(1,'rgba(255,213,120,0)'); g.fillStyle=lg; g.fillRect(x-60,55,120,140); g.restore(); }
+  // the factory floor stretches the full width — this alone reads much bigger than a single room
+  const floor = g.createLinearGradient(0,60,0,H); floor.addColorStop(0,'#1c2632'); floor.addColorStop(1,'#0e141c');
+  g.fillStyle = floor; g.fillRect(0,60,W,H-90);
+  g.strokeStyle = 'rgba(0,0,0,0.2)'; g.lineWidth = 2;
+  for (let x=0;x<W;x+=48){ g.beginPath(); g.moveTo(x,60); g.lineTo(x,H-30); g.stroke(); }
+  g.fillStyle = 'rgba(255,213,74,0.5)'; g.fillRect(0,H-30,W,4); g.fillRect(0,66,W,4);   // hazard stripes top/bottom of the floor
+  // a huge half-built robot rig dominates the back wall — mechanical arms tinker at it, sparks flying: "sendo feito"
+  const rx = W/2, ry = 100, rh = 300;
+  g.save(); g.globalAlpha = 0.9;
+  g.strokeStyle = '#2a3440'; g.lineWidth = 10; g.beginPath(); g.moveTo(rx,ry); g.lineTo(rx,ry+rh); g.stroke();               // spine gantry
+  g.fillStyle = '#333e4a'; g.beginPath(); g.arc(rx,ry+30,46,0,Math.PI*2); g.fill();                                          // half-formed head
+  g.strokeStyle = 'rgba(120,220,255,0.7)'; g.lineWidth=3; g.beginPath(); g.arc(rx,ry+30,20,0,Math.PI*2); g.stroke();
+  g.fillStyle = '#2a323c'; g.fillRect(rx-70,ry+80,140,150);                                                                 // exposed torso frame
+  for (let i=0;i<5;i++){ g.strokeStyle='rgba(90,100,112,0.8)'; g.lineWidth=3; g.beginPath(); g.moveTo(rx-70,ry+90+i*28); g.lineTo(rx+70,ry+90+i*28); g.stroke(); }
+  g.fillStyle = `rgba(255,${170+Math.round(40*Math.sin(t*4))},60,0.9)`; g.beginPath(); g.arc(rx,ry+150,16,0,Math.PI*2); g.fill();  // glowing core
+  g.fillStyle = '#20262e'; g.fillRect(rx-90,ry+230,36,90); g.fillRect(rx+54,ry+230,36,90);                                  // one arm attached, one still a stub
+  g.restore();
+  // two mechanical work-arms lowered from the ceiling, welding the rig — the light flickers and throws sparks
+  [-1,1].forEach(sd=>{
+    const ax = rx+sd*130, ang = Math.sin(t*1.6+sd)*0.3;
+    g.save(); g.translate(ax,60); g.rotate(ang);
+    g.strokeStyle = '#4a5666'; g.lineWidth = 8; g.beginPath(); g.moveTo(0,0); g.lineTo(0,90); g.stroke();
+    g.save(); g.translate(0,90); g.rotate(-ang*1.6);
+    g.strokeStyle = '#5a6676'; g.lineWidth = 6; g.beginPath(); g.moveTo(0,0); g.lineTo(sd*-30,70); g.stroke();
+    const wx = sd*-30, wy = 70;
+    if (fxRand(Math.floor(t*10)+sd*3,141) > 0.55){
+      g.save(); g.globalCompositeOperation='lighter';
+      for (let i=0;i<4;i++){ const a=Math.random()*Math.PI*2, r=6+Math.random()*14; g.fillStyle='rgba(255,230,140,0.9)'; g.beginPath(); g.arc(wx+Math.cos(a)*r,wy+Math.sin(a)*r,1.8,0,Math.PI*2); g.fill(); }
+      g.restore();
+    }
+    g.restore(); g.restore();
   });
+  // side workstations: one covered in disassembled parts, the other a shelf of finished robots ready to go
+  const bx0 = 60, by0 = 420;
+  g.fillStyle = '#3a4048'; g.fillRect(bx0,by0,190,110); g.fillStyle = '#5a6270'; g.fillRect(bx0,by0,190,10);
+  g.fillStyle = 'rgba(255,213,74,0.8)'; g.font = 'bold 11px sans-serif'; g.textAlign='center'; g.fillText('PEÇAS SOLTAS', bx0+95, by0-6);
+  [[30,60,'#7a8492'],[80,45,'#5a6270'],[130,55,'#4a5260']].forEach(([dx,r,c],i)=>{ g.fillStyle=c; g.beginPath(); g.arc(bx0+dx,by0+55,r*0.28,0,Math.PI*2); g.fill(); });
+  g.fillStyle = '#4a5260'; g.fillRect(bx0+150,by0+20,28,70); g.strokeStyle='rgba(120,220,255,0.4)'; g.lineWidth=2; g.strokeRect(bx0+150,by0+20,28,70);   // a lone detached limb
+  g.strokeStyle = '#6a7480'; g.lineWidth=3; g.beginPath(); g.moveTo(bx0+20,by0+90); g.lineTo(bx0+60,by0+70); g.moveTo(bx0+60,by0+70); g.lineTo(bx0+50,by0+95); g.stroke();  // scattered screws/bolts as loose lines
+  const bx1 = W-250, by1 = 420;
+  g.fillStyle = '#3a4048'; g.fillRect(bx1,by1,190,110); g.fillStyle = '#5a6270'; g.fillRect(bx1,by1,190,10);
+  g.fillStyle = 'rgba(120,255,180,0.85)'; g.font = 'bold 11px sans-serif'; g.textAlign='center'; g.fillText('PRONTOS', bx1+95, by1-6);
+  [['#7fd8ff',bx1+40],['#ff8a3a',bx1+95],['#2f7fe0',bx1+150]].forEach(([c,cx])=>{ drawTinyBot(g, cx, by1+92, 30, c); });
   g.fillStyle = 'rgba(255,213,74,0.7)'; g.font = '12px sans-serif'; g.textAlign = 'center';
-  g.fillText('↓ Voltar pra vila', W/2, H-30);
+  g.fillText('↓ Voltar pra vila', W/2, H-14);
 }
 function drawBunker(g){
   g.fillStyle = '#1a1a20'; g.fillRect(0,0,W,H);
@@ -5569,8 +5622,8 @@ function buildOpenWorld(){
   village.obstacles.push({ x:112, y:358, w:86, h:52 });
   const labInterior = {
     banner: 'LABORATÓRIO DO DUO', isOpenWorld: false, draw: drawDuoLab,
-    obstacles: [ {x:80,y:150,w:110,h:130}, {x:W-190,y:150,w:110,h:130} ],
-    npcs: [ { x:W/2-25, y:H/2-10, w:50, h:60, type:'labConsole', scale:44, persistent:true, label:'Construir robôs',
+    obstacles: [ {x:60,y:420,w:190,h:110}, {x:W-250,y:420,w:190,h:110} ],
+    npcs: [ { x:W/2-25, y:345, w:50, h:60, type:'labConsole', scale:44, persistent:true, label:'Construir robôs',
       onInteract: ()=> startDialogue([{speaker:'Duo', text:'Aqui a gente troca cristais por robôs — cada um dá um poder diferente. Só um fica equipado por vez.', color:'#7ef9ff'}], ()=> openPanel('robots')) } ],
     exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:150,y:466}) } ]
   };
