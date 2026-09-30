@@ -594,11 +594,11 @@ const EQUIP_DEFS = {
   weapon: {
     rusty:     { name:'Adaga Enferrujada',  icon:'🔪', cost:40,  atk:3,  rarity:'comum' },
     iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:100, atk:8,  rarity:'raro' },
-    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico' },
-    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario' },
-    plasma:    { name:'Bazuca de Plasma',   icon:'🚀', cost:260, atk:13, ranged:true, projColor:'#ff8a3a', rarity:'epico' },
-    universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true },
-    icebazooka:   { name:'Bazuca de Gelo',  icon:'🧊', cost:0, atk:27, ranged:true, projColor:'#aef0ff', rarity:'ultra', secret:true }
+    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico', element:'gelo' },
+    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario', element:'eletrico' },
+    plasma:    { name:'Bazuca de Plasma',   icon:'🚀', cost:260, atk:13, ranged:true, projColor:'#ff8a3a', rarity:'epico', element:'fogo' },
+    universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true, element:'sombra' },
+    icebazooka:   { name:'Bazuca de Gelo',  icon:'🧊', cost:0, atk:27, ranged:true, projColor:'#aef0ff', rarity:'ultra', secret:true, element:'gelo' }
   },
   armor: {
     leather:  { name:'Colete de Couro',     icon:'🥋', cost:35,  hp:8,  rarity:'comum' },
@@ -616,6 +616,18 @@ const EQUIP_DEFS = {
   }
 };
 const EQUIP_SLOTS = ['weapon','armor','accessory'];
+// Fraquezas e resistências: a arma equipada, quando tem elemento, causa mais dano na fraqueza do inimigo e menos na
+// resistência dele — mostrado na hora do golpe com "FRAQUEZA!" ou "RESISTENTE". Armas sem elemento (adaga, espada de
+// ferro) nunca sofrem penalidade, mas também nunca exploram uma fraqueza.
+const ELEMENT_LABELS = { fogo:'🔥 Fogo', gelo:'🧊 Gelo', eletrico:'⚡ Elétrico', sombra:'🌑 Sombra' };
+const ENEMY_ELEMENTS = {
+  plant:{weak:'fogo',resist:'gelo'}, drone:{weak:'eletrico',resist:'fogo'}, mechaEnemy:{weak:'eletrico',resist:'gelo'},
+  predator:{weak:'gelo',resist:'eletrico'}, hunter:{weak:'fogo',resist:'eletrico'}, armaGuardia:{weak:'eletrico',resist:'fogo'},
+  titan:{weak:'gelo',resist:'sombra'}, shadowPredator:{weak:'fogo',resist:'sombra'}, giant:{weak:'gelo',resist:'fogo'},
+  faceless:{weak:'fogo',resist:'sombra'}, universeDevourer:{weak:'gelo',resist:'sombra'}, eyeAngel:{weak:'sombra',resist:'fogo'},
+  ortsa:{weak:'gelo',resist:'eletrico'}, wordDevourer:{weak:'fogo',resist:'sombra'}, smiler:{weak:'eletrico',resist:'sombra'},
+  crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}
+};
 // redeem codes: type one into the Equipamento tab for a free reward — each works once per save
 const REDEEM_CODES = {
   'ARMADURALENDARIA': { text:'Manto do Guardião (armadura lendária) de graça!', apply:()=>{ progress.equipOwned.armor.guardian = true; progress.equip.armor = 'guardian'; } },
@@ -2875,6 +2887,15 @@ function hitEnemy(dmg, o){
   o = o || {};
   if (progress.immortalCode) dmg = 10000000000000;   // código IMORTAL: todo golpe causa dano absurdo
   const b = battle, ex = b.enemyPos.x, ey = b.enemyPos.y;
+  // fraqueza/resistência elemental: a arma equipada só ajuda (ou atrapalha) se tiver elemento e o inimigo tiver essa tag
+  let elWeak = false, elResist = false;
+  if (!progress.immortalCode){
+    const ee = ENEMY_ELEMENTS[b.enemy.type];
+    const wpn = progress.equip.weapon && EQUIP_DEFS.weapon[progress.equip.weapon];
+    const el = wpn && wpn.element;
+    if (ee && el && el === ee.weak){ dmg = Math.round(dmg*1.5); elWeak = true; }
+    else if (ee && el && el === ee.resist){ dmg = Math.round(dmg*0.6); elResist = true; }
+  }
   // Bug Gem: a small chance any hit "glitches" and lands for triple damage
   if (b.mods && b.mods.bug && !o.noGauge && Math.random() < 0.12){
     dmg *= 3; o.heavy = true;
@@ -2891,6 +2912,8 @@ function hitEnemy(dmg, o){
   fxSlash(ex, ey, ang, o.crit || o.heavy ? 150 : 105, o.dash ? '120,230,255' : '255,230,170');
   fxText(ex+(Math.random()-0.5)*30, ey-44, dmg + (o.crit ? '!' : ''), o.crit ? '#ffb020' : '#ffffff', o.crit ? 42 : 27);
   if (o.crit){ fxText(ex, ey-92, 'CRÍTICO!', '#ff8a3a', 26); fxWhite = Math.max(fxWhite,0.22); fxZoom = Math.max(fxZoom,0.03); sfxCrit(); }
+  if (elWeak) fxText(ex, ey-118, 'FRAQUEZA!', '#ff5a3a', 22);
+  else if (elResist) fxText(ex, ey-118, 'RESISTENTE', '#7fa8ff', 20);
   fxHitStop = Math.max(fxHitStop, o.stop != null ? o.stop : (o.crit || o.heavy ? 0.09 : 0.045));
   refreshHpUI(); refreshSpecialUI();
   if (b.enemy.hp <= 0) return defeatEnemy();
@@ -5843,6 +5866,7 @@ function renderPanel(){
         let stat = Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk))
           .map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ');
         if (d.ranged) stat += ' · 🎯 longo alcance (atira à distância)';
+        if (d.element) stat += ` · elemento: ${ELEMENT_LABELS[d.element]} (+50% na fraqueza, -40% na resistência do inimigo)`;
         if (d.specialBoost) stat += ` · +${Math.round(d.specialBoost*100)}% no golpe especial (K)${d.specialCrit ? ' + crítico garantido' : ''}`;
         h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
           <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
