@@ -3323,6 +3323,62 @@ function drawRestaurant(g){
   g.fillStyle = '#1a120a'; g.fillRect(W/2-40,H-70,80,60);
   g.strokeStyle = '#ffd54a'; g.lineWidth = 2; g.strokeRect(W/2-40,H-70,80,60);
 }
+// the Laboratório do Duo, seen from outside in the village: a small workshop with a glowing blue doorway
+function drawLabDoor(g,x,y,s){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.86);
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.2,s*0.85,'#7a8492','#4a5260');
+  g.beginPath(); g.moveTo(-s*0.85,s*0.7); g.lineTo(-s*0.85,-s*0.5); g.lineTo(0,-s*0.85); g.lineTo(s*0.85,-s*0.5); g.lineTo(s*0.85,s*0.7); g.closePath(); g.fill();
+  g.fillStyle = '#2a3038'; g.fillRect(-s*0.85,-s*0.55,s*1.7,s*0.1);
+  g.fillStyle = '#ffd54a'; g.font = `bold ${Math.round(s*0.24)}px sans-serif`; g.textAlign = 'center';
+  g.fillText('LAB', 0, -s*0.62);
+  const glow = 0.55 + 0.25*Math.sin(t*2.5);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const rg = g.createRadialGradient(0,s*0.25,0,0,s*0.25,s*0.7); rg.addColorStop(0,`rgba(120,220,255,${glow})`); rg.addColorStop(1,'rgba(120,220,255,0)');
+  g.fillStyle = rg; g.beginPath(); g.arc(0,s*0.25,s*0.7,0,Math.PI*2); g.fill();
+  g.restore();
+  g.fillStyle = '#0a0e16'; g.fillRect(-s*0.36,-s*0.1,s*0.72,s*0.8);
+  g.fillStyle = `rgba(120,220,255,${0.5+0.3*Math.sin(t*3)})`; g.fillRect(-s*0.3,-s*0.04,s*0.6,s*0.06);
+  g.strokeStyle = 'rgba(180,230,255,0.5)'; g.lineWidth = 2; g.strokeRect(-s*0.36,-s*0.1,s*0.72,s*0.8);
+  [-1,1].forEach(sd=>{ g.fillStyle = '#5a6472'; g.fillRect(sd*s*0.7-s*0.06,-s*0.48,s*0.12,s*0.14); g.fillStyle=`rgba(120,220,255,${0.5+0.3*Math.sin(t*4+sd)})`; g.fillRect(sd*s*0.7-s*0.04,-s*0.44,s*0.08,s*0.05); });
+  g.restore();
+}
+// a wall console for building/equipping robots: a bank of blinking screens over a workbench
+function drawLabConsole(g,x,y,s){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.7);
+  g.fillStyle = '#3a4048'; g.fillRect(-s*0.5,s*0.1,s*1.0,s*0.5);
+  g.fillStyle = '#5a6270'; g.fillRect(-s*0.5,s*0.1,s*1.0,s*0.08);
+  g.fillStyle = '#12161c'; g.fillRect(-s*0.44,-s*0.5,s*0.88,s*0.6);
+  g.strokeStyle = '#5a6270'; g.lineWidth = 2; g.strokeRect(-s*0.44,-s*0.5,s*0.88,s*0.6);
+  [-0.24,0.06].forEach((ox,i)=>{
+    const on = Math.sin(t*3+i*2) > -0.3;
+    g.fillStyle = on ? `rgba(${i?'120,255,180':'120,220,255'},0.85)` : 'rgba(40,50,60,0.7)';
+    g.fillRect(ox*s,-s*0.42,s*0.32,s*0.42);
+    if (on){ g.strokeStyle = 'rgba(255,255,255,0.4)'; g.lineWidth=1; for (let l=0;l<3;l++){ g.beginPath(); g.moveTo(ox*s+2,-s*0.36+l*s*0.12); g.lineTo(ox*s+s*0.3-2,-s*0.36+l*s*0.12+Math.sin(t*5+l)*3); g.stroke(); } }
+  });
+  for (let i=0;i<4;i++){ g.fillStyle = i%2 ? '#ffd54a' : '#7dffb0'; g.beginPath(); g.arc(-s*0.36+i*s*0.24,s*0.24,s*0.035,0,Math.PI*2); g.fill(); }
+  g.restore();
+}
+function drawDuoLab(g){
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#141a24'); bg.addColorStop(1,'#0a0e14');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  g.fillStyle = '#1c2430'; g.fillRect(20,60,W-40,H-90);
+  g.fillStyle = '#101418'; g.fillRect(20,60,W-40,10);
+  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 2;
+  for (let x=20;x<W-20;x+=40){ g.beginPath(); g.moveTo(x,70); g.lineTo(x,H-30); g.stroke(); }
+  [[80,150],[W-190,150]].forEach(([bx,by])=>{      // side workbenches with spare robot parts
+    g.fillStyle = '#3a4048'; g.fillRect(bx,by,110,130);
+    g.fillStyle = '#5a6270'; g.fillRect(bx,by,110,10);
+    g.fillStyle = '#7a8492'; g.beginPath(); g.arc(bx+30,by+50,18,0,Math.PI*2); g.fill();
+    g.fillStyle = '#4a5260'; g.fillRect(bx+60,by+30,36,50);
+    g.strokeStyle = 'rgba(120,220,255,0.4)'; g.lineWidth=2; g.strokeRect(bx+60,by+30,36,50);
+  });
+  g.fillStyle = 'rgba(255,213,74,0.7)'; g.font = '12px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar pra vila', W/2, H-30);
+}
 function drawBunker(g){
   g.fillStyle = '#1a1a20'; g.fillRect(0,0,W,H);
   g.fillStyle = '#242430'; g.fillRect(20,60,W-40,H-90);
@@ -4131,6 +4187,7 @@ function drawVoidPortal(g,x,y,s,found){   // the door to the final boss: a ring 
 }
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
+DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole;
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -5492,8 +5549,7 @@ function buildOpenWorld(){
       onInteract: ()=> startDialogue([{speaker:'Recrutador', text:'Escolha quem lidera o grupo e quem fica de reserva. Novos aliados se juntam ao ganhar conquistas!', color:'#9fd88a'}], ()=> openPanel('chars')) },
     { x:600, y:230, w:50, h:50, type:'chest', scale:30, persistent:true, label:'Painel de Conquistas',
       onInteract: ()=> openPanel('ach') },
-    { x:150, y:400, w:56, h:66, type:'mechaOff', scale:40, persistent:true, label:'Laboratório do Duo',
-      onInteract: ()=> startDialogue([{speaker:'Duo', text:'Bem-vindo ao laboratório! Aqui a gente troca cristais por robôs — cada um dá um poder diferente.', color:'#7ef9ff'}], ()=> openPanel('robots')) },
+    { x:110, y:355, w:90, h:95, type:'labDoor', scale:64, persistent:true, label:'Laboratório do Duo →' },
     { x:450, y:200, w:50, h:60, type:'armaGuardia', scale:36, persistent:true, label:'Arena de Ondas',
       onInteract: ()=> startDialogue([{speaker:'Arena', text:'Desafiar 6 ondas de monstros seguidas?', color:'#ff9977'}], ()=>{
         owBattle({ title:'Arena de Ondas!', intro:'Sobreviva a todas as ondas!', fleeChance:0, ranged:true,
@@ -5508,6 +5564,17 @@ function buildOpenWorld(){
         {speaker:'Viajante', text:'Dizem que ela leva pra um lugar sem fim, amarelo, cheio de zumbido. Só volta de lá quem carrega uma Joia do Teleporte.', color:'#e8b0ff'}
       ]) }
   ];
+  // the lab is a real place you walk into, not just a talking robot — the door blocks the wall above it,
+  // and stepping into the glowing doorway takes you inside
+  village.obstacles.push({ x:112, y:358, w:86, h:52 });
+  const labInterior = {
+    banner: 'LABORATÓRIO DO DUO', isOpenWorld: false, draw: drawDuoLab,
+    obstacles: [ {x:80,y:150,w:110,h:130}, {x:W-190,y:150,w:110,h:130} ],
+    npcs: [ { x:W/2-25, y:H/2-10, w:50, h:60, type:'labConsole', scale:44, persistent:true, label:'Construir robôs',
+      onInteract: ()=> startDialogue([{speaker:'Duo', text:'Aqui a gente troca cristais por robôs — cada um dá um poder diferente. Só um fica equipado por vez.', color:'#7ef9ff'}], ()=> openPanel('robots')) } ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:150,y:466}) } ]
+  };
+  village.exits.push({ x:130, y:410, w:50, h:35, onEnter: ()=> goToScene(labInterior, {x:W/2-17,y:H-90}) });
 
   // ---- the secret passage in the caves → the Backrooms ----
   const BR_N = 3;
