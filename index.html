@@ -567,6 +567,20 @@ function veilGemBonus(){
   Object.entries(VEIL_GEMS).forEach(([id,d])=>{ if (progress.veilGems[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
   return out;
 }
+// Escola: a lighthearted bonus spot in the village — beat the teacher-monsters roaming the hallway for crystals,
+// then spend them "buying" access to each special room, every one with its own small permanent bonus
+const SCHOOL_ROOMS = {
+  artes:      { name:'Sala de Artes',   icon:'🎨', cost:60,  text:'+6% de carga do especial', bonus:{sp:0.06} },
+  edfisica:   { name:'Educação Física', icon:'🏃', cost:90,  text:'+10 de vida máxima',        bonus:{hp:10} },
+  ingles:     { name:'Sala de Inglês',  icon:'📘', cost:110, text:'+3% de chance crítica',     bonus:{crit:0.03} },
+  biblioteca: { name:'Biblioteca',      icon:'📚', cost:140, text:'+5 de ataque',              bonus:{atk:5} }
+};
+function schoolRoomCount(){ return Object.keys(SCHOOL_ROOMS).filter(id=> progress.schoolRooms[id]).length; }
+function schoolRoomBonus(){
+  const out = { hp:0, atk:0, sp:0, crit:0 };
+  Object.entries(SCHOOL_ROOMS).forEach(([id,d])=>{ if (progress.schoolRooms[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
 // Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
 // an "accessory" that grants a passive power and shows up as a little badge following you around
 const ROBOT_DEFS = {
@@ -627,7 +641,7 @@ const ENEMY_ELEMENTS = {
   titan:{weak:'gelo',resist:'sombra'}, shadowPredator:{weak:'fogo',resist:'sombra'}, giant:{weak:'gelo',resist:'fogo'},
   faceless:{weak:'fogo',resist:'sombra'}, universeDevourer:{weak:'gelo',resist:'sombra'}, eyeAngel:{weak:'sombra',resist:'fogo'},
   ortsa:{weak:'gelo',resist:'eletrico'}, wordDevourer:{weak:'fogo',resist:'sombra'}, smiler:{weak:'eletrico',resist:'sombra'},
-  crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}
+  crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}, professora:{weak:'eletrico',resist:'sombra'}
 };
 // redeem codes: type one into the Equipamento tab for a free reward — each works once per save
 const REDEEM_CODES = {
@@ -693,6 +707,7 @@ function freshProgress(){
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
+    schoolRooms:{ artes:false, edfisica:false, ingles:false, biblioteca:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
     quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false, zebot:false },
@@ -717,10 +732,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','veilGems','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','veilGems','schoolRooms','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -732,19 +747,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), rb = robotBonus(), eq = equipBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), rb = robotBonus(), eq = equipBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + (rb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + (rb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + (rb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + (rb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), rb = robotBonus(), eq = equipBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), rb = robotBonus(), eq = equipBonus();
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
     dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + (rb.crit||0) + eq.crit,
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + (rb.crit||0) + eq.crit,
     bug: !!p.bugGem
   };
 }
@@ -1613,6 +1628,37 @@ function drawWingedEye(g,x,y,s,talking){
   g.strokeStyle = '#e6dcc0'; g.lineWidth = s*0.05; g.lineCap = 'round';      // a slow blink-line, lid creases
   g.beginPath(); g.arc(0,0,s*0.46,Math.PI*1.08,Math.PI*1.42); g.stroke();
   g.beginPath(); g.arc(0,0,s*0.46,Math.PI*1.58,Math.PI*1.92); g.stroke();
+  g.restore();
+}
+// Escola: a stern teacher-monster patrolling the hallway — glasses, a tight bun, a blazer and a giant red pen raised
+// like a weapon. Just a joke on every strict teacher a kid has ever feared, nothing more sinister than that.
+function drawProfessora(g,x,y,s,talking){
+  const t = Date.now()/1000, bob = Math.sin(t*2)*s*0.03;
+  g.save(); g.translate(x,y+bob);
+  groundShadow(g, s, s*0.85);
+  g.fillStyle = '#2a2a38'; g.beginPath(); g.moveTo(-s*0.22,s*0.3); g.lineTo(s*0.22,s*0.3); g.lineTo(s*0.3,s*0.82); g.lineTo(-s*0.3,s*0.82); g.closePath(); g.fill();   // pencil skirt
+  g.fillStyle = '#1a1a22'; g.fillRect(-s*0.3,s*0.78,s*0.22,s*0.08); g.fillRect(s*0.08,s*0.78,s*0.22,s*0.08);   // shoes
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.1,s*0.6,'#5a4068','#3a2648');                      // blazer
+  g.beginPath(); g.moveTo(-s*0.4,s*0.3); g.lineTo(-s*0.3,-s*0.5); g.lineTo(s*0.3,-s*0.5); g.lineTo(s*0.4,s*0.3); g.closePath(); g.fill();
+  g.fillStyle = '#eee4d8'; g.beginPath(); g.moveTo(-s*0.1,-s*0.46); g.lineTo(s*0.1,-s*0.46); g.lineTo(s*0.06,s*0.1); g.lineTo(-s*0.06,s*0.1); g.closePath(); g.fill();   // blouse
+  g.fillStyle = volumeGrad(g,-s*0.06,-s*0.7,s*0.3,'#f0d2b0','#c9a070'); g.beginPath(); g.arc(0,-s*0.68,s*0.26,0,Math.PI*2); g.fill();   // head
+  g.fillStyle = '#3a2a1c'; g.beginPath(); g.arc(0,-s*0.78,s*0.27,Math.PI*1.05,Math.PI*1.95); g.fill();   // hairline
+  g.fillStyle = '#4a3828'; g.beginPath(); g.arc(0,-s*0.9,s*0.13,0,Math.PI*2); g.fill();                  // bun
+  g.strokeStyle = '#2a2a2a'; g.lineWidth = s*0.025;                                                      // glasses
+  g.beginPath(); g.arc(-s*0.1,-s*0.68,s*0.1,0,Math.PI*2); g.stroke();
+  g.beginPath(); g.arc(s*0.1,-s*0.68,s*0.1,0,Math.PI*2); g.stroke();
+  g.beginPath(); g.moveTo(-s*0.01,-s*0.68); g.lineTo(s*0.01,-s*0.68); g.stroke();
+  g.fillStyle = talking ? '#ff3a3a' : '#2a2a2a';                                                          // eyes glow red when provoked
+  g.beginPath(); g.arc(-s*0.1,-s*0.68,s*0.04,0,Math.PI*2); g.fill();
+  g.beginPath(); g.arc(s*0.1,-s*0.68,s*0.04,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#2a1a10'; g.lineWidth = s*0.03; g.lineCap = 'round';                                   // stern eyebrows
+  g.beginPath(); g.moveTo(-s*0.18,-s*0.8); g.lineTo(-s*0.03,-s*0.76); g.stroke();
+  g.beginPath(); g.moveTo(s*0.18,-s*0.8); g.lineTo(s*0.03,-s*0.76); g.stroke();
+  g.save(); g.translate(s*0.42,-s*0.1); g.rotate(-0.6+Math.sin(t*4)*0.15);                                // a giant red pen for a weapon
+  g.fillStyle = '#d82020'; g.fillRect(-s*0.05,-s*0.5,s*0.1,s*0.6);
+  g.fillStyle = '#8a1414'; g.beginPath(); g.moveTo(-s*0.05,-s*0.5); g.lineTo(s*0.05,-s*0.5); g.lineTo(0,-s*0.66); g.closePath(); g.fill();
+  g.fillStyle = '#c0c0c0'; g.fillRect(-s*0.06,s*0.06,s*0.12,s*0.08);
+  g.restore();
   g.restore();
 }
 function drawDrone(g,x,y,s){
@@ -3704,6 +3750,102 @@ function drawRestaurant(g){
   g.fillStyle = '#1a120a'; g.fillRect(W/2-40,H-70,80,60);
   g.strokeStyle = '#ffd54a'; g.lineWidth = 2; g.strokeRect(W/2-40,H-70,80,60);
 }
+// Escola: a lighthearted bonus spot right in the village — a brick schoolhouse facade with a glowing doorway
+function drawSchoolDoor(g,x,y,s){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s*1.3, s*1.15);
+  g.fillStyle = volumeGrad(g,-s*0.2,-s*0.3,s*1.5,'#c87a4a','#8a4a28');
+  g.beginPath(); g.moveTo(-s*1.3,s*1.1); g.lineTo(-s*1.3,-s*0.5); g.lineTo(0,-s*0.95); g.lineTo(s*1.3,-s*0.5); g.lineTo(s*1.3,s*1.1); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 2;
+  for (let ry=-s*0.3; ry<s*1.1; ry+=s*0.16){ g.beginPath(); g.moveTo(-s*1.28,ry); g.lineTo(s*1.28,ry); g.stroke(); }
+  g.fillStyle = '#5a3018'; g.fillRect(-s*1.3,-s*0.56,s*2.6,s*0.1);
+  [-0.75,0.75].forEach(sx=>{
+    g.fillStyle = '#bfe8ff'; roundRect(g,sx*s-s*0.22,-s*0.3,s*0.44,s*0.5,s*0.04); g.fill();
+    g.strokeStyle = '#5a3018'; g.lineWidth = s*0.04; g.strokeRect(sx*s-s*0.22,-s*0.3,s*0.44,s*0.5);
+    g.beginPath(); g.moveTo(sx*s,-s*0.3); g.lineTo(sx*s,s*0.2); g.stroke();
+  });
+  g.fillStyle = '#2a1a0a'; roundRect(g,-s*0.95,-s*0.44,s*1.9,s*0.3,s*0.05); g.fill();
+  g.fillStyle = '#ffd54a'; g.font = `bold ${Math.round(s*0.2)}px sans-serif`; g.textAlign = 'center';
+  g.fillText('ESCOLA', 0, -s*0.22);
+  const glow = 0.55+0.25*Math.sin(t*2.5);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const dg = g.createLinearGradient(0,-s*0.1,0,s*1.05); dg.addColorStop(0,`rgba(255,220,140,${0.4*glow})`); dg.addColorStop(1,'rgba(255,220,140,0)');
+  g.fillStyle = dg; g.fillRect(-s*0.5,-s*0.1,s,s*1.15);
+  g.restore();
+  g.fillStyle = '#2a1a0a'; roundRect(g,-s*0.46,-s*0.08,s*0.92,s*1.14,s*0.06); g.fill();
+  g.fillStyle = `rgba(255,215,120,${0.6+0.2*Math.sin(t*2)})`; roundRect(g,-s*0.38,-s*0.02,s*0.76,s*1.0,s*0.05); g.fill();
+  g.restore();
+}
+// Escola: the hallway hub — beat the teacher-monsters for crystals, then "buy" each classroom door to explore it
+function drawSchoolHall(g){
+  g.fillStyle = '#e8dcc0'; g.fillRect(0,0,W,H);
+  g.strokeStyle = 'rgba(140,120,80,0.25)'; g.lineWidth = 2;
+  for (let x=0;x<W;x+=48){ g.beginPath(); g.moveTo(x,80); g.lineTo(x,H); g.stroke(); }
+  for (let y=80;y<H;y+=48){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  g.fillStyle = '#c8b088'; g.fillRect(0,0,W,80);
+  g.fillStyle = '#9a7a50'; g.fillRect(0,76,W,8);
+  for (let x=20;x<W;x+=70){ g.fillStyle = '#8a6a44'; g.fillRect(x,10,54,60); g.fillStyle = '#6a5034'; g.fillRect(x+4,14,4,52); }
+  g.fillStyle = 'rgba(100,70,30,0.8)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar pra vila', W/2, H-14);
+}
+function drawSalaArtes(g){
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#fff0e0'); bg.addColorStop(1,'#ffe0c0');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  [['#ff5a5a',W*0.2,120],['#5ab4ff',W*0.6,200],['#ffd54a',W*0.4,340],['#5aff8a',W*0.75,420],['#c05aff',W*0.15,460]].forEach(([c,x,y])=>{
+    g.save(); g.fillStyle = c; g.globalAlpha = 0.55; g.beginPath();
+    for (let i=0;i<8;i++){ const a = i/8*Math.PI*2, r = 18+((i*37)%14); g.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r); }
+    g.closePath(); g.fill(); g.restore();
+  });
+  [W*0.3,W*0.7].forEach(x=>{
+    g.strokeStyle = '#8a6a44'; g.lineWidth = 6; g.beginPath(); g.moveTo(x-30,H-120); g.lineTo(x,H-280); g.lineTo(x+30,H-120); g.stroke();
+    g.fillStyle = '#fff'; g.fillRect(x-40,H-280,80,60); g.fillStyle = '#ff8a3a'; g.beginPath(); g.arc(x-10,H-255,10,0,Math.PI*2); g.fill();
+  });
+  g.fillStyle = 'rgba(120,70,30,0.8)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('🎨 Sala de Artes · ↓ Voltar', W/2, H-14);
+}
+function drawSalaEdFisica(g){
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#dff0ff'); bg.addColorStop(1,'#b8dcf0');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  g.fillStyle = '#c88a4a'; g.fillRect(0,H*0.4,W,H*0.6);
+  g.strokeStyle = 'rgba(255,255,255,0.8)'; g.lineWidth = 4;
+  g.strokeRect(W*0.15,H*0.46,W*0.7,H*0.46); g.beginPath(); g.arc(W/2,H*0.69,50,0,Math.PI*2); g.stroke();
+  g.strokeStyle = '#5a3a1a'; g.lineWidth = 8; g.beginPath(); g.moveTo(W*0.5,H*0.3); g.lineTo(W*0.5,H*0.42); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillRect(W*0.42,H*0.3,W*0.16,10);
+  g.strokeStyle = '#ff8a3a'; g.lineWidth = 3; g.beginPath(); g.arc(W*0.5,H*0.33,14,0,Math.PI*2); g.stroke();
+  g.fillStyle = '#ff6a2a'; g.beginPath(); g.arc(W*0.3,H*0.55,16,0,Math.PI*2); g.fill();
+  g.fillStyle = 'rgba(20,40,60,0.8)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('🏃 Educação Física · ↓ Voltar', W/2, H-14);
+}
+function drawSalaIngles(g){
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#eaf6ff'); bg.addColorStop(1,'#cfe8ff');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  g.fillStyle = '#2a3a4a'; roundRect(g,W/2-160,100,320,160,8); g.fill();
+  g.strokeStyle = '#8a6a44'; g.lineWidth = 10; g.strokeRect(W/2-166,94,332,172);
+  g.fillStyle = '#fff'; g.font = 'bold 42px sans-serif'; g.textAlign = 'center'; g.fillText('ABC', W/2, 190);
+  g.fillStyle = '#8a6a44'; g.fillRect(60,H-220,180,180);
+  g.fillStyle = '#5a4028'; for (let i=0;i<4;i++) g.fillRect(66,H-210+i*40,168,6);
+  const colors = ['#ff8a3a','#5ab4ff','#5aff8a','#ffd54a','#c05aff'];
+  for (let i=0;i<4;i++) for (let j=0;j<5;j++){ g.fillStyle = colors[(i+j)%colors.length]; g.fillRect(72+j*32,H-204+i*40,24,30); }
+  g.fillStyle = 'rgba(20,40,60,0.8)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('📘 Sala de Inglês · ↓ Voltar', W/2, H-14);
+}
+function drawBiblioteca(g){
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#2a2016'); bg.addColorStop(1,'#1a140c');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  const colors = ['#ff8a3a','#5ab4ff','#5aff8a','#ffd54a','#c05aff','#ff5a7a'];
+  for (let row=0; row<3; row++){
+    const y = 90+row*140;
+    g.fillStyle = '#5a4028'; g.fillRect(40,y,W-80,120);
+    for (let i=0;i<22;i++){ g.fillStyle = colors[i%colors.length]; g.fillRect(50+i*(W-100)/22, y+10, (W-100)/22-3, 100); }
+  }
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<4;i++){ const x = 100+i*(W-200)/3; const lg = g.createRadialGradient(x,60,0,x,60,120); lg.addColorStop(0,'rgba(255,220,150,0.3)'); lg.addColorStop(1,'rgba(255,220,150,0)');
+    g.fillStyle = lg; g.beginPath(); g.arc(x,60,120,0,Math.PI*2); g.fill(); }
+  g.restore();
+  g.fillStyle = 'rgba(255,230,190,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('📚 Biblioteca · ↓ Voltar', W/2, H-14);
+}
 // the Laboratório do Duo, seen from outside in the village: a small workshop with a glowing blue doorway
 // the Laboratório seen from outside: a proper factory building, not just a door — tall corrugated walls, twin
 // smokestacks breathing steam, pipework down the side and a big rolling door glowing at street level
@@ -4745,6 +4887,7 @@ DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
 Object.keys(VEIL_GEMS).forEach(id=>{ DRAW['veilgem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,VEIL_GEMS[id].color); });
 DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot;
+DRAW.schoolDoor = drawSchoolDoor; DRAW.professora = drawProfessora;
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -5806,7 +5949,8 @@ const ACHIEVEMENTS = [
   { id:'veil',    name:'Além do Véu',            desc:'Encontre e derrote o Arquiteto do Vazio', reward:700, test:p=> p.veilBossWon },
   { id:'veilgems',name:'Luz do Além',            desc:'Encontre as 3 Joias Celestiais em Além do Véu', reward:150, test:p=> veilGemCount() >= 3 },
   { id:'blessed', name:'Bênção Celestial',       desc:'Vença o Anjo Guardião e receba a Bênção do Altar Celestial', reward:300, test:p=> p.veilBlessed },
-  { id:'duelist', name:'Duelista',               desc:'Vença seu primeiro duelo PvP contra um amigo', reward:60, test:p=> p.duelWins >= 1 }
+  { id:'duelist', name:'Duelista',               desc:'Vença seu primeiro duelo PvP contra um amigo', reward:60, test:p=> p.duelWins >= 1 },
+  { id:'school',  name:'Nota Dez',                desc:'Compre todas as salas especiais da Escola',   reward:200, test:p=> schoolRoomCount() >= 4 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -5900,6 +6044,12 @@ function renderPanel(){
     });
     h += `<div class="pRow ${progress.veilBlessed ? 'done' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Bênção do Altar Celestial</div>
       <div class="pSub">+15% permanente no golpe especial (K) · ${progress.veilBlessed ? 'CONQUISTADA' : (veilGemCount() >= 3 ? 'altar pronto para a prova' : 'reúna as 3 Joias Celestiais')}</div></div></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>Escola (${schoolRoomCount()}/4 salas) · entre pela vila</span></div>`;
+    Object.entries(SCHOOL_ROOMS).forEach(([k,d])=>{
+      const got = progress.schoolRooms[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'DESBLOQUEADA' : `custa ${d.cost} 💎 (bata nas professoras pra juntar)`}</div></div></div>`;
+    });
     h += `<div class="pHead" style="margin-top:6px"><span>Missões</span></div>`;
     QUESTS.forEach(q=>{
       const done = progress.quests[q.id], ready = !done && q.test(progress);
@@ -6211,6 +6361,65 @@ function buildOpenWorld(){
     exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:150,y:540}) } ]
   };
   village.exits.push({ x:105, y:495, w:60, h:30, onEnter: ()=> goToScene(labInterior, {x:W/2-17,y:H-90}) });
+
+  // ---- Escola: a lighthearted extra right in the village — beat the teacher-monsters in the hallway for crystals,
+  // then spend them "buying" each special classroom, every one with its own small permanent bonus ----
+  const schoolHall = {
+    banner:'ESCOLA', isOpenWorld:false, draw:drawSchoolHall,
+    obstacles: [ {x:90,y:150,w:60,h:40}, {x:240,y:150,w:60,h:40}, {x:390,y:150,w:60,h:40}, {x:540,y:150,w:60,h:40}, {x:690,y:150,w:60,h:40}, {x:840,y:150,w:60,h:40} ],
+    npcs: [], exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:735,y:560}) } ]
+  };
+  function schoolRoom(drawFn, name){
+    return { banner:name, isOpenWorld:false, draw:drawFn, obstacles:[],
+      exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(schoolHall, {x:W/2-17,y:400}) } ] };
+  }
+  const salaArtes = schoolRoom(drawSalaArtes, 'SALA DE ARTES');
+  const salaEdFisica = schoolRoom(drawSalaEdFisica, 'EDUCAÇÃO FÍSICA');
+  const salaIngles = schoolRoom(drawSalaIngles, 'SALA DE INGLÊS');
+  const biblioteca = schoolRoom(drawBiblioteca, 'BIBLIOTECA');
+  function schoolRoomDoor(id, x, roomScene){
+    const d = SCHOOL_ROOMS[id];
+    return { x, y:400, w:50, h:50, type:'chest', scale:32, persistent:true,
+      get label(){ return progress.schoolRooms[id] ? `${d.icon} ${d.name} →` : `${d.icon} ${d.name} (${d.cost}💎)`; },
+      onInteract: ()=>{
+        if (progress.schoolRooms[id]){ goToScene(roomScene, {x:W/2-17,y:H-90}); return; }
+        if (progress.crystals < d.cost){ startDialogue([{speaker:'Porta Trancada', text:`Precisa de ${d.cost} 💎 pra abrir ${d.name}. Você tem ${progress.crystals} 💎.`, color:'#ff9977'}]); return; }
+        startDialogue([{speaker:'Porta Trancada', text:`Abrir ${d.name} por ${d.cost} 💎?`, color:'#ffd54a'}], ()=>{
+          progress.crystals -= d.cost; progress.schoolRooms[id] = true;
+          sfxPickup(); fxWhite = 0.4; checkAchievements(); saveGame();
+          startDialogue([{speaker:'Você', text:`${d.icon} ${d.name} desbloqueada! ${d.text}.`, color:'#7ef9ff'}]);
+        });
+      } };
+  }
+  function fightProfessora(t){
+    owBattle({
+      title:`Uma ${t.name}!`, intro: t.intro || 'Ela cruza os braços, pronta pra brigar.', fleeChance:0.2, ranged:false,
+      enemy:{ name:t.name, type:'professora', hp:t.hp, maxHp:t.hp, atk:t.atk, speed:t.speed||100, scale:50, reach:60, hitColor:'255,120,150' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.kills++;
+        const gain = Math.round(t.hp/10), xp = Math.round(t.hp/6);
+        grantCrystals(gain); grantXp(xp);
+        startDialogue([{speaker:ROSTER[progress.main].name, text:`${t.name} desistiu da chamada! +${gain} 💎  +${xp} XP`, color:'#7ef9ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Ela mandou eu ficar de castigo... preciso treinar mais.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  schoolHall.npcs = [
+    { x:200, y:260, w:50, h:60, type:'professora', scale:40, persistent:true, label:'Professora de Matemática',
+      onInteract: ()=> fightProfessora({name:'Professora de Matemática', hp:120, atk:9, intro:'"Vai ter prova surpresa!"'}) },
+    { x:600, y:260, w:50, h:60, type:'professora', scale:40, persistent:true, label:'Professora de História',
+      onInteract: ()=> fightProfessora({name:'Professora de História', hp:150, atk:10, speed:90, intro:'"Decorem todas as datas!"'}) },
+    schoolRoomDoor('artes', 150, salaArtes),
+    schoolRoomDoor('edfisica', 350, salaEdFisica),
+    schoolRoomDoor('ingles', 550, salaIngles),
+    schoolRoomDoor('biblioteca', 750, biblioteca)
+  ];
+  village.npcs.push({ x:650, y:380, w:190, h:190, type:'schoolDoor', scale:85, persistent:true, label:'Escola →' });
+  village.obstacles.push({ x:655, y:335, w:180, h:126 });
+  village.exits.push({ x:715, y:530, w:60, h:30, onEnter: ()=> goToScene(schoolHall, {x:W/2-17,y:H-90}) });
 
   // ---- the secret passage in the caves → the Backrooms ----
   const BR_N = 3;
