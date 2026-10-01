@@ -570,10 +570,10 @@ function veilGemBonus(){
 // Escola: a lighthearted bonus spot in the village — beat the teacher-monsters roaming the hallway for crystals,
 // then spend them "buying" access to each special room, every one with its own small permanent bonus
 const SCHOOL_ROOMS = {
-  artes:      { name:'Sala de Artes',   icon:'🎨', cost:60,  text:'+6% de carga do especial', bonus:{sp:0.06} },
-  edfisica:   { name:'Educação Física', icon:'🏃', cost:90,  text:'+10 de vida máxima',        bonus:{hp:10} },
-  ingles:     { name:'Sala de Inglês',  icon:'📘', cost:110, text:'+3% de chance crítica',     bonus:{crit:0.03} },
-  biblioteca: { name:'Biblioteca',      icon:'📚', cost:140, text:'+5 de ataque',              bonus:{atk:5} }
+  artes:      { name:'Sala de Artes',   icon:'🎨', color:'#ff8a3a', cost:60,  text:'+6% de carga do especial', bonus:{sp:0.06} },
+  edfisica:   { name:'Educação Física', icon:'🏃', color:'#4fa8ff', cost:90,  text:'+10 de vida máxima',        bonus:{hp:10} },
+  ingles:     { name:'Sala de Inglês',  icon:'📘', color:'#5aff8a', cost:110, text:'+3% de chance crítica',     bonus:{crit:0.03} },
+  biblioteca: { name:'Biblioteca',      icon:'📚', color:'#c07dff', cost:140, text:'+5 de ataque',              bonus:{atk:5} }
 };
 function schoolRoomCount(){ return Object.keys(SCHOOL_ROOMS).filter(id=> progress.schoolRooms[id]).length; }
 function schoolRoomBonus(){
@@ -3751,33 +3751,48 @@ function drawRestaurant(g){
   g.strokeStyle = '#ffd54a'; g.lineWidth = 2; g.strokeRect(W/2-40,H-70,80,60);
 }
 // Escola: a lighthearted bonus spot right in the village — a brick schoolhouse facade with a glowing doorway
+// a proper two-story schoolhouse seen from outside in the village — upper-floor windows, a pediment sign,
+// a flagpole on the roof and a short flight of steps up to the glowing double doors
 function drawSchoolDoor(g,x,y,s){
   const t = Date.now()/1000;
   g.save(); g.translate(x,y);
-  groundShadow(g, s*1.3, s*1.15);
-  g.fillStyle = volumeGrad(g,-s*0.2,-s*0.3,s*1.5,'#c87a4a','#8a4a28');
-  g.beginPath(); g.moveTo(-s*1.3,s*1.1); g.lineTo(-s*1.3,-s*0.5); g.lineTo(0,-s*0.95); g.lineTo(s*1.3,-s*0.5); g.lineTo(s*1.3,s*1.1); g.closePath(); g.fill();
-  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 2;
-  for (let ry=-s*0.3; ry<s*1.1; ry+=s*0.16){ g.beginPath(); g.moveTo(-s*1.28,ry); g.lineTo(s*1.28,ry); g.stroke(); }
-  g.fillStyle = '#5a3018'; g.fillRect(-s*1.3,-s*0.56,s*2.6,s*0.1);
-  [-0.75,0.75].forEach(sx=>{
-    g.fillStyle = '#bfe8ff'; roundRect(g,sx*s-s*0.22,-s*0.3,s*0.44,s*0.5,s*0.04); g.fill();
-    g.strokeStyle = '#5a3018'; g.lineWidth = s*0.04; g.strokeRect(sx*s-s*0.22,-s*0.3,s*0.44,s*0.5);
-    g.beginPath(); g.moveTo(sx*s,-s*0.3); g.lineTo(sx*s,s*0.2); g.stroke();
+  groundShadow(g, s*1.6, s*1.2);
+  g.fillStyle = '#b8aa90'; for (let i=0;i<3;i++) g.fillRect(-s*0.6-i*s*0.05, s*1.0+i*s*0.08, s*1.2+i*s*0.1, s*0.09);   // entrance steps
+  g.fillStyle = volumeGrad(g,-s*0.2,-s*0.4,s*1.9,'#d4895a','#8a4a28');                                                // two-story body
+  g.beginPath(); g.moveTo(-s*1.6,s*1.05); g.lineTo(-s*1.6,-s*1.2); g.lineTo(0,-s*1.65); g.lineTo(s*1.6,-s*1.2); g.lineTo(s*1.6,s*1.05); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.14)'; g.lineWidth = 2;
+  for (let ry=-s*1.0; ry<s*1.05; ry+=s*0.15){ g.beginPath(); g.moveTo(-s*1.58,ry); g.lineTo(s*1.58,ry); g.stroke(); }
+  g.fillStyle = '#5a3018'; g.fillRect(-s*1.6,-s*0.06,s*3.2,s*0.1); g.fillRect(-s*1.6,-s*1.26,s*3.2,s*0.1);            // floor band + roofline
+  [-1.15,-0.4,0.4,1.15].forEach(sx=>{       // upper-floor windows
+    g.fillStyle = '#bfe8ff'; roundRect(g,sx*s-s*0.2,-s*1.1,s*0.4,s*0.42,s*0.03); g.fill();
+    g.strokeStyle = '#5a3018'; g.lineWidth = s*0.03; g.strokeRect(sx*s-s*0.2,-s*1.1,s*0.4,s*0.42);
+    g.beginPath(); g.moveTo(sx*s,-s*1.1); g.lineTo(sx*s,-s*0.68); g.stroke();
   });
-  g.fillStyle = '#2a1a0a'; roundRect(g,-s*0.95,-s*0.44,s*1.9,s*0.3,s*0.05); g.fill();
+  [-1.0,1.0].forEach(sx=>{                  // ground-floor windows flanking the entrance
+    g.fillStyle = '#bfe8ff'; roundRect(g,sx*s-s*0.22,s*0.14,s*0.44,s*0.5,s*0.04); g.fill();
+    g.strokeStyle = '#5a3018'; g.lineWidth = s*0.04; g.strokeRect(sx*s-s*0.22,s*0.14,s*0.44,s*0.5);
+    g.beginPath(); g.moveTo(sx*s,s*0.14); g.lineTo(sx*s,s*0.64); g.stroke();
+  });
+  g.fillStyle = '#2a1a0a'; roundRect(g,-s*1.1,-s*1.0,s*2.2,s*0.3,s*0.05); g.fill();                                   // pediment sign
   g.fillStyle = '#ffd54a'; g.font = `bold ${Math.round(s*0.2)}px sans-serif`; g.textAlign = 'center';
-  g.fillText('ESCOLA', 0, -s*0.22);
+  g.fillText('ESCOLA', 0, -s*0.78);
+  g.strokeStyle = '#8a8a90'; g.lineWidth = s*0.025; g.beginPath(); g.moveTo(0,-s*1.65); g.lineTo(0,-s*2.05); g.stroke();   // flagpole
+  const flap = Math.sin(t*3)*0.3;
+  g.fillStyle = '#4fa8ff'; g.beginPath(); g.moveTo(0,-s*2.03); g.lineTo(s*0.3+s*0.1*flap,-s*1.98); g.lineTo(0,-s*1.9); g.closePath(); g.fill();
   const glow = 0.55+0.25*Math.sin(t*2.5);
   g.save(); g.globalCompositeOperation = 'lighter';
-  const dg = g.createLinearGradient(0,-s*0.1,0,s*1.05); dg.addColorStop(0,`rgba(255,220,140,${0.4*glow})`); dg.addColorStop(1,'rgba(255,220,140,0)');
-  g.fillStyle = dg; g.fillRect(-s*0.5,-s*0.1,s,s*1.15);
+  const dg = g.createLinearGradient(0,s*0.1,0,s*1.05); dg.addColorStop(0,`rgba(255,220,140,${0.4*glow})`); dg.addColorStop(1,'rgba(255,220,140,0)');
+  g.fillStyle = dg; g.fillRect(-s*0.5,s*0.1,s,s*1.0);
   g.restore();
-  g.fillStyle = '#2a1a0a'; roundRect(g,-s*0.46,-s*0.08,s*0.92,s*1.14,s*0.06); g.fill();
-  g.fillStyle = `rgba(255,215,120,${0.6+0.2*Math.sin(t*2)})`; roundRect(g,-s*0.38,-s*0.02,s*0.76,s*1.0,s*0.05); g.fill();
+  g.fillStyle = '#2a1a0a'; roundRect(g,-s*0.46,s*0.18,s*0.92,s*0.88,s*0.06); g.fill();                                // double doors
+  const doorGlow = `rgba(255,215,120,${0.6+0.2*Math.sin(t*2)})`;
+  g.fillStyle = doorGlow; roundRect(g,-s*0.4,s*0.24,s*0.36,s*0.76,s*0.05); g.fill();
+  g.fillStyle = doorGlow; roundRect(g,s*0.04,s*0.24,s*0.36,s*0.76,s*0.05); g.fill();
+  g.strokeStyle = '#2a1a0a'; g.lineWidth = s*0.02; g.beginPath(); g.moveTo(0,s*0.18); g.lineTo(0,s*1.0); g.stroke();
   g.restore();
 }
-// Escola: the hallway hub — beat the teacher-monsters for crystals, then "buy" each classroom door to explore it
+// Escola: the hallway hub — beat the teacher-monsters for crystals, then "buy" each classroom door to explore it.
+// A staircase climbing into shadow and a trophy case flank the lockers, selling the idea of a real, bigger building.
 function drawSchoolHall(g){
   g.fillStyle = '#e8dcc0'; g.fillRect(0,0,W,H);
   g.strokeStyle = 'rgba(140,120,80,0.25)'; g.lineWidth = 2;
@@ -3785,9 +3800,46 @@ function drawSchoolHall(g){
   for (let y=80;y<H;y+=48){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
   g.fillStyle = '#c8b088'; g.fillRect(0,0,W,80);
   g.fillStyle = '#9a7a50'; g.fillRect(0,76,W,8);
-  for (let x=20;x<W;x+=70){ g.fillStyle = '#8a6a44'; g.fillRect(x,10,54,60); g.fillStyle = '#6a5034'; g.fillRect(x+4,14,4,52); }
+  for (let x=170;x<800;x+=70){ g.fillStyle = '#8a6a44'; g.fillRect(x,10,54,60); g.fillStyle = '#6a5034'; g.fillRect(x+4,14,4,52); }
+  g.save(); g.translate(W/2,42);                            // a wall clock above the lockers
+  g.fillStyle = '#fdf8ea'; g.beginPath(); g.arc(0,0,22,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#3a2a18'; g.lineWidth = 3; g.stroke();
+  const ct = Date.now()/1000;
+  g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(ct*0.1)*12,Math.sin(ct*0.1)*12); g.stroke();
+  g.beginPath(); g.moveTo(0,0); g.lineTo(Math.cos(ct*1.2)*16,Math.sin(ct*1.2)*16); g.stroke();
+  g.restore();
+  g.save(); g.translate(20,90);                             // a staircase climbing up into shadow — the rest of the school, implied
+  g.fillStyle = '#5a4028'; for (let i=0;i<8;i++) g.fillRect(0,150-i*18,120-i*8,18);
+  g.fillStyle = 'rgba(20,14,8,0.6)'; g.fillRect(100,0,20,40);
+  g.strokeStyle = '#2a1c10'; g.lineWidth = 4; g.beginPath(); g.moveTo(120,150); g.lineTo(16,6); g.stroke();
+  g.fillStyle = 'rgba(100,70,30,0.85)'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('↑ andar de cima', 60, 170);
+  g.restore();
+  g.save(); g.translate(W-150,90);                          // a trophy case on the other side
+  g.fillStyle = '#8a6a44'; roundRect(g,0,0,130,150,6); g.fill();
+  g.fillStyle = 'rgba(200,230,255,0.35)'; roundRect(g,8,8,114,134,4); g.fill();
+  [[30,120],[65,110],[100,122]].forEach(([tx,ty],i)=>{
+    g.fillStyle = `hsl(${45+i*8},80%,55%)`; g.beginPath(); g.arc(tx,ty-20,10,0,Math.PI*2); g.fill();
+    g.fillRect(tx-4,ty-10,8,16);
+  });
+  g.fillStyle = 'rgba(100,70,30,0.85)'; g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText('🏆 Troféus', 65, 170);
+  g.restore();
   g.fillStyle = 'rgba(100,70,30,0.8)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
   g.fillText('↓ Voltar pra vila', W/2, H-14);
+}
+// a classroom door, locked (grey, padlocked) until bought — then it takes on the room's own color
+function drawClassroomDoor(g,x,y,s,done,color,icon){
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.8);
+  g.fillStyle = '#5a4028'; roundRect(g,-s*0.42,-s*0.9,s*0.84,s*1.5,s*0.08); g.fill();
+  g.fillStyle = done ? color : '#8a8a90'; roundRect(g,-s*0.34,-s*0.8,s*0.68,s*1.3,s*0.06); g.fill();
+  g.fillStyle = done ? 'rgba(255,255,255,0.85)' : 'rgba(220,220,225,0.6)'; roundRect(g,-s*0.24,-s*0.6,s*0.48,s*0.34,s*0.04); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.9)'; g.beginPath(); g.arc(s*0.22,0,s*0.05,0,Math.PI*2); g.fill();
+  g.font = `${Math.round(s*0.26)}px sans-serif`; g.textAlign = 'center'; g.fillText(icon, 0, -s*0.42);
+  if (!done){
+    g.fillStyle = 'rgba(40,30,10,0.85)'; g.beginPath(); g.arc(0,s*0.22,s*0.07,0,Math.PI*2); g.fill();
+    g.strokeStyle = 'rgba(40,30,10,0.85)'; g.lineWidth = s*0.03; g.beginPath(); g.arc(0,s*0.1,s*0.05,Math.PI,0); g.stroke();
+  }
+  g.restore();
 }
 function drawSalaArtes(g){
   const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#fff0e0'); bg.addColorStop(1,'#ffe0c0');
@@ -4888,6 +4940,7 @@ Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLos
 Object.keys(VEIL_GEMS).forEach(id=>{ DRAW['veilgem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,VEIL_GEMS[id].color); });
 DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot;
 DRAW.schoolDoor = drawSchoolDoor; DRAW.professora = drawProfessora;
+Object.entries(SCHOOL_ROOMS).forEach(([id,d])=>{ DRAW['schoolroom_'+id] = (g,x,y,s,done)=> drawClassroomDoor(g,x,y,s,done,d.color,d.icon); });
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -6366,12 +6419,12 @@ function buildOpenWorld(){
   // then spend them "buying" each special classroom, every one with its own small permanent bonus ----
   const schoolHall = {
     banner:'ESCOLA', isOpenWorld:false, draw:drawSchoolHall,
-    obstacles: [ {x:90,y:150,w:60,h:40}, {x:240,y:150,w:60,h:40}, {x:390,y:150,w:60,h:40}, {x:540,y:150,w:60,h:40}, {x:690,y:150,w:60,h:40}, {x:840,y:150,w:60,h:40} ],
+    obstacles: [ {x:240,y:300,w:60,h:40}, {x:390,y:300,w:60,h:40}, {x:540,y:300,w:60,h:40}, {x:690,y:300,w:60,h:40} ],
     npcs: [], exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:735,y:560}) } ]
   };
   function schoolRoom(drawFn, name){
     return { banner:name, isOpenWorld:false, draw:drawFn, obstacles:[],
-      exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(schoolHall, {x:W/2-17,y:400}) } ] };
+      exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(schoolHall, {x:W/2-17,y:460}) } ] };
   }
   const salaArtes = schoolRoom(drawSalaArtes, 'SALA DE ARTES');
   const salaEdFisica = schoolRoom(drawSalaEdFisica, 'EDUCAÇÃO FÍSICA');
@@ -6379,13 +6432,13 @@ function buildOpenWorld(){
   const biblioteca = schoolRoom(drawBiblioteca, 'BIBLIOTECA');
   function schoolRoomDoor(id, x, roomScene){
     const d = SCHOOL_ROOMS[id];
-    return { x, y:400, w:50, h:50, type:'chest', scale:32, persistent:true,
+    return { x, y:140, w:50, h:60, type:'schoolroom_'+id, scale:34, persistent:true, talking:!!progress.schoolRooms[id],
       get label(){ return progress.schoolRooms[id] ? `${d.icon} ${d.name} →` : `${d.icon} ${d.name} (${d.cost}💎)`; },
-      onInteract: ()=>{
+      onInteract: function(){
         if (progress.schoolRooms[id]){ goToScene(roomScene, {x:W/2-17,y:H-90}); return; }
         if (progress.crystals < d.cost){ startDialogue([{speaker:'Porta Trancada', text:`Precisa de ${d.cost} 💎 pra abrir ${d.name}. Você tem ${progress.crystals} 💎.`, color:'#ff9977'}]); return; }
         startDialogue([{speaker:'Porta Trancada', text:`Abrir ${d.name} por ${d.cost} 💎?`, color:'#ffd54a'}], ()=>{
-          progress.crystals -= d.cost; progress.schoolRooms[id] = true;
+          progress.crystals -= d.cost; progress.schoolRooms[id] = true; this.talking = true;
           sfxPickup(); fxWhite = 0.4; checkAchievements(); saveGame();
           startDialogue([{speaker:'Você', text:`${d.icon} ${d.name} desbloqueada! ${d.text}.`, color:'#7ef9ff'}]);
         });
@@ -6408,9 +6461,9 @@ function buildOpenWorld(){
     });
   }
   schoolHall.npcs = [
-    { x:200, y:260, w:50, h:60, type:'professora', scale:40, persistent:true, label:'Professora de Matemática',
+    { x:200, y:370, w:50, h:60, type:'professora', scale:40, persistent:true, label:'Professora de Matemática',
       onInteract: ()=> fightProfessora({name:'Professora de Matemática', hp:120, atk:9, intro:'"Vai ter prova surpresa!"'}) },
-    { x:600, y:260, w:50, h:60, type:'professora', scale:40, persistent:true, label:'Professora de História',
+    { x:600, y:370, w:50, h:60, type:'professora', scale:40, persistent:true, label:'Professora de História',
       onInteract: ()=> fightProfessora({name:'Professora de História', hp:150, atk:10, speed:90, intro:'"Decorem todas as datas!"'}) },
     schoolRoomDoor('artes', 150, salaArtes),
     schoolRoomDoor('edfisica', 350, salaEdFisica),
