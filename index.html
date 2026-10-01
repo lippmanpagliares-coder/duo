@@ -594,6 +594,32 @@ function blockOreBonus(){
   Object.entries(BLOCK_ORES).forEach(([id,d])=>{ if (progress.blockOres[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
   return out;
 }
+// Mundo do Mal: a hellish bonus world — 3 Almas Perdidas to find, roaming shadows to fight, and a brazier puzzle
+// that unlocks the Lorde do Caos
+const HELL_SOULS = {
+  ira:      { name:'Alma da Ira',      icon:'😡', color:'255,90,60',  text:'+5 de ataque',           bonus:{atk:5} },
+  medo:     { name:'Alma do Medo',     icon:'😱', color:'150,90,220', text:'+3% de chance crítica',  bonus:{crit:0.03} },
+  tristeza: { name:'Alma da Tristeza', icon:'😢', color:'80,140,255', text:'+12 de vida máxima',     bonus:{hp:12} }
+};
+function hellSoulCount(){ return Object.keys(HELL_SOULS).filter(id=> progress.hellSouls[id]).length; }
+function hellSoulBonus(){
+  const out = { hp:0, atk:0, crit:0 };
+  Object.entries(HELL_SOULS).forEach(([id,d])=>{ if (progress.hellSouls[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
+// Mundo do Bug: a glitched-out bonus world — 3 Fragmentos de Dados to find, roaming corrupted monsters, and a
+// terminal puzzle that unlocks the Erro Fatal
+const BUG_FRAGMENTS = {
+  alfa: { name:'Fragmento Alfa', icon:'🟪', color:'255,80,220', text:'+6% de carga do especial', bonus:{sp:0.06} },
+  beta: { name:'Fragmento Beta', icon:'🟦', color:'80,220,255', text:'+4 de ataque',              bonus:{atk:4} },
+  gama: { name:'Fragmento Gama', icon:'🟩', color:'140,255,120',text:'+10 de vida máxima',        bonus:{hp:10} }
+};
+function bugFragCount(){ return Object.keys(BUG_FRAGMENTS).filter(id=> progress.bugFrags[id]).length; }
+function bugFragBonus(){
+  const out = { hp:0, atk:0, sp:0 };
+  Object.entries(BUG_FRAGMENTS).forEach(([id,d])=>{ if (progress.bugFrags[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
 // Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
 // an "accessory" that grants a passive power and shows up as a little badge following you around
 const ROBOT_DEFS = {
@@ -660,7 +686,8 @@ const ENEMY_ELEMENTS = {
   faceless:{weak:'fogo',resist:'sombra'}, universeDevourer:{weak:'gelo',resist:'sombra'}, eyeAngel:{weak:'sombra',resist:'fogo'},
   ortsa:{weak:'gelo',resist:'eletrico'}, wordDevourer:{weak:'fogo',resist:'sombra'}, smiler:{weak:'eletrico',resist:'sombra'},
   crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}, professora:{weak:'eletrico',resist:'sombra'},
-  bombom:{weak:'gelo',resist:'fogo'}, golemPedra:{weak:'eletrico',resist:'gelo'}
+  bombom:{weak:'gelo',resist:'fogo'}, golemPedra:{weak:'eletrico',resist:'gelo'},
+  lordeCaos:{weak:'gelo',resist:'sombra'}, erroFatal:{weak:'eletrico',resist:'gelo'}
 };
 // redeem codes: type one into the Equipamento tab for a free reward — each works once per save
 const REDEEM_CODES = {
@@ -722,12 +749,14 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
     schoolRooms:{ artes:false, edfisica:false, ingles:false, biblioteca:false },
     blockOres:{ diamante:false, ouro:false, esmeralda:false },
+    hellSouls:{ ira:false, medo:false, tristeza:false },
+    bugFrags:{ alfa:false, beta:false, gama:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
     quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false, zebot:false },
@@ -752,10 +781,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','veilGems','schoolRooms','blockOres','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, hellSouls:fresh.hellSouls, bugFrags:fresh.bugFrags, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -767,19 +796,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), rb = robotBonus(), eq = equipBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), rb = robotBonus(), eq = equipBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + (rb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + (rb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + (rb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + (rb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), rb = robotBonus(), eq = equipBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), rb = robotBonus(), eq = equipBonus();
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + bf.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
     dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + (rb.crit||0) + eq.crit,
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + hs.crit + (rb.crit||0) + eq.crit,
     bug: !!p.bugGem
   };
 }
@@ -2057,6 +2086,41 @@ function drawGolemPedra(g,x,y,s){
   g.fillStyle = '#8a949a'; g.fillRect(-s*0.4,-s*1.5,s*0.8,s*0.65);          // head block
   g.fillStyle = `rgba(255,${100+Math.round(60*Math.sin(t*4))},60,0.9)`;
   g.fillRect(-s*0.26,-s*1.3,s*0.16,s*0.16); g.fillRect(s*0.1,-s*1.3,s*0.16,s*0.16);   // glowing eyes
+  g.restore();
+}
+// Lorde do Caos: the boss of the Mundo do Mal — a horned, robed demon lord wreathed in a flickering fire aura
+function drawLordeCaos(g,x,y,s){
+  const t = Date.now()/1000, step = Math.sin(t*1.4)*s*0.03;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s*1.1, s*0.95);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const ag = g.createRadialGradient(0,-s*0.2,s*0.1,0,-s*0.2,s*1.3); ag.addColorStop(0,`rgba(255,80,20,${0.3+0.1*Math.sin(t*3)})`); ag.addColorStop(1,'rgba(255,80,20,0)');
+  g.fillStyle = ag; g.beginPath(); g.arc(0,-s*0.2,s*1.3,0,Math.PI*2); g.fill();
+  g.restore();
+  g.fillStyle = '#2a0a14'; g.fillRect(-s*0.4,-s*0.1+step,s*0.3,s*0.75); g.fillRect(s*0.1,-s*0.1-step,s*0.3,s*0.75);
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.1,s*0.6,'#5a1424','#2a0a14');
+  g.beginPath(); g.moveTo(-s*0.55,s*0.1); g.lineTo(-s*0.4,-s*0.75); g.lineTo(s*0.4,-s*0.75); g.lineTo(s*0.55,s*0.1); g.closePath(); g.fill();
+  g.fillStyle = `rgba(255,${120+Math.round(60*Math.sin(t*4))},40,0.9)`; g.beginPath(); g.arc(0,-s*0.3,s*0.1,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,0,-s*1.05,s*0.3,'#8a2838','#4a1020'); g.beginPath(); g.arc(0,-s*1.0,s*0.26,0,Math.PI*2); g.fill();
+  g.fillStyle = '#1a0a10';
+  [-1,1].forEach(sd=>{ g.beginPath(); g.moveTo(sd*s*0.14,-s*1.2); g.lineTo(sd*s*0.3,-s*1.55); g.lineTo(sd*s*0.08,-s*1.15); g.closePath(); g.fill(); });
+  g.fillStyle = `rgba(255,220,80,${0.8+0.2*Math.sin(t*5)})`;
+  g.beginPath(); g.arc(-s*0.1,-s*1.0,s*0.045,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(s*0.1,-s*1.0,s*0.045,0,Math.PI*2); g.fill();
+  g.restore();
+}
+// Erro Fatal: the boss of the Mundo do Bug — a humanoid shape made of offset, flickering color-channel blocks
+function drawErroFatal(g,x,y,s){
+  const t = Date.now()/1000, glitch = Math.sin(t*20) > 0.7 ? (Math.random()-0.5)*s*0.1 : 0;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.85);
+  ['rgba(255,0,180,0.55)','rgba(0,220,255,0.55)','rgba(200,255,0,0.4)'].forEach((c,i)=>{
+    g.save(); g.translate((i-1)*s*0.08+glitch, 0); g.fillStyle = c; g.fillRect(-s*0.3,-s*0.9,s*0.6,s*1.5); g.restore();
+  });
+  g.fillStyle = 'rgba(10,10,16,0.9)'; g.fillRect(-s*0.26,-s*0.86,s*0.52,s*1.42);
+  g.fillStyle = `rgba(255,255,255,${0.7+0.3*Math.sin(t*10)})`;
+  g.fillRect(-s*0.16,-s*0.6,s*0.1,s*0.1); g.fillRect(s*0.06,-s*0.6,s*0.1,s*0.1);
+  g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = s*0.04;
+  for (let i=0;i<3;i++) g.strokeRect(-s*0.26,-s*0.86+i*s*0.47,s*0.52,2);
   g.restore();
 }
 function drawCrate(g,x,y,s){
@@ -4068,6 +4132,51 @@ function drawBlockWorld(g){
   g.fillStyle = 'rgba(40,60,20,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
   g.fillText('↓ Voltar', W/2, H-14);
 }
+// Mundo do Mal: a hellish bonus world — dark sky, cracked obsidian ground, glowing lava cracks and bone spikes
+function drawHellWorld(g){
+  const t = Date.now()/1000;
+  const sky = g.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#2a0a08'); sky.addColorStop(0.6,'#5a1408'); sky.addColorStop(1,'#2a0604');
+  g.fillStyle = sky; g.fillRect(0,0,W,H);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<20;i++){ const x=(fxRand(i,201)*W+t*20)%W, y=40+fxRand(i,202)*160;
+    g.fillStyle = `rgba(255,${120+((i*7)%60)},40,${0.15+0.1*Math.sin(t+i)})`; g.beginPath(); g.arc(x,y,2,0,Math.PI*2); g.fill(); }
+  g.restore();
+  g.fillStyle = '#1a0a08'; g.fillRect(0,H*0.62,W,H*0.4);
+  g.strokeStyle = 'rgba(255,80,30,0.4)'; g.lineWidth = 2;
+  for (let x=0;x<W;x+=60){ g.beginPath(); g.moveTo(x,H*0.62); g.lineTo(x+20,H); g.stroke(); }
+  for (let i=0;i<4;i++){
+    const ly = H*0.7+i*30;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.strokeStyle = `rgba(255,${140+Math.round(40*Math.sin(t*2+i))},40,0.7)`; g.lineWidth = 6;
+    g.beginPath(); g.moveTo(0,ly); for (let x=0;x<=W;x+=40) g.lineTo(x, ly+Math.sin(x*0.02+t+i)*8); g.stroke();
+    g.restore();
+  }
+  [[120],[W-160],[W*0.5]].forEach(([sx])=>{
+    g.fillStyle = '#d8ccb8'; g.beginPath(); g.moveTo(sx-14,H*0.64); g.lineTo(sx,H*0.64-70); g.lineTo(sx+14,H*0.64); g.closePath(); g.fill();
+  });
+  g.fillStyle = 'rgba(255,200,150,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar', W/2, H-14);
+}
+// Mundo do Bug: a glitched-out bonus world — color-separated static, scanlines and floating broken tile fragments
+function drawBugWorld(g){
+  const t = Date.now()/1000;
+  g.fillStyle = '#0a0a12'; g.fillRect(0,0,W,H);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<26;i++){
+    const x = (fxRand(i,301)*W+Math.sin(t+i)*20), y = (fxRand(i,302)*H*0.7+40+Math.cos(t*0.7+i)*10);
+    g.fillStyle = i%2 ? 'rgba(255,40,220,0.5)' : 'rgba(40,220,255,0.5)';
+    g.fillRect(x, y, 18, 18);
+  }
+  g.restore();
+  g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 1;
+  for (let y=0;y<H;y+=4){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  g.fillStyle = 'rgba(200,0,255,0.12)'; g.fillRect(Math.sin(t*3)*6,0,W,H);
+  g.fillStyle = '#1a1a26'; g.fillRect(0,H*0.62,W,H*0.4);
+  g.strokeStyle = 'rgba(0,255,220,0.3)'; g.lineWidth = 2;
+  for (let x=0;x<W;x+=48) for (let y=H*0.62;y<H;y+=48) g.strokeRect(x,y,48,48);
+  g.fillStyle = 'rgba(200,255,255,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar', W/2, H-14);
+}
 // Além do Véu: a post-game bonus dimension — a heaven, not a void, all bright sky, gold light and cloud marble
 function drawBeyondVeil(g){
   const t = Date.now()/1000;
@@ -5093,6 +5202,39 @@ function drawBlockPortal(g,x,y,s){
   g.restore();
   g.restore();
 }
+// a stone-block doorframe around a swirling portal — reused for the Mundo do Mal and Mundo do Bug entrances,
+// each just a different pair of swirl colors
+function drawThemedPortal(g,x,y,s,colorA,colorB){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.9);
+  g.fillStyle = '#4a4a52'; g.fillRect(-s*0.55,-s*1.2,s*0.3,s*1.5); g.fillRect(s*0.25,-s*1.2,s*0.3,s*1.5); g.fillRect(-s*0.55,-s*1.35,s*1.1,s*0.3);
+  g.save(); g.beginPath(); g.rect(-s*0.4,-s*1.05,s*0.8,s*1.2); g.clip();
+  const grad = g.createLinearGradient(-s*0.4,-s,s*0.4,s*0.2);
+  grad.addColorStop(0,colorA); grad.addColorStop(0.5,colorB); grad.addColorStop(1,colorA);
+  g.fillStyle = grad; g.fillRect(-s*0.4,-s*1.05,s*0.8,s*1.2);
+  g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,255,255,0.25)';
+  for (let i=0;i<4;i++){ const yy = -s*1.0 + ((t*0.6+i*0.25)%1)*s*1.15; g.fillRect(-s*0.4,yy,s*0.8,s*0.08); }
+  g.restore();
+  g.restore();
+}
+// a lever on a stone post, bound to one color per world (orange for Mundo do Mal, cyan for Mundo do Bug) — it
+// lights up once pressed in the right order as part of the little puzzle gating each world's boss
+function drawLeverProp(g,x,y,s,activated,color){
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.75);
+  g.fillStyle = '#3a2a1a'; g.fillRect(-s*0.1,-s*0.1,s*0.2,s*0.5);
+  g.fillStyle = activated ? `rgb(${color})` : '#5a5a5a';
+  g.beginPath(); g.arc(0,-s*0.3,s*0.26,0,Math.PI*2); g.fill();
+  if (activated){
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const rg = g.createRadialGradient(0,-s*0.3,0,0,-s*0.3,s*0.5); rg.addColorStop(0,`rgba(${color},0.6)`); rg.addColorStop(1,`rgba(${color},0)`);
+    g.fillStyle = rg; g.beginPath(); g.arc(0,-s*0.3,s*0.5,0,Math.PI*2); g.fill();
+    g.restore();
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = s*0.03; g.beginPath(); g.arc(0,-s*0.3,s*0.26,0,Math.PI*2); g.stroke();
+  g.restore();
+}
 DRAW.veilPortal = drawVeilPortal;
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
@@ -5103,6 +5245,13 @@ DRAW.schoolDoor = drawSchoolDoor; DRAW.professora = drawProfessora;
 Object.entries(SCHOOL_ROOMS).forEach(([id,d])=>{ DRAW['schoolroom_'+id] = (g,x,y,s,done)=> drawClassroomDoor(g,x,y,s,done,d.color,d.icon); });
 DRAW.bombom = drawBombom; DRAW.golemPedra = drawGolemPedra; DRAW.blockPortal = drawBlockPortal;
 Object.keys(BLOCK_ORES).forEach(id=>{ DRAW['ore_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,BLOCK_ORES[id].color); });
+DRAW.lordeCaos = drawLordeCaos; DRAW.erroFatal = drawErroFatal;
+DRAW.hellPortal = (g,x,y,s)=> drawThemedPortal(g,x,y,s,'#ff3a1a','#ffd54a');
+DRAW.bugPortal = (g,x,y,s)=> drawThemedPortal(g,x,y,s,'#ff3af0','#3af0ff');
+DRAW.lever_mal = (g,x,y,s,activated)=> drawLeverProp(g,x,y,s,activated,'255,140,40');
+DRAW.lever_bug = (g,x,y,s,activated)=> drawLeverProp(g,x,y,s,activated,'80,220,255');
+Object.keys(HELL_SOULS).forEach(id=>{ DRAW['soul_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,HELL_SOULS[id].color); });
+Object.keys(BUG_FRAGMENTS).forEach(id=>{ DRAW['frag_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,BUG_FRAGMENTS[id].color); });
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -6169,7 +6318,11 @@ const ACHIEVEMENTS = [
   { id:'dodgeball', name:'Rei da Queimada',        desc:'Acerte 20 alvos na Queimada Relâmpago',       reward:100, test:p=> p.dodgeballHits >= 20 },
   { id:'classgames', name:'Aluno Nota Mil',        desc:'Acerte 30 vezes nos minigames de Artes, Inglês e Biblioteca', reward:150, test:p=> p.classGameHits >= 30 },
   { id:'blockores', name:'Minerador',              desc:'Encontre os 3 blocos raros no Mundo dos Blocos', reward:150, test:p=> blockOreCount() >= 3 },
-  { id:'golem',     name:'Quebra-Pedras',          desc:'Derrote o Golem de Pedra no Mundo dos Blocos',  reward:400, test:p=> p.blockBossWon }
+  { id:'golem',     name:'Quebra-Pedras',          desc:'Derrote o Golem de Pedra no Mundo dos Blocos',  reward:400, test:p=> p.blockBossWon },
+  { id:'hellsouls', name:'Colecionador de Almas',  desc:'Encontre as 3 Almas Perdidas no Mundo do Mal',  reward:150, test:p=> hellSoulCount() >= 3 },
+  { id:'malboss',   name:'Senhor das Chamas',      desc:'Derrote o Lorde do Caos no Mundo do Mal',       reward:450, test:p=> p.hellBossWon },
+  { id:'bugfrags',  name:'Depurador',              desc:'Encontre os 3 Fragmentos de Dados no Mundo do Bug', reward:150, test:p=> bugFragCount() >= 3 },
+  { id:'bugboss',   name:'Sem Erros',              desc:'Derrote o Erro Fatal no Mundo do Bug',          reward:450, test:p=> p.bugBossWon }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -6277,6 +6430,22 @@ function renderPanel(){
     });
     h += `<div class="pRow ${progress.blockBossWon ? 'done' : 'locked'}"><div style="font-size:22px">🗿</div><div class="pInfo"><div class="pTitle">Golem de Pedra</div>
       <div class="pSub">${progress.blockBossWon ? 'DERROTADO' : 'guarda o Mundo dos Blocos'}</div></div></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>Mundo do Mal (${hellSoulCount()}/3 almas) · portal em Terras Devastadas</span></div>`;
+    Object.entries(HELL_SOULS).forEach(([k,d])=>{
+      const got = progress.hellSouls[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'ENCONTRADA' : 'ainda não encontrada'}</div></div></div>`;
+    });
+    h += `<div class="pRow ${progress.hellBossWon ? 'done' : 'locked'}"><div style="font-size:22px">👹</div><div class="pInfo"><div class="pTitle">Lorde do Caos</div>
+      <div class="pSub">${progress.hellBossWon ? 'DERROTADO' : 'resolva o enigma das alavancas pra despertá-lo'}</div></div></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>Mundo do Bug (${bugFragCount()}/3 fragmentos) · portal em Terras Devastadas</span></div>`;
+    Object.entries(BUG_FRAGMENTS).forEach(([k,d])=>{
+      const got = progress.bugFrags[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'ENCONTRADO' : 'ainda não encontrado'}</div></div></div>`;
+    });
+    h += `<div class="pRow ${progress.bugBossWon ? 'done' : 'locked'}"><div style="font-size:22px">💻</div><div class="pInfo"><div class="pTitle">Erro Fatal</div>
+      <div class="pSub">${progress.bugBossWon ? 'CORRIGIDO' : 'conserte os 3 terminais na ordem certa pra despertá-lo'}</div></div></div>`;
     h += `<div class="pHead" style="margin-top:6px"><span>Missões</span></div>`;
     QUESTS.forEach(q=>{
       const done = progress.quests[q.id], ready = !done && q.test(progress);
@@ -7054,6 +7223,169 @@ function buildOpenWorld(){
   };
   areas[key(4,3)].npcs.push({ x:450, y:460, w:90, h:90, type:'blockPortal', scale:44, persistent:true, label:'Portal dos Blocos →',
     onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal instável, feito de blocos flutuantes. Parece levar a um universo inteiro, quadradinho.', color:'#8aff8a'}], ()=> goToScene(blockWorld, {x:W/2-17, y:H-90})) });
+
+  // ---- Mundo do Mal: a hellish bonus world. Pull the 3 levers in the right order (1, 2, 3 — they're scattered,
+  // read the labels) to wake the Lorde do Caos. Wrong order resets the sequence. ----
+  const malPuzzle = { step:0, solved:false };
+  function pressMalLever(idx){
+    if (malPuzzle.solved){ startDialogue([{speaker:'???', text:'As alavancas já fizeram seu trabalho.', color:'#8aff8a'}]); return; }
+    if (idx === malPuzzle.step){
+      malPuzzle.step++;
+      if (malPuzzle.step >= 3){ malPuzzle.solved = true; sfxVictory(); fxWhite = 0.3; startDialogue([{speaker:'???', text:'*** CLIQUE *** A passagem se abre!', color:'#8aff8a'}]); }
+      else { sfxPickup(); startDialogue([{speaker:'???', text:`*** clique *** (${malPuzzle.step}/3 na ordem certa)`, color:'#ffd54a'}]); }
+    } else {
+      malPuzzle.step = 0; fxShakeNow(0.2,4); sfxEnemyHit();
+      startDialogue([{speaker:'???', text:'*** ERRO *** fora de ordem — a sequência reiniciou. Procure a Alavanca 1 primeiro!', color:'#ff6a6a'}]);
+    }
+  }
+  function malLeverNpc(idx, x, y){
+    return { x, y, w:40, h:50, type:'lever_mal', scale:30, persistent:true, label:`Alavanca ${idx+1}`,
+      get talking(){ return malPuzzle.solved || malPuzzle.step > idx; },
+      onInteract: ()=> pressMalLever(idx) };
+  }
+  function fightMalShadow(sc, npc, t){
+    owBattle({
+      title:`Uma ${t.name}!`, intro: t.intro, fleeChance:0.2, ranged:false,
+      enemy:{ name:t.name, type:t.type, hp:t.hp, maxHp:t.hp, atk:t.atk, speed:t.speed||120, scale:50, reach:60, hitColor:'255,80,80' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.kills++;
+        sc.npcs = sc.npcs.filter(n=> n !== npc);
+        grantCrystals(12); grantXp(40);
+        startDialogue([{speaker:ROSTER[progress.main].name, text:`${t.name} se desfez em cinzas! +12 💎  +40 XP`, color:'#7ef9ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Forte demais por agora... preciso treinar mais.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function startMalBoss(){
+    owBattle({
+      title:'Lorde do Caos', intro:'As chamas se juntam e tomam forma — ele espera há eras por um desafiante.', fleeChance:0.08, ranged:false,
+      enemy:{ name:'Lorde do Caos', type:'lordeCaos', hp:3400, maxHp:3400, atk:28, speed:90, scale:100, reach:88, hitColor:'255,90,60' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.hellBossWon = true;
+        fxWhite = 0.9; fxShakeNow(0.5,7); sfxVictory(); grantCrystals(550); grantXp(550); checkAchievements();
+        startDialogue([{speaker:'Lorde do Caos', text:'*** (as chamas se apagam, em paz) ***', color:'#ff8a5a'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Quente demais pra aguentar agora... preciso ficar mais forte.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function soulNpc(id, x, y){
+    const d = HELL_SOULS[id];
+    return { x, y, w:50, h:50, type:'soul_'+id, scale:34, persistent:true, talking:!!progress.hellSouls[id], label:d.name,
+      onInteract: function(){
+        if (progress.hellSouls[id]){ startDialogue([{speaker:'Você', text:`Já peguei a ${d.name}.`, color:'#7ef9ff'}]); return; }
+        progress.hellSouls[id] = true; this.talking = true;
+        sfxPickup(); fxWhite = 0.35; checkAchievements(); saveGame();
+        startDialogue([{speaker:'Você', text:`${d.icon} ${d.name}! ${d.text}. (${hellSoulCount()}/3 almas)`, color:'#ffe8c0'}]);
+      } };
+  }
+  const hellWorld = {
+    banner:'MUNDO DO MAL', isOpenWorld:false, draw:drawHellWorld, obstacles:[],
+    npcs: [
+      soulNpc('ira', 150, 180), soulNpc('medo', W-190, 180), soulNpc('tristeza', 150, H-180),
+      malLeverNpc(1, W-220, 320), malLeverNpc(0, 180, 420), malLeverNpc(2, W/2+40, 460),
+      { x:W-240, y:H-210, w:56, h:56, type:'shadowPredator', scale:46, label:'Sombra Zangada',
+        onInteract: function(){ fightMalShadow(hellWorld, this, {name:'Sombra Zangada', type:'shadowPredator', hp:170, atk:15, intro:'Uma sombra rosnando se solta da parede!'}); } },
+      { x:W/2+150, y:220, w:56, h:56, type:'faceless', scale:46, label:'Pesadelo Ambulante',
+        onInteract: function(){ fightMalShadow(hellWorld, this, {name:'Pesadelo Ambulante', type:'faceless', hp:220, atk:16, speed:100, intro:'Uma figura alta e sem rosto se vira na sua direção.'}); } },
+      { x:W/2-40, y:110, w:80, h:90, type:'lordeCaos', scale:48, persistent:true,
+        get label(){ return progress.hellBossWon ? 'Lorde do Caos (em paz)' : 'Lorde do Caos'; },
+        onInteract: function(){
+          if (progress.hellBossWon){ startDialogue([{speaker:'Lorde do Caos', text:'*** (silêncio sombrio) ***', color:'#ff8a5a'}]); return; }
+          if (!malPuzzle.solved){ startDialogue([{speaker:'Lorde do Caos', text:'Resolva o enigma das alavancas pra despertar seu desafio.', color:'#ff8a5a'}]); return; }
+          startDialogue([{speaker:'Lorde do Caos', text:'*** RUGIDO DE CHAMAS ***', color:'#ff8a5a'}], ()=> startMalBoss());
+        } }
+    ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], {x:600,y:300}) } ]
+  };
+  areas[key(4,3)].npcs.push({ x:770, y:420, w:90, h:90, type:'hellPortal', scale:44, persistent:true, label:'Portal do Mal →',
+    onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal quente, cheirando a enxofre. Vozes distantes gritam do outro lado.', color:'#ff8a5a'}], ()=> goToScene(hellWorld, {x:W/2-17, y:H-90})) });
+
+  // ---- Mundo do Bug: a glitched-out bonus world. Same lever puzzle, now framed as fixing a broken terminal. ----
+  const bugPuzzle = { step:0, solved:false };
+  function pressBugLever(idx){
+    if (bugPuzzle.solved){ startDialogue([{speaker:'???', text:'O terminal já foi consertado.', color:'#8af0ff'}]); return; }
+    if (idx === bugPuzzle.step){
+      bugPuzzle.step++;
+      if (bugPuzzle.step >= 3){ bugPuzzle.solved = true; sfxVictory(); fxWhite = 0.3; startDialogue([{speaker:'???', text:'*** SISTEMA RESTAURADO *** A passagem se abre!', color:'#8af0ff'}]); }
+      else { sfxPickup(); startDialogue([{speaker:'???', text:`*** conectado *** (${bugPuzzle.step}/3 na ordem certa)`, color:'#ffd54a'}]); }
+    } else {
+      bugPuzzle.step = 0; fxShakeNow(0.2,4); sfxEnemyHit();
+      startDialogue([{speaker:'???', text:'*** FALHA *** fora de ordem — o terminal reiniciou. Procure o Terminal 1 primeiro!', color:'#ff6a6a'}]);
+    }
+  }
+  function bugLeverNpc(idx, x, y){
+    return { x, y, w:40, h:50, type:'lever_bug', scale:30, persistent:true, label:`Terminal ${idx+1}`,
+      get talking(){ return bugPuzzle.solved || bugPuzzle.step > idx; },
+      onInteract: ()=> pressBugLever(idx) };
+  }
+  function fightBugGlitch(sc, npc, t){
+    owBattle({
+      title:`Um ${t.name}!`, intro: t.intro, fleeChance:0.2, ranged:!!t.ranged,
+      enemy:{ name:t.name, type:t.type, hp:t.hp, maxHp:t.hp, atk:t.atk, speed:t.speed||120, scale:50, reach:60, hitColor:'255,80,220' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.kills++;
+        sc.npcs = sc.npcs.filter(n=> n !== npc);
+        grantCrystals(12); grantXp(40);
+        startDialogue([{speaker:ROSTER[progress.main].name, text:`${t.name} travou e sumiu! +12 💎  +40 XP`, color:'#7ef9ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Bugado demais pra vencer agora... preciso treinar mais.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function startBugBoss(){
+    owBattle({
+      title:'Erro Fatal', intro:'Blocos de cor se empilham e travam numa forma humana... ele não devia existir.', fleeChance:0.08, ranged:false,
+      enemy:{ name:'Erro Fatal', type:'erroFatal', hp:3400, maxHp:3400, atk:27, speed:95, scale:96, reach:84, hitColor:'255,80,220' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.bugBossWon = true;
+        fxWhite = 0.9; fxShakeNow(0.5,7); sfxVictory(); grantCrystals(550); grantXp(550); checkAchievements();
+        startDialogue([{speaker:'Erro Fatal', text:'*** (ele se desconecta, em paz) ***', color:'#8af0ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Corrompido demais pra vencer agora... preciso ficar mais forte.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function fragNpc(id, x, y){
+    const d = BUG_FRAGMENTS[id];
+    return { x, y, w:50, h:50, type:'frag_'+id, scale:34, persistent:true, talking:!!progress.bugFrags[id], label:d.name,
+      onInteract: function(){
+        if (progress.bugFrags[id]){ startDialogue([{speaker:'Você', text:`Já peguei o ${d.name}.`, color:'#7ef9ff'}]); return; }
+        progress.bugFrags[id] = true; this.talking = true;
+        sfxPickup(); fxWhite = 0.35; checkAchievements(); saveGame();
+        startDialogue([{speaker:'Você', text:`${d.icon} ${d.name}! ${d.text}. (${bugFragCount()}/3 fragmentos)`, color:'#ffe8c0'}]);
+      } };
+  }
+  const bugWorld = {
+    banner:'MUNDO DO BUG', isOpenWorld:false, draw:drawBugWorld, obstacles:[],
+    npcs: [
+      fragNpc('alfa', 150, 180), fragNpc('beta', W-190, 180), fragNpc('gama', 150, H-180),
+      bugLeverNpc(1, W-220, 320), bugLeverNpc(0, 180, 420), bugLeverNpc(2, W/2+40, 460),
+      { x:W-240, y:H-210, w:56, h:56, type:'crawler', scale:46, label:'Pixel Rebelde',
+        onInteract: function(){ fightBugGlitch(bugWorld, this, {name:'Pixel Rebelde', type:'crawler', hp:180, atk:14, intro:'Um amontoado de pixels soltos rasteja em sua direção.'}); } },
+      { x:W/2+150, y:220, w:56, h:56, type:'smiler', scale:46, label:'Erro 404',
+        onInteract: function(){ fightBugGlitch(bugWorld, this, {name:'Erro 404', type:'smiler', hp:220, atk:15, ranged:true, intro:'Um sorriso congelado pisca fora de sincronia.'}); } },
+      { x:W/2-40, y:110, w:80, h:90, type:'erroFatal', scale:48, persistent:true,
+        get label(){ return progress.bugBossWon ? 'Erro Fatal (corrigido)' : 'Erro Fatal'; },
+        onInteract: function(){
+          if (progress.bugBossWon){ startDialogue([{speaker:'Erro Fatal', text:'*** (estático silencioso) ***', color:'#8af0ff'}]); return; }
+          if (!bugPuzzle.solved){ startDialogue([{speaker:'Erro Fatal', text:'Conserte os 3 terminais na ordem certa pra me despertar.', color:'#8af0ff'}]); return; }
+          startDialogue([{speaker:'Erro Fatal', text:'*** RUÍDO DE ESTÁTICA ***', color:'#8af0ff'}], ()=> startBugBoss());
+        } }
+    ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], {x:300,y:300}) } ]
+  };
+  areas[key(4,3)].npcs.push({ x:250, y:100, w:90, h:90, type:'bugPortal', scale:44, persistent:true, label:'Portal do Bug →',
+    onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal instável que pisca entre cores. Parece prestes a travar a qualquer momento.', color:'#8af0ff'}], ()=> goToScene(bugWorld, {x:W/2-17, y:H-90})) });
 
   return { areas, brRooms, island, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
     goToScene(village, {x:W/2-17, y:430});
