@@ -5768,7 +5768,10 @@ const ACHIEVEMENTS = [
   { id:'final',   name:'Fim do Universo',       desc:'Derrote o Mega Universe Devourer',     reward:1000,test:p=> p.finalWins >= 1 },
   { id:'cronos',  name:'Mestre do Tempo',        desc:'Derrote o chefe final em menos de 3 minutos e enfrente Cronos', reward:600, test:p=> p.secretBossWins >= 1 },
   { id:'entidade',name:'A Verdade das Backrooms',desc:'Derrote a Entidade Suprema nas Backrooms', reward:500, test:p=> p.backroomsBossWon },
-  { id:'veil',    name:'Além do Véu',            desc:'Encontre e derrote o Arquiteto do Vazio', reward:700, test:p=> p.veilBossWon }
+  { id:'veil',    name:'Além do Véu',            desc:'Encontre e derrote o Arquiteto do Vazio', reward:700, test:p=> p.veilBossWon },
+  { id:'veilgems',name:'Luz do Além',            desc:'Encontre as 3 Joias Celestiais em Além do Véu', reward:150, test:p=> veilGemCount() >= 3 },
+  { id:'blessed', name:'Bênção Celestial',       desc:'Vença o Anjo Guardião e receba a Bênção do Altar Celestial', reward:300, test:p=> p.veilBlessed },
+  { id:'duelist', name:'Duelista',               desc:'Vença seu primeiro duelo PvP contra um amigo', reward:60, test:p=> p.duelWins >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -5853,6 +5856,14 @@ function renderPanel(){
       h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
         <div class="pSub">${d.text} · escondida em ${OW_NAMES[owBiome(d.area[0],d.area[1])]} · ${got ? 'ENCONTRADA' : 'ainda não encontrada'}</div></div></div>`;
     });
+    h += `<div class="pHead" style="margin-top:6px"><span>Joias Celestiais (${veilGemCount()}/3) · Além do Véu</span></div>`;
+    Object.entries(VEIL_GEMS).forEach(([k,d])=>{
+      const got = progress.veilGems[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'ENCONTRADA' : 'ainda não encontrada'}</div></div></div>`;
+    });
+    h += `<div class="pRow ${progress.veilBlessed ? 'done' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Bênção do Altar Celestial</div>
+      <div class="pSub">+15% permanente no golpe especial (K) · ${progress.veilBlessed ? 'CONQUISTADA' : (veilGemCount() >= 3 ? 'altar pronto para a prova' : 'reúna as 3 Joias Celestiais')}</div></div></div>`;
     h += `<div class="pHead" style="margin-top:6px"><span>Missões</span></div>`;
     QUESTS.forEach(q=>{
       const done = progress.quests[q.id], ready = !done && q.test(progress);
@@ -6934,7 +6945,7 @@ function endDuel(result){
   if (duelReturnPos){ player.x = duelReturnPos.x; player.y = duelReturnPos.y; duelReturnPos = null; }
   if (result === 'left'){ showBanner('O duelo acabou — o outro jogador saiu.'); return; }
   fxWhite = result === 'win' ? 0.6 : 0.3; fxShakeNow(0.4, 6);
-  if (result === 'win'){ progress.duelWins++; sfxVictory(); showBanner(`🏆 Você venceu o duelo! (${progress.duelWins}V - ${progress.duelLosses}D)`); }
+  if (result === 'win'){ progress.duelWins++; sfxVictory(); showBanner(`🏆 Você venceu o duelo! (${progress.duelWins}V - ${progress.duelLosses}D)`); checkAchievements(); }
   else { progress.duelLosses++; sfxDefeat(); showBanner(`💀 Você perdeu o duelo... (${progress.duelWins}V - ${progress.duelLosses}D)`); }
   saveGame();
 }
