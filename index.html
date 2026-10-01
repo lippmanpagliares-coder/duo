@@ -703,7 +703,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -2275,6 +2275,7 @@ function handleInteractKey(){
   if (battle){ battleAttack(); return; }
   if (duelActive){ duelAttack(); return; }
   if (fishing){ reelFish(); return; }
+  if (dodgeball){ throwDodgeball(); return; }
   if (dialogueActive){ advanceDialogue(); return; }
   if (sceneLocked || !currentScene) return;
   const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
@@ -2330,7 +2331,7 @@ function updateExploration(dt){
     const maxLen = (followers.length+1)*FOLLOWER_SPACING + 4;
     if (followerTrail.length > maxLen) followerTrail.length = maxLen;
   }
-  if (battle || duelActive) return; // fighting (a monster or a duel) on top of this room — exits/interact stay off until it ends
+  if (battle || duelActive || dodgeball) return; // fighting (a monster, a duel, or a round of queimada) on top of this room — exits/interact stay off until it ends
   // exits
   const pRect = {x:player.x, y:player.y, w:player.w, h:player.h};
   for (const ex of (currentScene.exits||[])){
@@ -2760,6 +2761,7 @@ function renderScene(){
   else drawChapterMiniMap(ctx);
   if (duelActive) drawDuelHud(ctx);
   if (fishing) drawFishingHud(ctx);
+  if (dodgeball) drawDodgeballHud(ctx);
   if (mapOpen && !battle) drawBigMap(ctx);
   if (saveIndicatorT > 0){                                             // a quiet "saved" flash, bottom-left, fading out
     ctx.save(); ctx.globalAlpha = Math.min(1, saveIndicatorT*2.5);
@@ -4879,6 +4881,19 @@ function drawFishSpot(g,x,y,s){
   g.fillStyle = '#ff5a4a'; g.beginPath(); g.arc(s*0.32,s*0.42+Math.sin(t*2)*3,s*0.09,0,Math.PI*2); g.fill();
   g.restore();
 }
+// the dodgeball sitting on the gym floor, waiting to be grabbed for a round of Queimada Relâmpago
+function drawBallProp(g,x,y,s){
+  if (dodgeball) return;   // picked up — the HUD draws it in the player's hand instead
+  const t = Date.now()/1000, bob = Math.sin(t*2)*s*0.08;
+  g.save(); g.translate(x,y+bob);
+  groundShadow(g, s, s*0.7-bob*0.4);
+  g.fillStyle = volumeGrad(g,-s*0.15,-s*0.15,s*0.6,'#ff9a5c','#d8481a');
+  g.beginPath(); g.arc(0,0,s*0.5,0,Math.PI*2); g.fill();
+  g.strokeStyle = '#8a2a10'; g.lineWidth = s*0.05;
+  g.beginPath(); g.moveTo(-s*0.5,0); g.lineTo(s*0.5,0); g.stroke();
+  g.beginPath(); g.moveTo(0,-s*0.5); g.lineTo(0,s*0.5); g.stroke();
+  g.restore();
+}
 function drawIsland(g,t,info){
   const sg = g.createLinearGradient(0,0,0,H); sg.addColorStop(0,'#2a5ac8'); sg.addColorStop(0.18,'#6ad4f0'); sg.addColorStop(1,'#1a8ab8');
   g.fillStyle = sg; g.fillRect(0,0,W,H);
@@ -4938,7 +4953,7 @@ DRAW.veilPortal = drawVeilPortal;
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
 Object.keys(VEIL_GEMS).forEach(id=>{ DRAW['veilgem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,VEIL_GEMS[id].color); });
-DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot;
+DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = drawFishSpot; DRAW.ballProp = drawBallProp;
 DRAW.schoolDoor = drawSchoolDoor; DRAW.professora = drawProfessora;
 Object.entries(SCHOOL_ROOMS).forEach(([id,d])=>{ DRAW['schoolroom_'+id] = (g,x,y,s,done)=> drawClassroomDoor(g,x,y,s,done,d.color,d.icon); });
 
@@ -6003,7 +6018,8 @@ const ACHIEVEMENTS = [
   { id:'veilgems',name:'Luz do Além',            desc:'Encontre as 3 Joias Celestiais em Além do Véu', reward:150, test:p=> veilGemCount() >= 3 },
   { id:'blessed', name:'Bênção Celestial',       desc:'Vença o Anjo Guardião e receba a Bênção do Altar Celestial', reward:300, test:p=> p.veilBlessed },
   { id:'duelist', name:'Duelista',               desc:'Vença seu primeiro duelo PvP contra um amigo', reward:60, test:p=> p.duelWins >= 1 },
-  { id:'school',  name:'Nota Dez',                desc:'Compre todas as salas especiais da Escola',   reward:200, test:p=> schoolRoomCount() >= 4 }
+  { id:'school',  name:'Nota Dez',                desc:'Compre todas as salas especiais da Escola',   reward:200, test:p=> schoolRoomCount() >= 4 },
+  { id:'dodgeball', name:'Rei da Queimada',        desc:'Acerte 20 alvos na Queimada Relâmpago',       reward:100, test:p=> p.dodgeballHits >= 20 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -6430,6 +6446,10 @@ function buildOpenWorld(){
   const salaEdFisica = schoolRoom(drawSalaEdFisica, 'EDUCAÇÃO FÍSICA');
   const salaIngles = schoolRoom(drawSalaIngles, 'SALA DE INGLÊS');
   const biblioteca = schoolRoom(drawBiblioteca, 'BIBLIOTECA');
+  // Queimada Relâmpago: grab the ball to start a round, right there on the gym floor
+  salaEdFisica.npcs = [ { x:W/2-20, y:H/2-20, w:40, h:40, type:'ballProp', scale:28, persistent:true,
+    get label(){ return dodgeball ? '' : 'Pegar a bola (Queimada Relâmpago)'; },
+    onInteract: ()=>{ if (!dodgeball) startDodgeball(); } } ];
   function schoolRoomDoor(id, x, roomScene){
     const d = SCHOOL_ROOMS[id];
     return { x, y:140, w:50, h:60, type:'schoolroom_'+id, scale:34, persistent:true, talking:!!progress.schoolRooms[id],
@@ -7462,6 +7482,74 @@ function closeCoop(){ coopOverlay.classList.remove('open'); }
 coopBtn.addEventListener('click', openCoop);
 document.getElementById('coopClose').addEventListener('click', closeCoop);
 
+/* ---------------- Queimada Relâmpago: a dodgeball minigame in Educação Física — grab the ball, face a moving
+   target and throw (espaço) to score crystals before the clock runs out. Movement stays free so you can line up
+   the shot; only exits/other interactions pause while a round is on. ---------------- */
+let dodgeball = null;   // { t, score, coins, held, proj, targets:[...] } while a round is active
+const DODGEBALL_TIME = 30;
+function startDodgeball(){
+  dodgeball = {
+    t: DODGEBALL_TIME, score:0, coins:0, held:true, proj:null,
+    targets: [
+      { x:W-110, y:170, dir:1,  speed:55, r:26 },
+      { x:W-90,  y:330, dir:-1, speed:75, r:24 },
+      { x:110,   y:250, dir:1,  speed:50, r:24 }
+    ]
+  };
+  sfxSpecial();
+}
+function throwDodgeball(){
+  if (!dodgeball || !dodgeball.held) return;
+  dodgeball.held = false;
+  dodgeball.proj = { x:player.x+player.w/2, y:player.y+player.h/2, dir:player.facing||1 };
+  sfxAttack();
+}
+function updateDodgeball(dt){
+  if (!dodgeball) return;
+  dodgeball.t -= dt;
+  if (dodgeball.t <= 0){ endDodgeball(); return; }
+  dodgeball.targets.forEach(tg=>{
+    tg.x += tg.dir*tg.speed*dt;
+    if (tg.x < tg.r+30){ tg.x = tg.r+30; tg.dir = 1; }
+    if (tg.x > W-tg.r-30){ tg.x = W-tg.r-30; tg.dir = -1; }
+  });
+  const pr = dodgeball.proj;
+  if (pr){
+    pr.x += pr.dir*640*dt;
+    let hit = false;
+    dodgeball.targets.forEach(tg=>{
+      if (!hit && Math.hypot(pr.x-tg.x, pr.y-tg.y) < tg.r+10){
+        hit = true;
+        dodgeball.score++; dodgeball.coins += 5; progress.dodgeballHits++; grantCrystals(5);
+        fxBurst(tg.x, tg.y, 16, '255,210,100', 200, 2.4, 0.5, 0); sfxPickup();
+        tg.x = tg.dir > 0 ? tg.r+30 : W-tg.r-30;   // back off the wall it just hit near, ball returns to hand
+      }
+    });
+    if (hit || pr.x < -20 || pr.x > W+20){ dodgeball.proj = null; dodgeball.held = true; }
+  }
+}
+function endDodgeball(){
+  const d = dodgeball; dodgeball = null;
+  if (d.coins > 0) checkAchievements();
+  startDialogue([{speaker:ROSTER[progress.main].name, text:`⚡ Queimada Relâmpago terminou! ${d.score} acertos, +${d.coins} 💎 no total.`, color:'#7ef9ff'}]);
+}
+function drawDodgeballHud(g){
+  const d = dodgeball;
+  g.save();
+  g.fillStyle = 'rgba(10,10,20,0.7)'; roundRect(g,W/2-110,10,220,30,10); g.fill();
+  g.fillStyle = '#fff'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center';
+  g.fillText(`⏱ ${Math.ceil(d.t)}s · 🎯 ${d.score} · 💎 ${d.coins}`, W/2, 30);
+  d.targets.forEach(tg=>{
+    g.fillStyle = '#ff5a5a'; g.beginPath(); g.arc(tg.x,tg.y,tg.r,0,Math.PI*2); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke();
+    g.font = 'bold 18px sans-serif'; g.fillText('🎯', tg.x, tg.y+6);
+  });
+  if (d.proj){ g.fillStyle = '#ff6a2a'; g.beginPath(); g.arc(d.proj.x, d.proj.y, 10, 0, Math.PI*2); g.fill(); }
+  if (d.held){ g.fillStyle = '#ff6a2a'; g.beginPath(); g.arc(player.x+player.w/2, player.y-16, 8, 0, Math.PI*2); g.fill(); }
+  g.fillStyle = 'rgba(255,255,255,0.8)'; g.font = 'bold 11px sans-serif';
+  g.fillText('espaço: jogar a bola · vire pro lado do alvo antes de jogar!', W/2, H-14);
+  g.restore();
+}
 /* ---------------- fishing minigame: press the action button right as the bobber crosses the highlighted zone ---------------- */
 let fishing = null;   // { t, zoneStart, zoneLen } while active
 function startFishing(){ fishing = { t:0, zoneStart:0.3+Math.random()*0.35, zoneLen:0.16 }; sceneLocked = true; }
@@ -7506,6 +7594,7 @@ function loop(t){
     }
     mpUpdate(dt);
     updateFishing(dt);
+    updateDodgeball(dt);
     updateActionButton();
     updateInventoryHud();
     renderScene();
