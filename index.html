@@ -2206,6 +2206,10 @@ function handleInteractKey(){
 }
 
 let stepTimer = 0;
+let playerIdleBlend = 0;   // 0 while moving, eases to 1 while standing still — drives the idle breathing animation
+// living, roster-style sprites get a subtle idle breathing bob/lean; mechanical and decorative types (chests, portals,
+// gems, drones) stay perfectly still, since they were never meant to look alive
+const IDLE_TYPES = new Set(['duo','astro','huggy','cueio','hunter','king','totozinho','ice','glard','raphidash','zapi','naia','father','mother','villager']);
 function updateExploration(dt){
   if (dialogueActive || sceneLocked || !currentScene) return;
   if (currentScene.tick && !battle) currentScene.tick();
@@ -2226,11 +2230,12 @@ function updateExploration(dt){
     const step = Math.min(moveSpeed*dt, 24);   // never hop further than a thin pillar in one frame
     const nx = player.x + dx*step;
     const ny = player.y + dy*step;
+    const obstacles = duelActive ? [] : (currentScene.obstacles||[]);    // the dedicated duel arena has an open floor, not the real room's walls
     const tryRect = {x:nx, y:player.y, w:player.w, h:player.h};
     let moved = false;
-    if (!(currentScene.obstacles||[]).some(o=>rectsOverlap(tryRect,o))){ player.x = clampX(nx); moved = true; }
+    if (!obstacles.some(o=>rectsOverlap(tryRect,o))){ player.x = clampX(nx); moved = true; }
     const tryRect2 = {x:player.x, y:ny, w:player.w, h:player.h};
-    if (!(currentScene.obstacles||[]).some(o=>rectsOverlap(tryRect2,o))){ player.y = clampY(ny); moved = true; }
+    if (!obstacles.some(o=>rectsOverlap(tryRect2,o))){ player.y = clampY(ny); moved = true; }
     if (moved){
       stepTimer -= dt;
       if (stepTimer <= 0){ sfxStep(); stepTimer = 0.28; }
@@ -2238,6 +2243,7 @@ function updateExploration(dt){
   } else {
     stepTimer = 0;
   }
+  playerIdleBlend += ((dx||dy ? 0 : 1) - playerIdleBlend) * Math.min(1, dt*6);   // eases in while standing still, out the moment you move
   if (followers.length){
     followerTrail.unshift({x:player.x, y:player.y});
     const maxLen = (followers.length+1)*FOLLOWER_SPACING + 4;
@@ -2257,8 +2263,14 @@ function updateExploration(dt){
   hintEl.style.display = showHint ? 'block' : 'none';
   hintEl.textContent = '␣ interagir';
 }
-function clampX(v){ return Math.max(20, Math.min(W-20-player.w, v)); }
-function clampY(v){ return Math.max(70, Math.min(H-20-player.h, v)); }
+function clampX(v){
+  if (duelActive) return Math.max(DUEL_ARENA.x+30, Math.min(DUEL_ARENA.x+DUEL_ARENA.w-30-player.w, v));
+  return Math.max(20, Math.min(W-20-player.w, v));
+}
+function clampY(v){
+  if (duelActive) return Math.max(DUEL_ARENA.y+30, Math.min(DUEL_ARENA.y+DUEL_ARENA.h-30-player.h, v));
+  return Math.max(70, Math.min(H-20-player.h, v));
+}
 
 /* ---------------- visual effects: particles, shake, lighting, ambience ---------------- */
 const fxParticles = [];   // short-lived world-space sparks/embers/smoke
@@ -2545,20 +2557,28 @@ function renderScene(){
   ctx.save();
   if (fxShake > 0){ const m = fxShakeMag*(fxShake > 0.2 ? 1 : fxShake/0.2); ctx.translate((Math.random()-0.5)*2*m,(Math.random()-0.5)*2*m); }
   if (fxZoom > 0.001){ ctx.translate(W/2,H/2); ctx.scale(1+fxZoom,1+fxZoom); ctx.translate(-W/2,-H/2); }   // camera punch-in
-  currentScene.draw(ctx);
-  if (sfx.decor) sfx.decor(ctx, tSec);
-  if (sfx.lights) fxLights(ctx, sfx.lights, tSec);
+  if (duelActive) drawDuelArena(ctx); else currentScene.draw(ctx);
+  if (sfx.decor && !duelActive) sfx.decor(ctx, tSec);
+  if (sfx.lights && !duelActive) fxLights(ctx, sfx.lights, tSec);
   if (battle) drawHazards(ctx, tSec);
-  for (const npc of (currentScene.npcs||[])){
+  if (!duelActive) for (const npc of (currentScene.npcs||[])){   // the duel arena stands alone — no stray villagers or monsters from the real room
     const draw = DRAW[npc.type];
-    if (draw) draw(ctx, npc.x+npc.w/2, npc.y+npc.h/2, npc.scale||34, npc.talking);
+    if (draw){
+      if (IDLE_TYPES.has(npc.type)){
+        const seed = npc.x*0.13 + npc.y*0.07;
+        ctx.save(); ctx.translate(npc.x+npc.w/2, npc.y+npc.h/2);
+        ctx.translate(0, Math.sin(tSec*1.6+seed)*2); ctx.rotate(Math.sin(tSec*0.8+seed)*0.015);
+        draw(ctx, 0, 0, npc.scale||34, npc.talking);
+        ctx.restore();
+      } else draw(ctx, npc.x+npc.w/2, npc.y+npc.h/2, npc.scale||34, npc.talking);
+    }
     if (npc.label){
       ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.font='11px sans-serif'; ctx.textAlign='center';
       ctx.fillText(npc.label, npc.x+npc.w/2, npc.y - 8);
     }
   }
   if (!battle){
-    followers.forEach((type,i)=>{
+    if (!duelActive) followers.forEach((type,i)=>{   // party members stay out of a 1v1 duel
       const sample = followerTrail[Math.min(followerTrail.length-1, (i+1)*FOLLOWER_SPACING)];
       if (!sample) return;
       const draw = DRAW[type];
@@ -2595,7 +2615,12 @@ function renderScene(){
   else if (battle && battle.iframes > 0 && player.dashT > 0) ctx.globalAlpha = 0.7;
   if (progress.form !== 'normal' && player.type === progress.main && (currentScene.isOpenWorld || (battle && battle.mods))) drawFormAura(ctx, player.x+player.w/2, player.y+player.h/2, progress.form, tSec);
   if (lostGemCount() >= 6 && !battle) drawLostGemsSparkle(ctx, player.x+player.w/2, player.y+player.h/2, tSec);   // cosmetic reward for finding every Joia Perdida
-  DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
+  if (IDLE_TYPES.has(player.type) && playerIdleBlend > 0.01){
+    ctx.save(); ctx.translate(player.x+player.w/2, player.y+player.h/2);
+    ctx.translate(0, Math.sin(tSec*1.6)*2*playerIdleBlend); ctx.rotate(Math.sin(tSec*0.8)*0.015*playerIdleBlend);
+    DRAW[player.type](ctx, 0, 0, PLAYER_SCALE[player.type]||34, false);
+    ctx.restore();
+  } else DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
   if (progress.robotEquipped && !battle) drawRobotBadge(ctx, player.x+player.w/2, player.y+player.h/2, tSec, ROBOT_DEFS[progress.robotEquipped]);
   if (!battle) drawEquipBadges(ctx, player.x+player.w/2, player.y+player.h/2, tSec);
   ctx.globalAlpha = 1;
@@ -2644,7 +2669,7 @@ function renderScene(){
   fxDrawTexts(ctx);
   ctx.restore();
   // screen-wide finishing: colour grade, drifting ambience, soft dark edges
-  if (sfx.tint && fxQuality() > 0){ ctx.fillStyle = sfx.tint; ctx.fillRect(0,0,W,H); }
+  if (sfx.tint && !duelActive && fxQuality() > 0){ ctx.fillStyle = sfx.tint; ctx.fillRect(0,0,W,H); }
   fxAmbient(ctx, sfx.ambient, tSec);
   if (fxQuality() > 0) ctx.drawImage(fxVignette, 0, 0);
   fxDrawSpeed(ctx, tSec);
@@ -6883,7 +6908,7 @@ function mpBeginHost(){ mpCleanup(); mpRole = 'host'; mpPendingHost = true; mpRe
 /* ---- PvP duel: a lightweight real-time fight against the co-op partner, riding the same data link ---- */
 // Each side is authoritative for its own HP: landing a hit just sends a "you took X" message, the same way
 // the normal solo battle does damage locally — nothing about world state needs to agree between the two.
-let duelActive = false, duelPending = false, duelHp = 100, duelMaxHp = 100, duelOppHp = 100, duelOppMaxHp = 100, duelAtkCd = 0, duelIframes = 0;
+let duelActive = false, duelPending = false, duelHp = 100, duelMaxHp = 100, duelOppHp = 100, duelOppMaxHp = 100, duelAtkCd = 0, duelIframes = 0, duelReturnPos = null;
 function requestDuel(){
   if (!mpConn || !mpConn.open) return;
   if (!mpRemote || !currentScene || mpRemote.area !== currentScene.mpKey){ mpSetStatus('Vocês precisam estar na mesma área pra duelar — fique perto do seu amigo.'); return; }
@@ -6895,12 +6920,18 @@ function declineDuel(){ duelPending = false; mpSendRaw({ t:'duelDecline' }); mpR
 function startDuel(){
   duelActive = true; duelPending = false; duelHp = duelMaxHp = 100; duelOppHp = duelOppMaxHp = 100; duelAtkCd = 0; duelIframes = 0;
   closeCoop();
+  duelReturnPos = { x:player.x, y:player.y };   // so the fighters land back where they were standing once the duel ends
+  // host and guest always spawn on opposite sides of the dedicated arena, regardless of who issued the challenge
+  player.x = mpRole === 'host' ? DUEL_ARENA.x+70 : DUEL_ARENA.x+DUEL_ARENA.w-70-player.w;
+  player.y = DUEL_ARENA.y + DUEL_ARENA.h/2 - player.h/2;
+  player.facing = mpRole === 'host' ? 1 : -1;
   showBanner('⚔️ Duelo contra '+(mpRemote ? mpRemote.name : 'seu amigo')+'! Primeiro a zerar a vida perde.');
   sfxSpecial();
 }
 function endDuel(result){
   if (!duelActive){ duelPending = false; return; }
   duelActive = false;
+  if (duelReturnPos){ player.x = duelReturnPos.x; player.y = duelReturnPos.y; duelReturnPos = null; }
   if (result === 'left'){ showBanner('O duelo acabou — o outro jogador saiu.'); return; }
   fxWhite = result === 'win' ? 0.6 : 0.3; fxShakeNow(0.4, 6);
   if (result === 'win'){ progress.duelWins++; sfxVictory(); showBanner(`🏆 Você venceu o duelo! (${progress.duelWins}V - ${progress.duelLosses}D)`); }
@@ -6919,6 +6950,37 @@ function duelAttack(){
   fxSlash(ex, ey, Math.random()*Math.PI*2, 100, '255,140,140');
   fxBurst(ex, ey, 10, '255,120,120', 220, 2.6, 0.4, 0);
   sfxAttack();
+}
+// Arena de Duelo: a dedicated coliseum pit for PvP. While a duel is active, this replaces whatever room the two
+// players happened to be standing in (its real walls/obstacles are ignored too — see clampX/clampY and
+// updateExploration), so every duel plays out on the same neutral stage instead of wherever they met.
+const DUEL_ARENA = { x: W/2-230, y: H/2-150, w:460, h:300 };
+function drawDuelArena(g){
+  const t = Date.now()/1000, cx = W/2, cy = H/2-10;
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#140c22'); bg.addColorStop(0.55,'#241836'); bg.addColorStop(1,'#120a1c');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  for (let ring=2; ring>=0; ring--){        // tiered bleachers behind the pit
+    g.fillStyle = `rgba(${46-ring*9},${34-ring*7},${64-ring*11},0.95)`;
+    g.beginPath(); g.ellipse(cx,cy,300+ring*55,186+ring*34,0,0,Math.PI*2); g.fill();
+  }
+  g.fillStyle = 'rgba(10,6,16,0.85)';        // a crowd of silhouette dots along the front rows
+  for (let i=0;i<36;i++){ const a=(i/36)*Math.PI*2, px=cx+Math.cos(a)*316, py=cy+Math.sin(a)*196;
+    if (py < cy+150){ g.beginPath(); g.ellipse(px,py,7,11,0,0,Math.PI*2); g.fill(); } }
+  for (let i=0;i<8;i++){        // torches ringing the pit, each with its own flicker
+    const a = (i/8)*Math.PI*2+0.3, px = cx+Math.cos(a)*244, py = cy+Math.sin(a)*154, flick = 0.7+0.3*Math.sin(t*8+i);
+    g.fillStyle = '#3a2a1a'; g.fillRect(px-3,py-16,6,28);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const fg = g.createRadialGradient(px,py-20,0,px,py-20,26); fg.addColorStop(0,`rgba(255,170,60,${0.75*flick})`); fg.addColorStop(1,'rgba(255,170,60,0)');
+    g.fillStyle = fg; g.beginPath(); g.arc(px,py-20,26,0,Math.PI*2); g.fill();
+    g.fillStyle = `rgba(255,${150+Math.round(40*flick)},60,0.95)`; g.beginPath(); g.ellipse(px,py-18-6*flick,5,10*flick,0,0,Math.PI*2); g.fill();
+    g.restore();
+  }
+  const pg = g.createRadialGradient(cx,cy,20,cx,cy,230); pg.addColorStop(0,'#d8b878'); pg.addColorStop(1,'#a8864a');   // the sandy pit
+  g.fillStyle = pg; g.beginPath(); g.ellipse(cx,cy,224,144,0,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(90,60,20,0.55)'; g.lineWidth = 6; g.beginPath(); g.ellipse(cx,cy,218,140,0,0,Math.PI*2); g.stroke();
+  g.save(); g.globalAlpha = 0.3; g.fillStyle = '#6a4a20'; g.font = 'bold 54px sans-serif'; g.textAlign = 'center'; g.fillText('VS', cx, cy+18); g.restore();
+  g.fillStyle = 'rgba(255,230,180,0.8)'; g.font = 'bold 12px sans-serif'; g.textAlign = 'center';
+  g.fillText('ARENA DE DUELO', cx, cy-166);
 }
 function drawDuelHud(g){
   const bar = (x,label,hp,maxHp,color)=>{
