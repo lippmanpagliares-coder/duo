@@ -581,6 +581,19 @@ function schoolRoomBonus(){
   Object.entries(SCHOOL_ROOMS).forEach(([id,d])=>{ if (progress.schoolRooms[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
   return out;
 }
+// Mundo dos Blocos: a voxel-inspired bonus world — 3 rare ore blocks to find (small permanent bonuses), roaming
+// Bombons Verdes to fight for crystals, and the Golem de Pedra guarding the world as its boss
+const BLOCK_ORES = {
+  diamante:  { name:'Bloco de Diamante',  icon:'💎', color:'140,220,255', text:'+4 de ataque',           bonus:{atk:4} },
+  ouro:      { name:'Bloco de Ouro',      icon:'🟡', color:'255,215,90',  text:'+8% de cristais ganhos', bonus:{crystals:0.08} },
+  esmeralda: { name:'Bloco de Esmeralda', icon:'🟢', color:'110,230,140', text:'+10 de vida máxima',     bonus:{hp:10} }
+};
+function blockOreCount(){ return Object.keys(BLOCK_ORES).filter(id=> progress.blockOres[id]).length; }
+function blockOreBonus(){
+  const out = { hp:0, atk:0, crystals:0 };
+  Object.entries(BLOCK_ORES).forEach(([id,d])=>{ if (progress.blockOres[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
 // Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
 // an "accessory" that grants a passive power and shows up as a little badge following you around
 const ROBOT_DEFS = {
@@ -641,7 +654,8 @@ const ENEMY_ELEMENTS = {
   titan:{weak:'gelo',resist:'sombra'}, shadowPredator:{weak:'fogo',resist:'sombra'}, giant:{weak:'gelo',resist:'fogo'},
   faceless:{weak:'fogo',resist:'sombra'}, universeDevourer:{weak:'gelo',resist:'sombra'}, eyeAngel:{weak:'sombra',resist:'fogo'},
   ortsa:{weak:'gelo',resist:'eletrico'}, wordDevourer:{weak:'fogo',resist:'sombra'}, smiler:{weak:'eletrico',resist:'sombra'},
-  crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}, professora:{weak:'eletrico',resist:'sombra'}
+  crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}, professora:{weak:'eletrico',resist:'sombra'},
+  bombom:{weak:'gelo',resist:'fogo'}, golemPedra:{weak:'eletrico',resist:'gelo'}
 };
 // redeem codes: type one into the Equipamento tab for a free reward — each works once per save
 const REDEEM_CODES = {
@@ -703,11 +717,12 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
     schoolRooms:{ artes:false, edfisica:false, ingles:false, biblioteca:false },
+    blockOres:{ diamante:false, ouro:false, esmeralda:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
     quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
     chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false, zebot:false },
@@ -732,10 +747,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','veilGems','schoolRooms','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','veilGems','schoolRooms','blockOres','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -747,11 +762,11 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), rb = robotBonus(), eq = equipBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), rb = robotBonus(), eq = equipBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + (rb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + (rb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + (rb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + (rb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
@@ -1661,6 +1676,23 @@ function drawProfessora(g,x,y,s,talking){
   g.restore();
   g.restore();
 }
+// Bombom Verde: a square green critter from the Mundo dos Blocos that hisses and flashes white right before it
+// would pop — a nod to classic block-game monsters, with its own original blocky face, no copied character design
+function drawBombom(g,x,y,s,talking){
+  const t = Date.now()/1000, bob = Math.sin(t*2)*s*0.05;
+  g.save(); g.translate(x,y+bob);
+  groundShadow(g, s, s*0.8);
+  const flash = talking ? (0.5+0.5*Math.sin(t*14)) : 0;
+  g.fillStyle = `rgb(${Math.round(60+flash*195)},${Math.round(180+flash*75)},${Math.round(70+flash*185)})`;
+  g.fillRect(-s*0.5,-s*0.95,s,s*1.3);                 // blocky head+body as one tall cube
+  g.fillStyle = 'rgba(0,0,0,0.15)';
+  for (let i=1;i<4;i++) g.fillRect(-s*0.5,-s*0.95+i*s*0.32,s,2);   // seam lines, pixel-block look
+  g.fillStyle = '#1a2a14';                            // simple original face: two square eyes, a frown
+  g.fillRect(-s*0.3,-s*0.6,s*0.16,s*0.16); g.fillRect(s*0.14,-s*0.6,s*0.16,s*0.16);
+  g.fillRect(-s*0.22,-s*0.32,s*0.44,s*0.12);
+  g.fillStyle = '#4a7a2a'; g.fillRect(-s*0.56,-s*0.3,s*0.1,s*0.5); g.fillRect(s*0.46,-s*0.3,s*0.1,s*0.5);  // stubby arms
+  g.restore();
+}
 function drawDrone(g,x,y,s){
   g.save(); g.translate(x,y);
   const bob = Math.sin(Date.now()/220)*s*0.05;
@@ -2000,6 +2032,26 @@ function drawEnergyCell(g,x,y,s,found){
   g.fillStyle = '#274a3a'; g.beginPath(); g.ellipse(0,0,s*0.28,s*0.42,0,0,Math.PI*2); g.fill();
   g.fillStyle = `rgba(125,255,176,${0.6+0.4*pulse})`; g.beginPath(); g.ellipse(0,0,s*0.14,s*0.3,0,0,Math.PI*2); g.fill();
   g.strokeStyle = '#122a1f'; g.lineWidth = 2; g.beginPath(); g.ellipse(0,0,s*0.28,s*0.42,0,0,Math.PI*2); g.stroke();
+  g.restore();
+}
+// Golem de Pedra: the boss of the Mundo dos Blocos — a hulking voxel giant built from stacked stone blocks,
+// with glowing cracks down the chest and a pair of molten eyes
+function drawGolemPedra(g,x,y,s){
+  const t = Date.now()/1000, step = Math.sin(t*1.5)*s*0.03;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s*1.1, s*0.95);
+  g.fillStyle = '#6a7278'; g.fillRect(-s*0.5,-s*0.1+step,s*0.32,s*0.7); g.fillRect(s*0.18,-s*0.1-step,s*0.32,s*0.7);   // legs
+  g.fillStyle = '#7a848a'; g.fillRect(-s*0.62,-s*0.9,s*1.24,s*0.95);        // torso block
+  g.fillStyle = 'rgba(0,0,0,0.15)';
+  for (let i=1;i<3;i++) g.fillRect(-s*0.62,-s*0.9+i*s*0.32,s*1.24,2);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.strokeStyle = `rgba(255,150,60,${0.6+0.3*Math.sin(t*3)})`; g.lineWidth = s*0.04;
+  g.beginPath(); g.moveTo(-s*0.1,-s*0.8); g.lineTo(s*0.05,-s*0.5); g.lineTo(-s*0.08,-s*0.2); g.stroke();
+  g.restore();
+  g.fillStyle = '#5a6268'; g.fillRect(-s*0.95,-s*0.75,s*0.36,s*0.6); g.fillRect(s*0.6,-s*0.75,s*0.36,s*0.6);   // arms
+  g.fillStyle = '#8a949a'; g.fillRect(-s*0.4,-s*1.5,s*0.8,s*0.65);          // head block
+  g.fillStyle = `rgba(255,${100+Math.round(60*Math.sin(t*4))},60,0.9)`;
+  g.fillRect(-s*0.26,-s*1.3,s*0.16,s*0.16); g.fillRect(s*0.1,-s*1.3,s*0.16,s*0.16);   // glowing eyes
   g.restore();
 }
 function drawCrate(g,x,y,s){
@@ -3975,6 +4027,35 @@ function drawTinyBot(g,x,y,s,color){
   g.fillStyle = lighten(color,-20); g.fillRect(-s*0.58,-s*0.05,s*0.18,s*0.6); g.fillRect(s*0.4,-s*0.05,s*0.18,s*0.6);
   g.restore();
 }
+// Mundo dos Blocos: a cheerful voxel-inspired bonus world — square sun, cubic clouds, layered grass/dirt terrain
+// and blocky trees. A nod to block-building games without reproducing anyone's specific character designs.
+function drawBlockWorld(g){
+  const t = Date.now()/1000;
+  const sky = g.createLinearGradient(0,0,0,H); sky.addColorStop(0,'#7ec8f0'); sky.addColorStop(1,'#bfe8ff');
+  g.fillStyle = sky; g.fillRect(0,0,W,H);
+  g.fillStyle = '#ffe24a'; g.fillRect(W-110,40,56,56);
+  g.fillStyle = 'rgba(255,255,255,0.9)';
+  [[80,60],[260,90],[520,50],[720,100]].forEach(([cx,cy])=>{
+    [[-1,0],[0,0],[1,0],[0,-1]].forEach(([dx,dy])=> g.fillRect(cx+dx*22-11,cy+dy*18-9,22,18));
+  });
+  for (let x=-40; x<W+40; x+=70){
+    g.fillStyle = '#8a9aa0'; g.fillRect(x, H*0.42, 70, H*0.18);
+    g.fillStyle = '#7a8a90'; g.fillRect(x, H*0.42, 70, 10);
+  }
+  g.fillStyle = '#5a9a3a'; g.fillRect(0, H*0.6, W, H*0.42);
+  g.fillStyle = '#6aae48'; g.fillRect(0, H*0.6, W, 14);
+  g.fillStyle = '#7a5230'; g.fillRect(0, H*0.6+14, W, H*0.42-14);
+  g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 2;
+  for (let x=0;x<W;x+=48) for (let y=H*0.6+14;y<H;y+=48) g.strokeRect(x,y,48,48);
+  [[140],[W-200],[W*0.55]].forEach(([tx])=>{
+    const ty = H*0.6;
+    g.fillStyle = '#6a4424'; g.fillRect(tx-10,ty-50,20,50);
+    g.fillStyle = '#2f9a3a';
+    for (let i=-1;i<=1;i++) for (let j=-1;j<=1;j++) g.fillRect(tx+i*24-12,ty-90+j*24-12,24,24);
+  });
+  g.fillStyle = 'rgba(40,60,20,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar', W/2, H-14);
+}
 // Além do Véu: a post-game bonus dimension — a heaven, not a void, all bright sky, gold light and cloud marble
 function drawBeyondVeil(g){
   const t = Date.now()/1000;
@@ -4985,6 +5066,21 @@ function drawVeilPortal(g,x,y,s){
   g.fillStyle = '#fff8e0'; for (let i=0;i<8;i++){ const a = t*0.25+i*0.78, r = s*0.65*fxRand(i,97); g.fillRect(Math.cos(a)*r*0.9,Math.sin(a)*r,1.8,1.8); }
   g.restore();
 }
+// the doorway to the Mundo dos Blocos: a stone-block frame around a shifting, swirling portal texture
+function drawBlockPortal(g,x,y,s){
+  const t = Date.now()/1000;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s, s*0.9);
+  g.fillStyle = '#4a4a52'; g.fillRect(-s*0.55,-s*1.2,s*0.3,s*1.5); g.fillRect(s*0.25,-s*1.2,s*0.3,s*1.5); g.fillRect(-s*0.55,-s*1.35,s*1.1,s*0.3);
+  g.save(); g.beginPath(); g.rect(-s*0.4,-s*1.05,s*0.8,s*1.2); g.clip();
+  const grad = g.createLinearGradient(-s*0.4,-s,s*0.4,s*0.2);
+  grad.addColorStop(0,'#7a3aff'); grad.addColorStop(0.5,'#3affd0'); grad.addColorStop(1,'#7a3aff');
+  g.fillStyle = grad; g.fillRect(-s*0.4,-s*1.05,s*0.8,s*1.2);
+  g.globalCompositeOperation = 'lighter'; g.fillStyle = 'rgba(255,255,255,0.25)';
+  for (let i=0;i<4;i++){ const yy = -s*1.0 + ((t*0.6+i*0.25)%1)*s*1.15; g.fillRect(-s*0.4,yy,s*0.8,s*0.08); }
+  g.restore();
+  g.restore();
+}
 DRAW.veilPortal = drawVeilPortal;
 DRAW.voidPortal = drawVoidPortal;
 Object.keys(LOST_GEMS).forEach(id=>{ DRAW['gem_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,LOST_GEMS[id].color); });
@@ -4993,6 +5089,8 @@ DRAW.labDoor = drawLabDoor; DRAW.labConsole = drawLabConsole; DRAW.fishSpot = dr
 DRAW.easelProp = drawEaselProp; DRAW.quizBoardProp = drawQuizBoardProp; DRAW.bookCartProp = drawBookCartProp;
 DRAW.schoolDoor = drawSchoolDoor; DRAW.professora = drawProfessora;
 Object.entries(SCHOOL_ROOMS).forEach(([id,d])=>{ DRAW['schoolroom_'+id] = (g,x,y,s,done)=> drawClassroomDoor(g,x,y,s,done,d.color,d.icon); });
+DRAW.bombom = drawBombom; DRAW.golemPedra = drawGolemPedra; DRAW.blockPortal = drawBlockPortal;
+Object.keys(BLOCK_ORES).forEach(id=>{ DRAW['ore_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,BLOCK_ORES[id].color); });
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -6057,7 +6155,9 @@ const ACHIEVEMENTS = [
   { id:'duelist', name:'Duelista',               desc:'Vença seu primeiro duelo PvP contra um amigo', reward:60, test:p=> p.duelWins >= 1 },
   { id:'school',  name:'Nota Dez',                desc:'Compre todas as salas especiais da Escola',   reward:200, test:p=> schoolRoomCount() >= 4 },
   { id:'dodgeball', name:'Rei da Queimada',        desc:'Acerte 20 alvos na Queimada Relâmpago',       reward:100, test:p=> p.dodgeballHits >= 20 },
-  { id:'classgames', name:'Aluno Nota Mil',        desc:'Acerte 30 vezes nos minigames de Artes, Inglês e Biblioteca', reward:150, test:p=> p.classGameHits >= 30 }
+  { id:'classgames', name:'Aluno Nota Mil',        desc:'Acerte 30 vezes nos minigames de Artes, Inglês e Biblioteca', reward:150, test:p=> p.classGameHits >= 30 },
+  { id:'blockores', name:'Minerador',              desc:'Encontre os 3 blocos raros no Mundo dos Blocos', reward:150, test:p=> blockOreCount() >= 3 },
+  { id:'golem',     name:'Quebra-Pedras',          desc:'Derrote o Golem de Pedra no Mundo dos Blocos',  reward:400, test:p=> p.blockBossWon }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -6109,7 +6209,7 @@ function checkAchievements(){
   checkingAch = false;
   saveGame();
 }
-function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
+function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
 function refreshFollowers(){
   const order = Object.keys(ROSTER).filter(id=> progress.chars[id] && id !== progress.main);
   order.sort((a,b)=> (a===progress.sub ? -1 : 0) - (b===progress.sub ? -1 : 0));
@@ -6157,6 +6257,14 @@ function renderPanel(){
       h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
         <div class="pSub">${d.text} · ${got ? 'DESBLOQUEADA' : `custa ${d.cost} 💎 (bata nas professoras pra juntar)`}</div></div></div>`;
     });
+    h += `<div class="pHead" style="margin-top:6px"><span>Mundo dos Blocos (${blockOreCount()}/3 blocos) · portal em Terras Devastadas</span></div>`;
+    Object.entries(BLOCK_ORES).forEach(([k,d])=>{
+      const got = progress.blockOres[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'ENCONTRADO' : 'ainda não encontrado'}</div></div></div>`;
+    });
+    h += `<div class="pRow ${progress.blockBossWon ? 'done' : 'locked'}"><div style="font-size:22px">🗿</div><div class="pInfo"><div class="pTitle">Golem de Pedra</div>
+      <div class="pSub">${progress.blockBossWon ? 'DERROTADO' : 'guarda o Mundo dos Blocos'}</div></div></div>`;
     h += `<div class="pHead" style="margin-top:6px"><span>Missões</span></div>`;
     QUESTS.forEach(q=>{
       const done = progress.quests[q.id], ready = !done && q.test(progress);
@@ -6872,6 +6980,67 @@ function buildOpenWorld(){
       if (progress.finalWins < 1 && !progress.veilUnlocked){ startDialogue([{speaker:'???', text:'Nada aqui... por enquanto. Talvez depois de salvar o universo.', color:'#8a7aa0'}]); return; }
       startDialogue([{speaker:'???', text:'Com o universo salvo, uma fresta se abre para outro lugar — mais calmo, mas não menos perigoso.', color:'#ffe8c0'}], ()=> goToScene(beyondVeil, {x:W/2-17, y:H-90}));
     } });
+
+  // ---- Mundo dos Blocos: a cheerful voxel bonus world, open to explore anytime — no gate, no code, just walk in ----
+  function fightBombom(sc, npc){
+    owBattle({
+      title:'Um Bombom Verde!', intro:'Ele sibila e começa a piscar... luta rápido ou foge!', fleeChance:0.2, ranged:false,
+      enemy:{ name:'Bombom Verde', type:'bombom', hp:140, maxHp:140, atk:14, speed:85, scale:46, reach:58, hitColor:'180,255,140' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.kills++;
+        sc.npcs = sc.npcs.filter(n=> n !== npc);
+        grantCrystals(10); grantXp(35);
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'O Bombom se desfez em cubinhos de luz! +10 💎  +35 XP', color:'#7ef9ff'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Ele explodiu bem na minha cara... preciso treinar mais.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function startGolemBoss(){
+    owBattle({
+      title:'Golem de Pedra', intro:'Blocos de pedra se juntam e tomam forma — ele guarda esse mundo há eras.', fleeChance:0.08, ranged:false,
+      enemy:{ name:'Golem de Pedra', type:'golemPedra', hp:3200, maxHp:3200, atk:26, speed:55, scale:104, reach:92, hitColor:'200,200,210' },
+      onVictory: ()=>{
+        player.type = progress.main; progress.blockBossWon = true;
+        fxWhite = 0.9; fxShakeNow(0.5,7); sfxVictory(); grantCrystals(500); grantXp(500); checkAchievements();
+        startDialogue([{speaker:'Golem de Pedra', text:'*** (ele se desfaz em blocos, em paz) ***', color:'#d8d8e0'}]);
+      },
+      onDefeat: ()=>{
+        player.type = progress.main;
+        startDialogue([{speaker:ROSTER[progress.main].name, text:'Pedra demais pra quebrar agora... preciso ficar mais forte.', color:'#7ef9ff'}]);
+      }
+    });
+  }
+  function oreNpc(id, x, y){
+    const d = BLOCK_ORES[id];
+    return { x, y, w:50, h:50, type:'ore_'+id, scale:34, persistent:true, talking:!!progress.blockOres[id], label:d.name,
+      onInteract: function(){
+        if (progress.blockOres[id]){ startDialogue([{speaker:'Você', text:`Já peguei o ${d.name}.`, color:'#7ef9ff'}]); return; }
+        progress.blockOres[id] = true; this.talking = true;
+        sfxPickup(); fxWhite = 0.35; checkAchievements(); saveGame();
+        startDialogue([{speaker:'Você', text:`${d.icon} ${d.name}! ${d.text}. (${blockOreCount()}/3 blocos raros)`, color:'#ffe8c0'}]);
+      } };
+  }
+  const blockWorld = {
+    banner:'MUNDO DOS BLOCOS', isOpenWorld:false, draw:drawBlockWorld, obstacles:[],
+    npcs: [
+      oreNpc('diamante', 150, 180), oreNpc('ouro', W-190, 180), oreNpc('esmeralda', 150, H-180),
+      { x:W-220, y:H-210, w:56, h:56, type:'bombom', scale:46, label:'Bombom Verde', onInteract: function(){ fightBombom(blockWorld, this); } },
+      { x:W/2+150, y:220, w:56, h:56, type:'bombom', scale:46, label:'Bombom Verde', onInteract: function(){ fightBombom(blockWorld, this); } },
+      { x:W/2-40, y:110, w:80, h:90, type:'golemPedra', scale:48, persistent:true,
+        get label(){ return progress.blockBossWon ? 'Golem de Pedra (em paz)' : 'Golem de Pedra'; },
+        onInteract: function(){
+          if (progress.blockBossWon){ startDialogue([{speaker:'Golem de Pedra', text:'*** (silêncio de pedra) ***', color:'#d8d8e0'}]); return; }
+          startDialogue([{speaker:'Golem de Pedra', text:'*** RUGE ***', color:'#d8d8e0'}], ()=> startGolemBoss());
+        } }
+    ],
+    exits: [ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], {x:450,y:380}) } ]
+  };
+  areas[key(4,3)].npcs.push({ x:450, y:460, w:90, h:90, type:'blockPortal', scale:44, persistent:true, label:'Portal dos Blocos →',
+    onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal instável, feito de blocos flutuantes. Parece levar a um universo inteiro, quadradinho.', color:'#8aff8a'}], ()=> goToScene(blockWorld, {x:W/2-17, y:H-90})) });
+
   return { areas, brRooms, island, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
     goToScene(village, {x:W/2-17, y:430});
     startDialogue([{speaker:ROSTER[progress.main].name, text:'O mundo aberto! Explore as regiões, derrote monstros, conquiste esmeraldas e melhore o time na mochila 🎒.', color:'#7ef9ff'}]);
