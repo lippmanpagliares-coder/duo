@@ -639,6 +639,7 @@ const REDEEM_CODES = {
     progress.equipOwned.accessory.leviathan = true; progress.equip.accessory = 'leviathan';
   } },
   'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } },
+  'VOID': { text:'O Portal do Vazio se abre, mesmo sem os requisitos ainda! Procure-o em Terras Devastadas.', apply:()=>{ progress.voidUnlocked = true; } },
   'IMORTAL': { text:'Modo Imortal ativado! Você nunca mais sofre dano e cada golpe seu causa 10000000000000 de dano!', apply:()=>{ progress.immortalCode = true; } }
 };
 function redeemCode(raw){
@@ -687,7 +688,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false,
+    duelWins:0, duelLosses:0, fishCaught:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -5761,7 +5762,7 @@ function grantXp(n){
 }
 // everything the final boss demands: level 50 plus every emerald — the six challenge ones and the three story ones
 function finalReady(){
-  return progress.level >= FINAL_LEVEL && emeraldCount() >= 6 && upgrades.elementalEmerald && upgrades.disguiseEmerald && upgrades.monsterEmerald;
+  return progress.voidUnlocked || (progress.level >= FINAL_LEVEL && emeraldCount() >= 6 && upgrades.elementalEmerald && upgrades.disguiseEmerald && upgrades.monsterEmerald);
 }
 function unlockChar(id, msg){ if (!progress.chars[id]){ progress.chars[id] = true; showBanner('🧑 Novo personagem: '+msg+'!'); sfxPickup(); } }
 function checkUnlocks(){
