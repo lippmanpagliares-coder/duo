@@ -514,7 +514,8 @@ const ROSTER = {
   raphidash:{ name:'Raphidash', hp:0.95, atk:1.25, spGain:1.05, dashMul:1.0, crit:0.06, desc:'Coruja de fogo do planeta do Duo: +25% de ataque, +6% de crítico.', unlock:'Derrote 40 monstros' },
   zapi:  { name:'Zapi',    hp:0.90, atk:1.10, spGain:1.10, dashMul:0.7,  crit:0.04, desc:'Coruja elétrica do planeta do Duo: dash 30% mais rápido, +10% de especial.', unlock:'Chegue ao nível 10' },
   naia:  { name:'Naia',    hp:1.20, atk:1.00, spGain:1.25, dashMul:0.95, crit:0,    desc:'Coruja da água do planeta do Duo: +20% de vida, +25% de carga do especial.', unlock:'Colete 4 esmeraldas de desafio' },
-  glard: { name:'Glard',   hp:1.30, atk:1.30, spGain:1.0,  dashMul:1.15, crit:0,    desc:'Dinossauro de fogo: +30% de vida e ataque, dash mais lento.', unlock:'Conquiste a Esmeralda da Precisão' }
+  glard: { name:'Glard',   hp:1.30, atk:1.30, spGain:1.0,  dashMul:1.15, crit:0,    desc:'Dinossauro de fogo: +30% de vida e ataque, dash mais lento.', unlock:'Conquiste a Esmeralda da Precisão' },
+  zebot: { name:'Zé Bot',  hp:1.15, atk:1.45, spGain:0.95, dashMul:1.1,  crit:0.08, desc:'Robô construtor cheio de tecnologia: +45% de ataque, +15% de vida, +8% de crítico.', unlock:'Construa todos os robôs no Laboratório do Duo' }
 };
 const UPGRADE_DEFS = {
   hp:   { name:'Vitalidade',      icon:'💚', max:10, base:20, per:12,   text:lv=>`+${lv*12} de vida máxima` },
@@ -694,7 +695,7 @@ function freshProgress(){
     veilGems:{ luz:false, graca:false, eternidade:false },
     robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
     quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
-    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false },
+    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false, zebot:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
@@ -1255,6 +1256,40 @@ function drawGlard(g,x,y,s,facing){     // a chunky robot dinosaur: riveted meta
   g.strokeStyle = '#5a6270'; g.lineWidth = s*0.03; g.beginPath(); g.moveTo(s*0.3,-s*0.46); g.lineTo(s*0.26,-s*0.62); g.stroke();   // antenna
   g.fillStyle = `rgba(255,90,90,${0.7+0.3*Math.sin(t*7)})`; g.beginPath(); g.arc(s*0.26,-s*0.63,s*0.035,0,Math.PI*2); g.fill();
   g.fillStyle = '#5a6270'; g.beginPath(); g.ellipse(s*0.28,s*0.16,s*0.09,s*0.05,0.5,0,Math.PI*2); g.fill();                 // tiny arm
+  g.restore();
+}
+// Zé Bot: a construction robot graduated from the Laboratório do Duo — hazard-yellow plating, a hard-hat dome,
+// one round optic and a big wrench for an arm. Rewards whoever finishes building every robot in the Lab.
+function drawZeBot(g,x,y,s,facing){
+  facing = facing || 1;
+  g.save(); g.translate(x,y); g.scale(facing,1);
+  const t = Date.now()/1000, step = Math.sin(t*6)*s*0.04;
+  groundShadow(g, s, s*0.86);
+  g.fillStyle = '#2a2e34'; g.fillRect(-s*0.34,s*0.52,s*0.26,s*0.3+step); g.fillRect(s*0.08,s*0.52,s*0.26,s*0.3-step);          // tread legs
+  g.fillStyle = '#1a1c20'; g.beginPath(); roundRect(g,-s*0.4,s*0.78+step,s*0.36,s*0.14,s*0.07); g.fill();
+  g.beginPath(); roundRect(g,s*0.04,s*0.78-step,s*0.36,s*0.14,s*0.07); g.fill();
+  g.fillStyle = volumeGrad(g,-s*0.1,-s*0.05,s*0.7,'#ffd84a','#d9a71e');                                                      // boxy hazard-yellow body
+  g.beginPath(); roundRect(g,-s*0.46,-s*0.3,s*0.92,s*0.78,s*0.14); g.fill();
+  g.save(); g.beginPath(); roundRect(g,-s*0.46,-s*0.3,s*0.92,s*0.78,s*0.14); g.clip();                                       // hazard stripes painted across the chest
+  g.fillStyle = 'rgba(30,24,8,0.7)';
+  for (let i=-3;i<4;i++){ g.save(); g.translate(i*s*0.26,0); g.rotate(0.5); g.fillRect(-s*0.05,-s*0.9,s*0.1,s*1.8); g.restore(); }
+  g.restore();
+  g.fillStyle = volumeGrad(g,0,0,s*0.28,'#1a2a3a','#0a141c'); g.beginPath(); roundRect(g,-s*0.18,-s*0.08,s*0.36,s*0.34,s*0.06); g.fill();   // chest screen
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(120,230,255,${0.7+0.3*Math.sin(t*4)})`; g.fillRect(-s*0.12,-s*0.02,s*0.24,s*0.06); g.restore();
+  g.fillStyle = '#5a4a2a'; g.fillRect(-s*0.46,s*0.3,s*0.92,s*0.1);                                                            // tool belt
+  g.fillStyle = '#8a7a4a'; g.beginPath(); g.arc(0,s*0.35,s*0.05,0,Math.PI*2); g.fill();
+  g.fillStyle = volumeGrad(g,0,-s*0.6,s*0.4,'#ffe27a','#e0ab2a'); g.beginPath(); g.arc(0,-s*0.6,s*0.34,Math.PI,0); g.fill(); // hard-hat dome
+  g.fillStyle = '#c98f1a'; g.fillRect(-s*0.4,-s*0.62,s*0.8,s*0.1);
+  g.fillStyle = volumeGrad(g,0,-s*0.46,s*0.16,'#baffea','#1fbf6a'); g.beginPath(); g.arc(0,-s*0.46,s*0.15,0,Math.PI*2); g.fill();   // single round optic
+  g.strokeStyle = '#0a3a20'; g.lineWidth = s*0.025; g.stroke();
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(170,255,220,${0.75+0.25*Math.sin(t*5)})`; g.beginPath(); g.arc(-s*0.04,-s*0.49,s*0.05,0,Math.PI*2); g.fill(); g.restore();
+  g.strokeStyle = '#8a7a4a'; g.lineWidth = s*0.03; g.beginPath(); g.moveTo(s*0.26,-s*0.88); g.lineTo(s*0.32,-s*1.04); g.stroke();   // blinking antenna
+  g.fillStyle = `rgba(255,90,90,${0.7+0.3*Math.sin(t*7)})`; g.beginPath(); g.arc(s*0.32,-s*1.05,s*0.04,0,Math.PI*2); g.fill();
+  g.save(); g.translate(s*0.42,0); g.rotate(0.3+Math.sin(t*3)*0.08);                                                         // arm ending in a big wrench
+  g.fillStyle = '#c9922a'; g.fillRect(-s*0.06,-s*0.02,s*0.12,s*0.42);
+  g.fillStyle = '#8a8f98'; g.beginPath(); g.moveTo(-s*0.1,s*0.4); g.lineTo(s*0.1,s*0.4); g.lineTo(s*0.14,s*0.54); g.lineTo(-s*0.02,s*0.6); g.lineTo(-s*0.14,s*0.5); g.closePath(); g.fill();
+  g.restore();
+  g.fillStyle = '#c9922a'; g.beginPath(); g.ellipse(-s*0.42,s*0.1,s*0.1,s*0.2,0.2,0,Math.PI*2); g.fill();                    // stub arm
   g.restore();
 }
 /* ---- the villains ---- */
@@ -2018,7 +2053,7 @@ function eyesBig(g,s,white,pupil,yOff){
 const DRAW = { duo:drawDuo, astro:drawAstro, plant:drawEyePlant, drone:drawDrone, huggy:drawHuggy, father:drawFatherOwl, mother:drawMotherOwl, villager:drawVillagerOwl, predator:drawVulcromPredator, chest:drawChest, weapon:drawAlienWeapon, energyCell:drawEnergyCell, mechaOff:drawMechaOff, mechaPlayer:drawMechaPlayer, mechaEnemy:drawMechaEnemy, rocket:drawRocketShip, hunter:drawAlienHunter, armaGuardia:drawArmaGuardia, teleportGem:drawTeleportGem, astroDown:drawAstroDown, huggyDown:drawHuggyDown, titan:drawTitan, elementalEmerald:drawElementalEmerald, cueio:drawCueio,
   shadowPredator:drawShadowPredator, king:drawKing, disguiseEmerald:drawDisguiseEmerald,
   giant:drawGiant, monsterEmerald:drawMonsterEmerald,
-  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler, eyeAngel:drawWingedEye };
+  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler, eyeAngel:drawWingedEye, zebot:drawZeBot };
 
 /* ---------------- dialogue system ---------------- */
 let dialogueQueue = [], dialogueIdx = 0, dialogueActive = false, dialogueOnEnd = null;
@@ -2052,7 +2087,7 @@ function advanceDialogue(){
 
 /* ---------------- scenes / exploration ---------------- */
 const player = { x:100, y:300, w:34, h:44, speed:220, type:'duo', talkTarget:null, dashT:0, dashCd:0, dashDX:0, dashDY:0 };
-const PLAYER_SCALE = { mechaPlayer: 58, glard: 30 };
+const PLAYER_SCALE = { mechaPlayer: 58, glard: 30, zebot: 36 };
 
 // party members trailing behind the player during exploration (e.g. Astro/Huggy/Cueio in chapter 4)
 let followers = [];
@@ -2209,7 +2244,7 @@ let stepTimer = 0;
 let playerIdleBlend = 0;   // 0 while moving, eases to 1 while standing still — drives the idle breathing animation
 // living, roster-style sprites get a subtle idle breathing bob/lean; mechanical and decorative types (chests, portals,
 // gems, drones) stay perfectly still, since they were never meant to look alive
-const IDLE_TYPES = new Set(['duo','astro','huggy','cueio','hunter','king','totozinho','ice','glard','raphidash','zapi','naia','father','mother','villager']);
+const IDLE_TYPES = new Set(['duo','astro','huggy','cueio','hunter','king','totozinho','ice','glard','raphidash','zapi','naia','zebot','father','mother','villager']);
 function updateExploration(dt){
   if (dialogueActive || sceneLocked || !currentScene) return;
   if (currentScene.tick && !battle) currentScene.tick();
@@ -5802,6 +5837,7 @@ function checkUnlocks(){
   if (progress.kills >= 40) unlockChar('raphidash','Raphidash');
   if (progress.level >= 10) unlockChar('zapi','Zapi');
   if (emeraldCount() >= 4) unlockChar('naia','Naia');
+  if (Object.values(progress.robots).every(Boolean)) unlockChar('zebot','Zé Bot');
 }
 function checkAchievements(){
   if (checkingAch) return;
