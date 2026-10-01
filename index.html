@@ -7268,6 +7268,8 @@ refreshSettingsUI();
 // Celestial, the Backrooms). Chapters stay single-player, since two people replaying the same story scene
 // out of step would break scripted cutscenes.
 let mpPeer = null, mpConn = null, mpRole = null, mpMyCode = '', mpStatus = '', mpRemote = null, mpSendT = 0, mpConnectTO = null, mpMyChar = null, mpPendingHost = false;
+let mpPendingOpenHost = false, mpOpenHosting = false;
+const MP_OPEN_ID = 'duo-coop-open-publica';   // a fixed, well-known room — only one open match can exist at a time, across every player of this game
 let chatLog = [], myChatMsg = '', myChatT = 0;   // session-only chat over the same P2P link — nothing is saved or sent anywhere else
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function mpSendChat(text){
@@ -7281,10 +7283,13 @@ function mpPickChar(id){    // the room's admin (host) picks first, before the r
   if (id === progress.sub) progress.sub = progress.main;
   progress.main = id; player.type = id; refreshFollowers(); sfxPickup(); saveGame();
   mpMyChar = id;
-  if (mpPendingHost){ mpPendingHost = false; mpHost(); }
-  else { mpRenderPanel(); mpSendState(); }
+  if (mpPendingHost){
+    mpPendingHost = false;
+    if (mpPendingOpenHost){ mpPendingOpenHost = false; mpHostOpen(); } else mpHost();
+  } else { mpRenderPanel(); mpSendState(); }
 }
 function mpBeginHost(){ mpCleanup(); mpRole = 'host'; mpPendingHost = true; mpRenderPanel(); }
+function mpBeginHostOpen(){ mpCleanup(); mpRole = 'host'; mpPendingHost = true; mpPendingOpenHost = true; mpRenderPanel(); }
 
 /* ---- PvP duel: a lightweight real-time fight against the co-op partner, riding the same data link ---- */
 // Each side is authoritative for its own HP: landing a hit just sends a "you took X" message, the same way
@@ -7382,8 +7387,8 @@ const MP_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // no 0/O or 1/I — easy
 function mpGenCode(){ let s=''; for (let i=0;i<4;i++) s += MP_ALPHA[Math.floor(Math.random()*MP_ALPHA.length)]; return s; }
 function mpSetStatus(s){ mpStatus = s; mpRenderPanel(); }
 function mpTeardownConn(){ try{ mpConn && mpConn.close(); }catch(e){} mpConn = null; coopBtn.classList.remove('connected'); }
-function mpTeardownPeer(){ mpClearTO(); mpTeardownConn(); try{ mpPeer && mpPeer.destroy(); }catch(e){} mpPeer = null; mpRole = null; mpMyCode = ''; }
-function mpCleanup(){ mpTeardownPeer(); mpRemote = null; mpMyChar = null; mpPendingHost = false; duelActive = false; duelPending = false; chatLog = []; }
+function mpTeardownPeer(){ mpClearTO(); mpTeardownConn(); try{ mpPeer && mpPeer.destroy(); }catch(e){} mpPeer = null; mpRole = null; mpMyCode = ''; mpOpenHosting = false; }
+function mpCleanup(){ mpTeardownPeer(); mpRemote = null; mpMyChar = null; mpPendingHost = false; mpPendingOpenHost = false; duelActive = false; duelPending = false; chatLog = []; }
 function mpOnDisconnect(msg){ if (duelActive) endDuel('left'); mpCleanup(); mpSetStatus(msg); }
 function mpSendRaw(d){ if (mpConn && mpConn.open){ try{ mpConn.send(d); }catch(e){} } }
 function mpSendState(){
@@ -7450,6 +7455,41 @@ function mpHost(){   // called once the admin has already picked a character (mp
     mpPeer.on('disconnected', ()=> mpOnDisconnect('Conexão com o servidor de sinalização caiu.'));
   } catch(e){ mpSetStatus('Sistema online indisponível agora.'); }
 }
+function mpHostOpen(){   // same as mpHost(), but on the one fixed public ID instead of a random private code
+  if (typeof Peer === 'undefined'){ mpSetStatus('Carregando o sistema online... espera uns segundos e tenta de novo.'); return; }
+  mpRole = 'host';
+  mpSetStatus('Abrindo a partida aberta...');
+  try{
+    mpPeer = new Peer(MP_OPEN_ID, { debug:0 });
+    mpConnectTO = setTimeout(()=>{ mpSetStatus('Demorando demais pra conectar. Confira sua internet e tente de novo.'); mpTeardownPeer(); }, 12000);
+    mpPeer.on('open', ()=>{ mpClearTO(); mpOpenHosting = true; mpSetStatus('🌐 Partida aberta criada! Qualquer jogador pode entrar sem código — esperando alguém chegar...'); mpRenderPanel(); });
+    mpPeer.on('connection', conn=>{
+      if (mpConn){ try{ conn.close(); }catch(e){} return; }   // only one guest at a time
+      mpConn = conn; mpWireConn();
+    });
+    mpPeer.on('error', (err)=>{
+      mpSetStatus((err && err.type === 'unavailable-id') ? 'Já tem uma partida aberta rolando agora em outro lugar. Tente de novo em instantes, ou crie uma sala com código.' : 'Não consegui abrir a partida aberta agora. Tente de novo.');
+      mpTeardownPeer();
+    });
+    mpPeer.on('disconnected', ()=> mpOnDisconnect('Conexão com o servidor de sinalização caiu.'));
+  } catch(e){ mpSetStatus('Sistema online indisponível agora.'); }
+}
+function mpJoinOpen(){   // same as mpJoin(), but connects straight to the one fixed public ID, no code needed
+  if (typeof Peer === 'undefined'){ mpSetStatus('Carregando o sistema online... espera uns segundos e tenta de novo.'); return; }
+  mpCleanup(); mpRole = 'guest';
+  mpSetStatus('Procurando uma partida aberta...');
+  try{
+    mpPeer = new Peer({ debug:0 });
+    mpConnectTO = setTimeout(()=>{ mpSetStatus('Demorando demais pra conectar. Confira sua internet e tente de novo.'); mpTeardownPeer(); }, 12000);
+    mpPeer.on('open', ()=>{
+      mpConn = mpPeer.connect(MP_OPEN_ID, { reliable:true });
+      mpConn.on('open', mpClearTO);
+      mpWireConn();
+    });
+    mpPeer.on('error', ()=>{ mpSetStatus('Nenhuma partida aberta agora. Peça pro seu amigo criar uma, ou use um código.'); mpTeardownPeer(); });
+    mpPeer.on('disconnected', ()=> mpOnDisconnect('Conexão com o servidor de sinalização caiu.'));
+  } catch(e){ mpSetStatus('Sistema online indisponível agora.'); }
+}
 function mpJoin(codeRaw){
   const code = (codeRaw||'').trim().toUpperCase();
   if (!code){ mpSetStatus('Digite o código da sala do seu amigo.'); return; }
@@ -7494,7 +7534,7 @@ function mpRenderPanel(){
     h += `<div class="coopNote">⚔️ ${mpRemote ? mpRemote.name : 'Seu amigo'} te desafiou pra um duelo!</div>`;
     h += `<div class="settingsActions"><button class="gameBtn" id="coopDuelAccept">Aceitar</button><button class="gameBtn secondary" id="coopDuelDecline">Recusar</button></div>`;
   } else if (needsPick){
-    h += `<div class="coopNote">${mpPendingHost ? 'Você é o dono da sala — escolha seu personagem antes de abrir o código:' : 'Escolha seu personagem para entrar na sala:'}</div>`;
+    h += `<div class="coopNote">${mpPendingHost ? ('Você é o dono da sala — escolha seu personagem antes de abrir ' + (mpPendingOpenHost ? 'a partida aberta:' : 'o código:')) : 'Escolha seu personagem para entrar na sala:'}</div>`;
     h += `<div class="coopCharList">${mpCharList().map(id=>`<button class="pBtn" data-pick="${id}">${ROSTER[id].name}${progress.main===id?' (atual)':''}</button>`).join('')}</div>`;
   } else if (mpConn && mpConn.open){
     h += `<div class="coopStatus">Você é: <b>${ROSTER[mpMyChar].name}</b>${mpRemote && mpRemote.name ? ' · Amigo: <b>'+mpRemote.name+'</b>' : ''}</div>`;
@@ -7508,16 +7548,23 @@ function mpRenderPanel(){
   } else {
     if (mpRole === 'host' && mpMyCode){
       h += `<div class="coopCode">${mpMyCode}</div>`;
+    } else if (mpRole === 'host' && mpOpenHosting){
+      h += `<div class="coopNote">🌐 Esperando alguém entrar na partida aberta... qualquer jogador do jogo pode entrar agora, sem código.</div>`;
     } else {
       h += `<div class="settingsActions"><button class="gameBtn" id="coopHostBtn">Criar sala</button></div>`;
       h += `<hr class="coopDivider">`;
       h += `<div class="coopRow"><input id="coopCodeInput" maxlength="4" placeholder="CÓDIGO"><button class="gameBtn secondary" id="coopJoinBtn">Entrar</button></div>`;
+      h += `<hr class="coopDivider">`;
+      h += `<div class="coopStatus" style="opacity:0.8">Sem código: partida aberta (só uma pode existir por vez, pra qualquer jogador).</div>`;
+      h += `<div class="settingsActions"><button class="gameBtn" id="coopHostOpenBtn">🌐 Criar partida aberta</button><button class="gameBtn secondary" id="coopJoinOpenBtn">🌐 Entrar em aberta</button></div>`;
     }
   }
   coopBody.innerHTML = h;
   const hb = document.getElementById('coopHostBtn'); if (hb) hb.onclick = mpBeginHost;
   const jb = document.getElementById('coopJoinBtn'); if (jb) jb.onclick = ()=> mpJoin(document.getElementById('coopCodeInput').value);
   const ci = document.getElementById('coopCodeInput'); if (ci) ci.addEventListener('keydown', e=>{ if (e.key === 'Enter') mpJoin(ci.value); });
+  const hob = document.getElementById('coopHostOpenBtn'); if (hob) hob.onclick = mpBeginHostOpen;
+  const job = document.getElementById('coopJoinOpenBtn'); if (job) job.onclick = mpJoinOpen;
   const lv = document.getElementById('coopLeave'); if (lv) lv.onclick = mpLeave;
   const dc = document.getElementById('coopDuel'); if (dc) dc.onclick = requestDuel;
   const da = document.getElementById('coopDuelAccept'); if (da) da.onclick = acceptDuel;
