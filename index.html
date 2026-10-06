@@ -175,6 +175,11 @@
   #fbBox h3 { color:#9fb8ff; font-size:17px; text-align:center; letter-spacing:1px; margin:0; }
   .fbLog { height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; background:#0b0f1e; border:1px solid #2a3560; border-radius:8px; padding:7px 9px; }
   .fbMsg { font-size:12px; color:#e4eaff; word-break:break-word; }
+  .fbPeople:empty { display:none; }
+  .fbPeople { font-size:12px; color:#e4eaff; background:#0b0f1e; border:1px solid #2a3560; border-radius:8px; padding:6px 9px; display:flex; flex-direction:column; gap:4px; max-height:110px; overflow-y:auto; }
+  .fbPeopleHead { font-weight:bold; opacity:0.8; }
+  .fbPerson { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .fbDel { background:#3a1f2e; color:#ffd0d8; border:1px solid #8a3a52; border-radius:6px; padding:1px 7px; font-size:11px; cursor:pointer; }
   .fbMsg.pending { opacity:0.55; }
   .fbBadge { font-weight:bold; }
   .fbCtx { font-size:10px; color:#6a7aa8; margin-left:4px; }
@@ -8267,9 +8272,19 @@ function fbTeardown(){
   fbPeer = null; fbConn = null; fbConns = []; fbRole = null;
 }
 function fbHostCount(){ return fbConns.filter(c=> c.open).length; }
+function fbNewId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function fbBanKey(n){ return String(n || '').trim().toLowerCase(); }
+function fbBanned(n){ const k = fbBanKey(n); return !!k && (fbLoad().banned || []).includes(k); }
+// expulsar: avisa o amigo, fecha a conexão e (com ban) guarda o nome — quem voltar com o mesmo nome é barrado na hora
+function fbKick(conn, ban){
+  if (ban && conn.fbWho){ const b = fbLoad().banned || [], k = fbBanKey(conn.fbWho); if (!b.includes(k)) fbSave({ banned:[...b, k].slice(-50) }); }
+  try{ conn.send({ t:'fbkick' }); }catch(e){}
+  setTimeout(()=>{ try{ conn.close(); }catch(e){} }, 300);
+}
 function fbHostStart(){
   if (typeof Peer === 'undefined'){ fbSetStatus('Sistema online indisponível agora.'); return; }
   fbTeardown(); fbRole = 'host'; fbLog = fbLoad().log || [];
+  fbLog.forEach(m=>{ if (!m.id) m.id = fbNewId(); });      // mensagens antigas ganham id pra poderem ser apagadas
   fbSetStatus('Abrindo a caixa de entrada...');
   try{
     fbPeer = new Peer(FB_HUB_ID, { debug:0 });
@@ -8280,9 +8295,18 @@ function fbHostStart(){
       const drop = ()=>{ fbConns = fbConns.filter(c=> c !== conn); fbSetStatus(`📬 Caixa de entrada aberta — amigos conectados: ${fbHostCount()}.`); };
       conn.on('open', ()=>{ try{ conn.send({ t:'fbhist', log:fbLog.slice(-50) }); }catch(e){} fbSetStatus(`📬 Caixa de entrada aberta — amigos conectados: ${fbHostCount()}.`); });
       conn.on('data', d=>{
-        if (!d || d.t !== 'fb') return;
+        if (!d) return;
+        if (d.t === 'fbhi'){      // o amigo se apresenta ao conectar: o dono vê quem está online
+          conn.fbWho = String(d.who || '').trim().slice(0,16);
+          if (fbBanned(conn.fbWho)) fbKick(conn, false); else fbRender();
+          return;
+        }
+        if (d.t !== 'fb') return;
+        const m = fbClean(d); if (!m) return;
+        conn.fbWho = m.who;
+        if (fbBanned(m.who)){ fbKick(conn, false); return; }
         const now = Date.now(); if (now - last < 1500) return; last = now;     // anti-spam por conexão
-        const m = fbClean(d); if (m) fbHostAdd(m);
+        fbHostAdd(m);
       });
       conn.on('close', drop); conn.on('error', drop);
     });
@@ -8294,16 +8318,22 @@ function fbHostStart(){
   } catch(e){ fbSetStatus('Sistema online indisponível agora.'); }
 }
 function fbHostAdd(m){
-  const full = Object.assign({ at:Date.now() }, m);
+  const full = Object.assign({ at:Date.now(), id:fbNewId() }, m);
   fbLog.push(full); if (fbLog.length > 200) fbLog.shift();
   fbSave({ log:fbLog });
   fbConns.forEach(c=>{ if (c.open){ try{ c.send({ t:'fbmsg', m:full }); }catch(e){} } });
   if (!fbIsOpen) showBanner(`📬 ${FB_KINDS[full.kind].icon} ${full.who}: ${full.text.slice(0,50)}`);
   fbRender();
 }
+function fbHostDelete(id){
+  fbLog = fbLog.filter(m=> m.id !== id); fbSave({ log:fbLog });
+  fbConns.forEach(c=>{ if (c.open){ try{ c.send({ t:'fbdel', id }); }catch(e){} } });
+  fbRender();
+}
+let fbKicked = false;
 function fbJoin(){
   if (typeof Peer === 'undefined'){ fbSetStatus('Sistema online indisponível agora. Dá pra copiar o relatório e mandar pelo WhatsApp.'); return; }
-  fbTeardown(); fbRole = 'guest'; fbLog = [];
+  fbTeardown(); fbRole = 'guest'; fbLog = []; fbKicked = false;
   fbSetStatus('Procurando o dono do jogo...');
   // "dono offline" o servidor de endereços avisa na hora (peer-unavailable); já uma rede lenta ou bloqueada (4G, Wi-Fi
   // de escola) só some em silêncio, por isso o tempo limite é longo e a mensagem de cada caso é diferente
@@ -8316,10 +8346,12 @@ function fbJoin(){
     fbPeer.on('open', ()=>{
       fbConn = fbPeer.connect(FB_HUB_ID, { reliable:true });
       fbConn.on('iceStateChanged', s=>{ if (s === 'failed') fail('a rede bloqueou a conexão direta'); });
-      fbConn.on('open', ()=>{ clearTimeout(fbConnectTO); fbConnectTO = null; fbSetStatus('🟢 Conectado ao dono — todo mundo aqui vê as mensagens.'); fbFlush(); });
+      fbConn.on('open', ()=>{ clearTimeout(fbConnectTO); fbConnectTO = null; fbSetStatus('🟢 Conectado ao dono — todo mundo aqui vê as mensagens.'); if (fbName()){ try{ fbConn.send({ t:'fbhi', who:fbName() }); }catch(e){} } fbFlush(); });
       fbConn.on('data', d=>{
         if (!d) return;
-        const show = m=> ({ kind: FB_KINDS[m && m.kind] ? m.kind : 'papo', who: String((m && m.who) || '').slice(0,16), text: String((m && m.text) || '').slice(0,280), ctx: String((m && m.ctx) || '').slice(0,60) });
+        if (d.t === 'fbkick'){ fbKicked = true; fbSave({ outbox:[] }); fbTeardown(); fbSetStatus('🚫 O dono removeu você deste chat.'); return; }
+        if (d.t === 'fbdel'){ fbLog = fbLog.filter(x=> x.id !== d.id); fbRender(); return; }
+        const show = m=> ({ id: String((m && m.id) || '').slice(0,20), kind: FB_KINDS[m && m.kind] ? m.kind : 'papo', who: String((m && m.who) || '').slice(0,16), text: String((m && m.text) || '').slice(0,280), ctx: String((m && m.ctx) || '').slice(0,60) });
         if (d.t === 'fbhist' && Array.isArray(d.log)) fbLog = d.log.slice(-50).map(show);
         else if (d.t === 'fbmsg'){
           const sm = show(d.m); fbLog.push(sm); if (fbLog.length > 100) fbLog.shift();
@@ -8328,7 +8360,7 @@ function fbJoin(){
         }
         fbRender();
       });
-      fbConn.on('close', ()=>{ fbConn = null; fbSetStatus('A conexão com o dono acabou. Use "Tentar de novo" pra reconectar.'); });
+      fbConn.on('close', ()=>{ if (fbKicked) return; fbConn = null; fbSetStatus('A conexão com o dono acabou. Use "Tentar de novo" pra reconectar.'); });
     });
     fbPeer.on('error', err=>{ if (err && err.type === 'peer-unavailable') offline(); else fail((err && err.type) || 'erro'); });
   } catch(e){ fbSetStatus('Sistema online indisponível agora.'); }
@@ -8367,9 +8399,25 @@ function fbRender(){
   st.textContent = fbStatus;
   const ob = fbRole === 'host' ? [] : (fbLoad().outbox || []), atBottom = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 8;   // o dono nunca tem fila de pendentes
   const row = (m, pending)=>{ const k = FB_KINDS[m.kind] || FB_KINDS.papo;
-    return `<div class="fbMsg${pending?' pending':''}"><span class="fbBadge" style="color:${k.color}">${k.icon} ${k.label}</span> <b>${escapeHtml(m.who)}</b>: ${escapeHtml(m.text)}${m.ctx ? `<span class="fbCtx">${escapeHtml(m.ctx)}</span>` : ''}${pending ? ' ⏳' : ''}</div>`; };
+    return `<div class="fbMsg${pending?' pending':''}"><span class="fbBadge" style="color:${k.color}">${k.icon} ${k.label}</span> <b>${escapeHtml(m.who)}</b>: ${escapeHtml(m.text)}${m.ctx ? `<span class="fbCtx">${escapeHtml(m.ctx)}</span>` : ''}${pending ? ' ⏳' : ''}${fbRole === 'host' && m.id ? ` <button class="fbDel" data-del="${escapeHtml(m.id)}" title="Apagar esta mensagem">🗑️</button>` : ''}</div>`; };
   lg.innerHTML = (fbLog.length || ob.length) ? fbLog.map(m=> row(m,false)).join('') + ob.map(m=> row(m,true)).join('') : '<div class="fbMsg" style="opacity:0.6">Nenhuma mensagem ainda. Seja o primeiro!</div>';
   if (atBottom) lg.scrollTop = lg.scrollHeight;
+  lg.onclick = e=>{ const b = e.target.closest('[data-del]'); if (b && fbRole === 'host') fbHostDelete(b.dataset.del); };
+  const pe = document.getElementById('fbPeople');
+  if (pe){
+    if (fbRole !== 'host') pe.innerHTML = '';
+    else {
+      const on = fbConns.filter(c=> c.open), banned = fbLoad().banned || [];
+      pe.innerHTML = `<div class="fbPeopleHead">👥 Online agora: ${on.length}</div>`
+        + on.map(c=> `<div class="fbPerson"><span>${escapeHtml(c.fbWho || 'Visitante (sem nome)')}</span>${c.fbWho ? `<button class="fbDel" data-kick="${escapeHtml(c.peer)}">🚫 Expulsar</button>` : ''}</div>`).join('')
+        + (banned.length ? `<div class="fbPeopleHead">🚫 Expulsos:</div>` + banned.map(n=> `<div class="fbPerson"><span>${escapeHtml(n)}</span><button class="fbDel" data-unban="${escapeHtml(n)}">↩️ Perdoar</button></div>`).join('') : '');
+      pe.onclick = e=>{
+        const k = e.target.closest('[data-kick]'), u = e.target.closest('[data-unban]');
+        if (k){ const c = fbConns.find(x=> x.peer === k.dataset.kick); if (c) fbKick(c, true); setTimeout(fbRender, 400); }
+        else if (u){ fbSave({ banned:(fbLoad().banned || []).filter(x=> x !== u.dataset.unban) }); fbRender(); }
+      };
+    }
+  }
   ac.innerHTML = (fbRole === 'host' ? '<button class="gameBtn" id="fbClear">🗑️ Limpar histórico</button>' : '<button class="gameBtn" id="fbRetry">🔄 Tentar de novo</button>') + '<button class="gameBtn secondary" id="fbCopy">📋 Copiar relatório</button>';
   const cl = document.getElementById('fbClear'); if (cl) cl.onclick = ()=>{ fbLog = []; fbSave({ log:[] }); fbRender(); };
   const rt = document.getElementById('fbRetry'); if (rt) rt.onclick = ()=> fbMode === 'host' ? fbHostStart() : fbJoin();
@@ -8379,6 +8427,7 @@ function openFeedback(asHost){
   fbIsOpen = true; fbMode = asHost ? 'host' : 'guest'; fbOverlay.classList.add('open');
   fbBody.innerHTML = `
     <div class="coopStatus" id="fbStatus"></div>
+    <div id="fbPeople" class="fbPeople"></div>
     <div class="fbLog" id="fbLog"></div>
     <div class="segGroup" id="fbKinds">${Object.entries(FB_KINDS).map(([k,d])=>`<button class="segBtn${k===fbKind?' active':''}" data-kind="${k}">${d.icon} ${d.label}</button>`).join('')}</div>
     <div class="fbRow"><input id="fbNameInput" maxlength="16" placeholder="Seu nome (obrigatório)" value="${escapeHtml(progress.playerName || '')}"></div>
