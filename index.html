@@ -8409,7 +8409,7 @@ function fbRender(){
     else {
       const on = fbConns.filter(c=> c.open), banned = fbLoad().banned || [];
       pe.innerHTML = `<div class="fbPeopleHead">👥 Online agora: ${on.length}</div>`
-        + on.map(c=> `<div class="fbPerson"><span>${escapeHtml(c.fbWho || 'Visitante (sem nome)')}</span>${c.fbWho ? `<button class="fbDel" data-kick="${escapeHtml(c.peer)}">🚫 Expulsar</button>` : ''}</div>`).join('')
+        + on.map(c=> `<div class="fbPerson"><span>${escapeHtml(c.fbWho || 'Visitante (sem nome)')}</span><button class="fbDel" data-kick="${escapeHtml(c.peer)}">🚫 Expulsar</button></div>`).join('')
         + (banned.length ? `<div class="fbPeopleHead">🚫 Expulsos:</div>` + banned.map(n=> `<div class="fbPerson"><span>${escapeHtml(n)}</span><button class="fbDel" data-unban="${escapeHtml(n)}">↩️ Perdoar</button></div>`).join('') : '');
       pe.onclick = e=>{
         const k = e.target.closest('[data-kick]'), u = e.target.closest('[data-unban]');
@@ -8438,7 +8438,7 @@ function openFeedback(asHost){
     [...document.getElementById('fbKinds').children].forEach(x=> x.classList.toggle('active', x.dataset.kind === fbKind)); };
   const nameIn = document.getElementById('fbNameInput');
   nameIn.oninput = ()=>{ progress.playerName = nameIn.value.trim().slice(0,16); };      // mesmo nome do Menu, salvo junto com o jogo
-  nameIn.onchange = saveGame;
+  nameIn.onchange = ()=>{ saveGame(); if (fbRole === 'guest' && fbConn && fbConn.open && fbName()){ try{ fbConn.send({ t:'fbhi', who:fbName() }); }catch(e){} } };   // o dono passa a ver o nome na lista de online
   const ti = document.getElementById('fbTextInput');
   const go = ()=>{ if (fbSend(ti.value)) ti.value = ''; };
   document.getElementById('fbSendBtn').onclick = go;
