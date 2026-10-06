@@ -562,8 +562,14 @@ const ROSTER = {
   zapi:  { name:'Zapi',    hp:0.90, atk:1.10, spGain:1.10, dashMul:0.7,  crit:0.04, desc:'Coruja elétrica do planeta do Duo: dash 30% mais rápido, +10% de especial.', unlock:'Chegue ao nível 10' },
   naia:  { name:'Naia',    hp:1.20, atk:1.00, spGain:1.25, dashMul:0.95, crit:0,    desc:'Coruja da água do planeta do Duo: +20% de vida, +25% de carga do especial.', unlock:'Colete 4 esmeraldas de desafio' },
   glard: { name:'Glard',   hp:1.30, atk:1.30, spGain:1.0,  dashMul:1.15, crit:0,    desc:'Dinossauro de fogo: +30% de vida e ataque, dash mais lento.', unlock:'Conquiste a Esmeralda da Precisão' },
-  zebot: { name:'Zé Bot',  hp:1.15, atk:1.45, spGain:0.95, dashMul:1.1,  crit:0.08, desc:'Robô construtor cheio de tecnologia: +45% de ataque, +15% de vida, +8% de crítico.', unlock:'Construa todos os robôs no Laboratório do Duo' }
+  zebot: { name:'Zé Bot',  hp:1.15, atk:1.45, spGain:0.95, dashMul:1.1,  crit:0.08, desc:'Robô construtor cheio de tecnologia: +45% de ataque, +15% de vida, +8% de crítico.', unlock:'Construa todos os robôs no Laboratório do Duo' },
+  umbra: { name:'Umbra',   hp:1.00, atk:1.30, spGain:1.0,  dashMul:0.9,  crit:0.10, desc:'Coruja das sombras: +30% de ataque, +10% de crítico, dash mais rápido.', unlock:'Derrote o Lorde do Caos no Mundo do Mal' },
+  folha: { name:'Folha',   hp:1.35, atk:1.00, spGain:1.2,  dashMul:1.0,  crit:0,    desc:'Coruja da natureza: +35% de vida e +20% de carga do especial.', unlock:'Derrote o Golem de Pedra no Mundo dos Blocos' },
+  pixel: { name:'Pixel',   hp:1.00, atk:1.15, spGain:1.3,  dashMul:0.8,  crit:0.06, desc:'Coruja dos fliperamas: +30% de especial, dash 20% mais rápido, +6% de crítico.', unlock:'Derrote o Chefão Game Over no Mundo do Jogo' },
+  gear:  { name:'Gear',    hp:1.25, atk:1.35, spGain:1.0,  dashMul:1.05, crit:0.05, desc:'Coruja mecânica da Fábrica: +35% de ataque, +25% de vida, +5% de crítico.', unlock:'Derrote o MEGA-9000 na Fábrica de Robôs' }
 };
+// Loja de Personagens (vila): todo personagem trancado pode ser comprado com cristais, sem precisar cumprir a conquista
+const CHAR_PRICES = { hunter:300, totozinho:250, ice:400, raphidash:450, king:600, naia:550, zapi:350, glard:700, zebot:1200, folha:700, umbra:900, pixel:1000, gear:1100 };
 const UPGRADE_DEFS = {
   hp:   { name:'Vitalidade',      icon:'💚', max:10, base:20, per:12,   text:lv=>`+${lv*12} de vida máxima` },
   atk:  { name:'Poder de Ataque', icon:'⚔',  max:10, base:25, per:4,    text:lv=>`+${lv*4} de ataque` },
@@ -667,6 +673,32 @@ function bugFragBonus(){
   Object.entries(BUG_FRAGMENTS).forEach(([id,d])=>{ if (progress.bugFrags[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
   return out;
 }
+// Fábrica de Robôs: an industrial bonus world — 3 peças raras to find, roaming factory machines to fight, and a
+// panel puzzle that wakes the MEGA-9000
+const FACTORY_PARTS = {
+  engrenagem: { name:'Engrenagem Mestra', icon:'⚙️', color:'200,205,220', text:'+5 de ataque',            bonus:{atk:5} },
+  parafuso:   { name:'Parafuso Dourado',  icon:'🔩', color:'255,210,90',  text:'+14 de vida máxima',      bonus:{hp:14} },
+  chip:       { name:'Chip Quântico',     icon:'💾', color:'90,230,255',  text:'+5% de chance crítica',   bonus:{crit:0.05} }
+};
+function factoryPartCount(){ return Object.keys(FACTORY_PARTS).filter(id=> progress.factoryParts[id]).length; }
+function factoryPartBonus(){
+  const out = { hp:0, atk:0, crit:0 };
+  Object.entries(FACTORY_PARTS).forEach(([id,d])=>{ if (progress.factoryParts[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
+// Mundo do Jogo: a retro arcade bonus world — 3 itens de fliperama, roaming game monsters and a console puzzle that
+// wakes the Chefão Game Over
+const ARCADE_ITEMS = {
+  ficha:    { name:'Ficha Dourada',    icon:'🪙', color:'255,215,70',  text:'+10% de cristais ganhos',  bonus:{crystals:0.10} },
+  joystick: { name:'Joystick Lendário', icon:'🕹️', color:'255,80,90',  text:'+8% de carga do especial', bonus:{sp:0.08} },
+  cartucho: { name:'Cartucho Raro',    icon:'👾', color:'120,255,150', text:'+5 de ataque',             bonus:{atk:5} }
+};
+function arcadeItemCount(){ return Object.keys(ARCADE_ITEMS).filter(id=> progress.arcadeItems[id]).length; }
+function arcadeItemBonus(){
+  const out = { atk:0, sp:0, crystals:0 };
+  Object.entries(ARCADE_ITEMS).forEach(([id,d])=>{ if (progress.arcadeItems[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
+  return out;
+}
 // Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
 // an "accessory" that grants a passive power and shows up as a little badge following you around
 const ROBOT_DEFS = {
@@ -676,8 +708,13 @@ const ROBOT_DEFS = {
   duobo:    { name:'Duobô',     icon:'🦉', cost:100, desc:'Réplica do Duo: +12% de carga do especial.',        bonus:{sp:0.12} },
   astrobo:  { name:'Astrobô',   icon:'👽', cost:100, desc:'Réplica do Astro: +5% de chance crítica.',          bonus:{crit:0.05} },
   huggybo:  { name:'Huggybô',   icon:'🧸', cost:120, desc:'Casco macio e resistente: +18 de vida máxima.',     bonus:{hp:18} },
-  cueiobo:  { name:'Cueiobô',   icon:'🦎', cost:120, desc:'Robô ágil: +6 de ataque.',                          bonus:{atk:6} }
+  cueiobo:  { name:'Cueiobô',   icon:'🦎', cost:120, desc:'Robô ágil: +6 de ataque.',                          bonus:{atk:6} },
+  furadeirabo:{ name:'Furadeirabô', icon:'⛏️', cost:150, desc:'Broca turbinada: +8 de ataque.',                bonus:{atk:8} },
+  torrebo:  { name:'Torrebô',   icon:'🗼', cost:160, desc:'Torre blindada: +22 de vida máxima.',               bonus:{hp:22} },
+  foguetebo:{ name:'Foguetebô', icon:'🚀', cost:140, desc:'Propulsores: dash recarrega 14% mais rápido.',      bonus:{dash:0.14} },
+  chipbo:   { name:'Chipbô',    icon:'🤖', cost:170, desc:'Processador veloz: +7% de chance crítica.',         bonus:{crit:0.07} }
 };
+const ZEBOT_ROBOTS = ['capsulabo','tanquebo','aviaobo','duobo','astrobo','huggybo','cueiobo'];   // os 7 originais — os robôs novos não mudam a regra de desbloqueio do Zé Bot
 function robotBonus(){    // only the equipped robot's power applies — one accessory at a time
   const id = progress.robotEquipped, d = id && ROBOT_DEFS[id];
   return (d && progress.robots[id]) ? d.bonus : {};
@@ -699,6 +736,10 @@ const EQUIP_DEFS = {
     crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico', element:'gelo' },
     elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario', element:'eletrico' },
     plasma:    { name:'Bazuca de Plasma',   icon:'🚀', cost:260, atk:13, ranged:true, projColor:'#ff8a3a', rarity:'epico', element:'fogo' },
+    chave:     { name:'Chave Inglesa Gigante', icon:'🔧', cost:120, atk:9, rarity:'raro' },
+    laser:     { name:'Pistola Laser',      icon:'🔫', cost:300, atk:15, ranged:true, projColor:'#ff3df0', rarity:'epico' },
+    megapunho: { name:'Megapunho do MEGA-9000', icon:'👊', cost:0, atk:33, crit:0.05, rarity:'ultra', secret:true, element:'eletrico' },
+    gameover:  { name:'Espada Game Over',   icon:'🎮', cost:0, atk:34, crit:0.06, rarity:'ultra', secret:true, element:'fogo' },
     universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true, element:'sombra' },
     icebazooka:   { name:'Bazuca de Gelo',  icon:'🧊', cost:0, atk:27, ranged:true, projColor:'#aef0ff', rarity:'ultra', secret:true, element:'gelo' }
   },
@@ -711,6 +752,9 @@ const EQUIP_DEFS = {
     volt:     { name:'Armadura Elétrica',   icon:'⚡', cost:260, hp:30, rarity:'epico', element:'eletrico' },
     sombria:  { name:'Manto Sombrio',       icon:'🌑', cost:260, hp:30, rarity:'epico', element:'sombra' },
     guardian: { name:'Manto do Guardião',   icon:'🦺', cost:420, hp:50, rarity:'lendario' },
+    macacao:  { name:'Macacão de Fábrica',  icon:'🥼', cost:170, hp:26, rarity:'raro' },
+    pixel:    { name:'Armadura Pixel',      icon:'👾', cost:280, hp:34, rarity:'epico' },
+    vidaextra:{ name:'Vida Extra',          icon:'💚', cost:0,   hp:72, atk:5, rarity:'ultra', secret:true },
     singularity: { name:'Singularidade', icon:'🕳️', cost:0, hp:70, atk:6, rarity:'ultra', secret:true }
   },
   accessory: {
@@ -718,6 +762,9 @@ const EQUIP_DEFS = {
     cape:    { name:'Capa Veloz',       icon:'🧣', cost:120, dash:0.08, rarity:'raro',     specialBoost:0.12 },
     ring:    { name:'Anel Crítico',     icon:'💍', cost:220, crit:0.08, rarity:'epico',    specialBoost:0.18, specialCrit:true },
     cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario', specialBoost:0.30 },
+    oculos:  { name:'Óculos de Soldador', icon:'🥽', cost:150, crit:0.05, rarity:'raro',   specialBoost:0.14 },
+    fone:    { name:'Fone Gamer',        icon:'🎧', cost:260, sp:0.12,   rarity:'epico',    specialBoost:0.22 },
+    nucleo:  { name:'Núcleo de Energia', icon:'🔋', cost:0, atk:6, sp:0.12, rarity:'ultra', secret:true, specialBoost:0.40, specialCrit:true },
     leviathan: { name:'Dente do Leviatã', icon:'🦷', cost:0, atk:8, crit:0.06, sp:0.15, dash:0.05, rarity:'ultra', secret:true, specialBoost:0.45, specialCrit:true }
   }
 };
@@ -734,7 +781,8 @@ const ENEMY_ELEMENTS = {
   ortsa:{weak:'gelo',resist:'eletrico'}, wordDevourer:{weak:'fogo',resist:'sombra'}, smiler:{weak:'eletrico',resist:'sombra'},
   crawler:{weak:'fogo',resist:'gelo'}, king:{weak:'eletrico',resist:'gelo'}, professora:{weak:'eletrico',resist:'sombra'},
   bombom:{weak:'gelo',resist:'fogo'}, golemPedra:{weak:'eletrico',resist:'gelo'},
-  lordeCaos:{weak:'gelo',resist:'sombra'}, erroFatal:{weak:'eletrico',resist:'gelo'}
+  lordeCaos:{weak:'gelo',resist:'sombra'}, erroFatal:{weak:'eletrico',resist:'gelo'},
+  mega9000:{weak:'gelo',resist:'eletrico'}, chefaoGO:{weak:'sombra',resist:'fogo'}
 };
 // redeem codes: type one into the Equipamento tab for a free reward — each works once per save
 const REDEEM_CODES = {
@@ -818,7 +866,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'',
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -826,9 +874,11 @@ function freshProgress(){
     blockOres:{ diamante:false, ouro:false, esmeralda:false },
     hellSouls:{ ira:false, medo:false, tristeza:false },
     bugFrags:{ alfa:false, beta:false, gama:false },
-    robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false }, robotEquipped:null,
+    factoryParts:{ engrenagem:false, parafuso:false, chip:false },
+    arcadeItems:{ ficha:false, joystick:false, cartucho:false },
+    robots:{ capsulabo:false, tanquebo:false, aviaobo:false, duobo:false, astrobo:false, huggybo:false, cueiobo:false, furadeirabo:false, torrebo:false, foguetebo:false, chipbo:false }, robotEquipped:null,
     quests:{}, equip:{ weapon:null, armor:null, accessory:null }, equipOwned:{ weapon:{}, armor:{}, accessory:{} }, redeemedCodes:{},
-    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false, zebot:false },
+    chars:{ duo:true, astro:true, huggy:true, cueio:true, hunter:false, king:false, totozinho:false, ice:false, glard:false, raphidash:false, zapi:false, naia:false, zebot:false, umbra:false, folha:false, pixel:false, gear:false },
     main:'duo', sub:'astro', visited:{}, achievements:{}, forms:{ super:false, max:false }, form:'normal' };
 }
 let progress = freshProgress();
@@ -850,10 +900,10 @@ function loadGame(){
     const data = JSON.parse(raw);
     if (!data || !data.progress) return false;
     const fresh = freshProgress();
-    ['chars','emeralds','lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
+    ['chars','emeralds','lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags','factoryParts','arcadeItems','robots','quests','equipOwned','redeemedCodes','achievements','forms','visited'].forEach(k=>{        // deep-merge so new fields added later (a new character, a new achievement) still default correctly on an old save
       fresh[k] = Object.assign(fresh[k], data.progress[k] || {});
     });
-    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, hellSouls:fresh.hellSouls, bugFrags:fresh.bugFrags, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
+    Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, hellSouls:fresh.hellSouls, bugFrags:fresh.bugFrags, factoryParts:fresh.factoryParts, arcadeItems:fresh.arcadeItems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
     if (progress.adminUnlocked && progress.adminKey !== ADMIN_HASH) progress.adminUnlocked = false;   // admin liberado pelo código antigo (público) deixa de valer
     Object.assign(upgrades, data.upgrades || {});
@@ -866,19 +916,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), rb = robotBonus(), eq = equipBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + (rb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + fp.hp + (rb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + (rb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + fp.atk + ai.atk + (rb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), rb = robotBonus(), eq = equipBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus();
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + bf.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + bf.sp + ai.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
     dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + hs.crit + (rb.crit||0) + eq.crit,
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + hs.crit + fp.crit + (rb.crit||0) + eq.crit,
     bug: !!p.bugGem
   };
 }
@@ -1136,6 +1186,35 @@ function drawOwlAdult(g,x,y,s,facing,opts){
     g.fillStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.ellipse(-s*0.05,-s*1.1,s*0.03,s*0.06,0.3,0,Math.PI*2); g.fill();
     g.strokeStyle = 'rgba(200,240,255,0.8)'; g.lineWidth = s*0.02;
     for (let i=0;i<4;i++){ const u = (tt*0.5+i*0.25)%1; g.beginPath(); g.arc(Math.sin(i*1.9)*s*0.6,s*0.5-u*s*1.3,s*(0.03+0.02*(i%2)),0,Math.PI*2); g.stroke(); }
+  } else if (opts.accessory === 'shadowWisp'){         // Umbra: a dark violet aura and wisps curling upward
+    const tt = Date.now()/1000;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.fillStyle = `rgba(150,70,255,${0.14+0.06*Math.sin(tt*3)})`; g.beginPath(); g.arc(0,-s*0.1,s*0.98,0,Math.PI*2); g.fill(); g.restore();
+    g.strokeStyle = 'rgba(190,120,255,0.75)'; g.lineWidth = s*0.04; g.lineCap = 'round';
+    for (let i=0;i<3;i++){ const k = Math.sin(tt*2+i*2)*s*0.08, bx = (i-1)*s*0.22;
+      g.beginPath(); g.moveTo(bx,-s*0.95); g.quadraticCurveTo(bx+k,-s*1.2,bx-k,-s*1.45-i%2*s*0.1); g.stroke(); }
+  } else if (opts.accessory === 'leafCrest'){          // Folha: a crest of green leaves and drifting leaf motes
+    const tt = Date.now()/1000;
+    [[-0.26,-0.4],[0,0],[0.26,0.4]].forEach(([lx,rot],i)=>{
+      g.save(); g.translate(s*lx,-s*0.98); g.rotate(rot+Math.sin(tt*2+i)*0.08);
+      g.fillStyle = i===1 ? '#5fe07a' : '#3fbf5a'; g.beginPath(); g.ellipse(0,-s*0.18,s*0.09,s*0.2,0,0,Math.PI*2); g.fill();
+      g.strokeStyle = 'rgba(20,80,30,0.6)'; g.lineWidth = s*0.015; g.beginPath(); g.moveTo(0,-s*0.02); g.lineTo(0,-s*0.34); g.stroke();
+      g.restore(); });
+    g.fillStyle = 'rgba(120,230,130,0.8)';
+    for (let i=0;i<4;i++){ const u = (tt*0.4+i*0.25)%1; g.beginPath(); g.ellipse(Math.sin(i*2.1+tt)*s*0.7,s*0.2-u*s*1.2,s*0.03,s*0.015,tt+i,0,Math.PI*2); g.fill(); }
+  } else if (opts.accessory === 'pixelCrest'){         // Pixel: floating arcade squares in neon colors
+    const tt = Date.now()/1000, cols = ['#ff3df0','#3df0ff','#ffe03d','#7dff6a'];
+    g.save(); g.globalCompositeOperation = 'lighter';
+    g.fillStyle = `rgba(80,255,255,${0.1+0.05*Math.sin(tt*6)})`; g.beginPath(); g.arc(0,-s*0.1,s*0.98,0,Math.PI*2); g.fill(); g.restore();
+    for (let i=0;i<4;i++){ g.fillStyle = cols[i]; const bx = (i-1.5)*s*0.2, by = -s*1.08-Math.abs(Math.sin(tt*3+i))*s*0.1; g.fillRect(bx-s*0.06,by-s*0.06,s*0.12,s*0.12); }
+  } else if (opts.accessory === 'gearCrest'){          // Gear: a slowly turning cog above the head and a metallic shimmer
+    const tt = Date.now()/1000;
+    g.save(); g.translate(0,-s*1.12); g.rotate(tt*1.2);
+    g.fillStyle = '#c9d0d8'; for (let i=0;i<8;i++){ g.save(); g.rotate(i*Math.PI/4); g.fillRect(-s*0.035,-s*0.24,s*0.07,s*0.1); g.restore(); }
+    g.beginPath(); g.arc(0,0,s*0.18,0,Math.PI*2); g.fill();
+    g.fillStyle = '#5a6270'; g.beginPath(); g.arc(0,0,s*0.07,0,Math.PI*2); g.fill();
+    g.restore();
+    g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,190,70,${0.1+0.05*Math.sin(tt*4)})`; g.beginPath(); g.arc(0,-s*0.1,s*0.98,0,Math.PI*2); g.fill(); g.restore();
   } else if (opts.accessory === 'bow'){
     g.fillStyle = opts.bowColor || '#ff5fa0';
     g.beginPath(); g.moveTo(0,-s*0.96); g.lineTo(-s*0.18,-s*1.12); g.lineTo(-s*0.02,-s*0.98); g.closePath(); g.fill();
@@ -1329,6 +1408,11 @@ function drawIce(g,x,y,s,facing){       // Duo's frozen counterpart: same owl bo
 function drawRaphidash(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#ff6a2a', belly:'#ffe6b8', wing:'#c22a0a', beak:'#ffd54a', eyeWhite:'#fff8e0', eyePupil:'#5a0a00', accessory:'flameCrest' }); }
 function drawZapi(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#ffd23a', belly:'#fff6c8', wing:'#c9930a', beak:'#3a2a10', eyeWhite:'#ffffff', eyePupil:'#2a1a00', accessory:'boltCrest' }); }
 function drawNaia(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#2f7fe0', belly:'#d8f0ff', wing:'#1a4aa0', beak:'#ffd06a', eyeWhite:'#ffffff', eyePupil:'#062a5a', accessory:'waveCrest' }); }
+// os quatro personagens ligados aos mundos novos e antigos (desbloqueiam com os chefes ou na Loja de Personagens)
+function drawUmbra(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#3a2a58', belly:'#c8b8e8', wing:'#1e1430', beak:'#b070ff', eyeWhite:'#f0e0ff', eyePupil:'#2a0a4a', accessory:'shadowWisp' }); }
+function drawFolha(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#4cae4c', belly:'#eaffd8', wing:'#2a7a2a', beak:'#e8a02a', eyeWhite:'#ffffff', eyePupil:'#0a3a0a', accessory:'leafCrest' }); }
+function drawPixel(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#2a2a5a', belly:'#9ff0ff', wing:'#ff3df0', beak:'#ffe03d', eyeWhite:'#ffffff', eyePupil:'#101040', accessory:'pixelCrest' }); }
+function drawGear(g,x,y,s,facing){ drawOwlAdult(g,x,y,s,facing,{ body:'#8a929c', belly:'#e4eaf0', wing:'#5a6270', beak:'#ffb02a', eyeWhite:'#e8fbff', eyePupil:'#0a3a5a', accessory:'gearCrest' }); }
 function drawTotozinho(g,x,y,s,facing){  // a cheerful poop emoji: swirled cone body, big eyes, rosy cheeks, a cheeky grin
   facing = facing || 1;
   g.save(); g.translate(x,y);
@@ -2193,6 +2277,50 @@ function drawErroFatal(g,x,y,s){
   for (let i=0;i<3;i++) g.strokeRect(-s*0.26,-s*0.86+i*s*0.47,s*0.52,2);
   g.restore();
 }
+// MEGA-9000: the boss of the Fábrica de Robôs — a towering riveted mech with a glowing furnace core and a crushing fist
+function drawMega9000(g,x,y,s){
+  const t = Date.now()/1000, step = Math.sin(t*1.8)*s*0.03;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s*1.1, s*0.95);
+  g.fillStyle = '#4a5260'; g.fillRect(-s*0.5,-s*0.05+step,s*0.34,s*0.68); g.fillRect(s*0.16,-s*0.05-step,s*0.34,s*0.68);   // legs
+  g.fillStyle = '#2a2e36'; g.fillRect(-s*0.56,s*0.58+step,s*0.46,s*0.1); g.fillRect(s*0.1,s*0.58-step,s*0.46,s*0.1);
+  g.fillStyle = volumeGrad(g,0,-s*0.5,s*0.9,'#aeb6c2','#5a6270'); g.fillRect(-s*0.66,-s*0.95,s*1.32,s*0.98);              // torso
+  g.fillStyle = 'rgba(0,0,0,0.18)'; for (let i=1;i<3;i++) g.fillRect(-s*0.66,-s*0.95+i*s*0.33,s*1.32,2);
+  g.fillStyle = '#ffcc33'; for (let i=-3;i<4;i++){ g.save(); g.translate(i*s*0.18,-s*0.05); g.rotate(0.5); g.fillRect(-s*0.03,-s*0.1,s*0.06,s*0.2); g.restore(); }
+  g.save(); g.globalCompositeOperation = 'lighter';                                                                          // furnace core
+  const cg = g.createRadialGradient(0,-s*0.5,0,0,-s*0.5,s*0.3); cg.addColorStop(0,`rgba(255,200,80,${0.9+0.1*Math.sin(t*6)})`); cg.addColorStop(1,'rgba(255,60,20,0)');
+  g.fillStyle = cg; g.beginPath(); g.arc(0,-s*0.5,s*0.3,0,Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = '#3a404a'; g.beginPath(); g.arc(0,-s*0.5,s*0.14,0,Math.PI*2); g.fill();
+  g.fillStyle = `rgba(255,150,40,${0.8+0.2*Math.sin(t*6)})`; g.beginPath(); g.arc(0,-s*0.5,s*0.09,0,Math.PI*2); g.fill();
+  g.fillStyle = '#4a5260'; g.fillRect(-s*1.0,-s*0.85,s*0.34,s*0.7); g.fillRect(s*0.66,-s*0.85,s*0.34,s*0.7);                // arms
+  g.fillStyle = '#2a2e36'; g.beginPath(); g.arc(-s*0.83,-s*0.1,s*0.24,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(s*0.83,-s*0.1,s*0.24,0,Math.PI*2); g.fill();
+  g.fillStyle = '#8a929c'; g.fillRect(-s*0.38,-s*1.5,s*0.76,s*0.58);                                                         // head
+  g.fillStyle = '#1a1e26'; g.fillRect(-s*0.3,-s*1.38,s*0.6,s*0.2);
+  g.fillStyle = `rgba(255,60,60,${0.75+0.25*Math.sin(t*8)})`; g.fillRect(-s*0.24+((t*0.8)%1)*s*0.36,-s*1.34,s*0.12,s*0.12);    // scanning visor
+  g.strokeStyle = '#6a727e'; g.lineWidth = s*0.03; g.beginPath(); g.moveTo(s*0.2,-s*1.5); g.lineTo(s*0.26,-s*1.72); g.stroke();
+  g.restore();
+}
+// Chefão Game Over: the boss of the Mundo do Jogo — a hulking arcade cabinet with a glaring pixel face and joystick horns
+function drawChefaoGameOver(g,x,y,s){
+  const t = Date.now()/1000, step = Math.sin(t*2)*s*0.03;
+  g.save(); g.translate(x,y);
+  groundShadow(g, s*1.05, s*0.9);
+  g.fillStyle = '#2a1a50'; g.fillRect(-s*0.46,-s*0.05+step,s*0.28,s*0.62); g.fillRect(s*0.18,-s*0.05-step,s*0.28,s*0.62);       // legs
+  g.fillStyle = volumeGrad(g,0,-s*0.6,s*0.9,'#6a3ad0','#2a1260'); g.fillRect(-s*0.6,-s*1.35,s*1.2,s*1.4);                         // cabinet body
+  g.fillStyle = '#ff3df0'; g.fillRect(-s*0.6,-s*1.35,s*0.06,s*1.4); g.fillRect(s*0.54,-s*1.35,s*0.06,s*1.4);                      // neon trim
+  g.fillStyle = '#0a0620'; g.fillRect(-s*0.46,-s*1.22,s*0.92,s*0.7);                                                              // screen
+  g.save(); g.globalCompositeOperation = 'lighter';
+  g.fillStyle = `rgba(255,70,90,${0.8+0.2*Math.sin(t*7)})`;                                                                         // glaring eyes
+  g.fillRect(-s*0.3,-s*1.06,s*0.18,s*0.18); g.fillRect(s*0.12,-s*1.06,s*0.18,s*0.18);
+  g.fillStyle = 'rgba(255,230,90,0.9)'; for (let i=0;i<6;i++) g.fillRect(-s*0.3+i*s*0.12,-s*0.7+(i%2)*s*0.06,s*0.08,s*0.08);       // jagged grin
+  g.restore();
+  g.fillStyle = '#1a0e3a'; g.fillRect(-s*0.5,-s*0.48,s*1.0,s*0.2);                                                               // control panel
+  g.fillStyle = '#ff3d3d'; g.beginPath(); g.arc(-s*0.22,-s*0.38,s*0.06,0,Math.PI*2); g.fill();
+  g.fillStyle = '#3df0ff'; g.beginPath(); g.arc(s*0.04,-s*0.38,s*0.05,0,Math.PI*2); g.fill(); g.beginPath(); g.arc(s*0.2,-s*0.38,s*0.05,0,Math.PI*2); g.fill();
+  [-1,1].forEach(sd=>{ g.fillStyle = '#c9c9d4'; g.fillRect(sd*s*0.46-s*0.02,-s*1.7,s*0.04,s*0.4); g.fillStyle = '#ff3d3d'; g.beginPath(); g.arc(sd*s*0.46,-s*1.72,s*0.09,0,Math.PI*2); g.fill(); });   // joystick horns
+  g.fillStyle = 'rgba(255,255,255,0.8)'; g.font = `bold ${Math.round(s*0.13)}px monospace`; g.textAlign = 'center'; g.fillText('GAME OVER', 0, -s*0.2);
+  g.restore();
+}
 function drawCrate(g,x,y,s){
   s = s || 48;
   g.fillStyle = '#3a3a2a'; g.fillRect(x-s/2,y-s/2,s,s);
@@ -2290,7 +2418,7 @@ function eyesBig(g,s,white,pupil,yOff){
 const DRAW = { duo:drawDuo, astro:drawAstro, plant:drawEyePlant, drone:drawDrone, huggy:drawHuggy, father:drawFatherOwl, mother:drawMotherOwl, villager:drawVillagerOwl, predator:drawVulcromPredator, chest:drawChest, weapon:drawAlienWeapon, energyCell:drawEnergyCell, mechaOff:drawMechaOff, mechaPlayer:drawMechaPlayer, mechaEnemy:drawMechaEnemy, rocket:drawRocketShip, hunter:drawAlienHunter, armaGuardia:drawArmaGuardia, teleportGem:drawTeleportGem, astroDown:drawAstroDown, huggyDown:drawHuggyDown, titan:drawTitan, elementalEmerald:drawElementalEmerald, cueio:drawCueio,
   shadowPredator:drawShadowPredator, king:drawKing, disguiseEmerald:drawDisguiseEmerald,
   giant:drawGiant, monsterEmerald:drawMonsterEmerald,
-  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler, eyeAngel:drawWingedEye, zebot:drawZeBot };
+  raphidash:drawRaphidash, zapi:drawZapi, naia:drawNaia, totozinho:drawTotozinho, umbra:drawUmbra, folha:drawFolha, pixel:drawPixel, gear:drawGear, ice:drawIce, glard:drawGlard, ortsa:drawOrtsa, wordDevourer:drawWordDevourer, universeDevourer:drawUniverseDevourer, bugGem:drawBugGem, secretDoor:drawSecretDoor, exitDoor:drawExitDoor, smiler:drawSmiler, faceless:drawFaceless, crawler:drawCrawler, eyeAngel:drawWingedEye, zebot:drawZeBot };
 
 /* ---------------- dialogue system ---------------- */
 let dialogueQueue = [], dialogueIdx = 0, dialogueActive = false, dialogueOnEnd = null;
@@ -2483,7 +2611,7 @@ let stepTimer = 0;
 let playerIdleBlend = 0;   // 0 while moving, eases to 1 while standing still — drives the idle breathing animation
 // living, roster-style sprites get a subtle idle breathing bob/lean; mechanical and decorative types (chests, portals,
 // gems, drones) stay perfectly still, since they were never meant to look alive
-const IDLE_TYPES = new Set(['duo','astro','huggy','cueio','hunter','king','totozinho','ice','glard','raphidash','zapi','naia','zebot','father','mother','villager']);
+const IDLE_TYPES = new Set(['duo','astro','huggy','cueio','hunter','king','totozinho','ice','glard','raphidash','zapi','naia','zebot','umbra','folha','pixel','gear','father','mother','villager']);
 function updateExploration(dt){
   if (dialogueActive || sceneLocked || !currentScene) return;
   if (currentScene.tick && !battle) currentScene.tick();
@@ -3174,6 +3302,7 @@ const ENEMY_MOVES = {
   armaGuardia:['ring','fan','laser'], predator:['pounce','slam'], mechaEnemy:['fan','ring'],
   giant:['slam','charge','ring','pounce'], hydra:['fan','wisps','laser'],
   smiler:['wisps','fan','ring'], faceless:['charge','pounce','slam'], crawler:['pounce','wisps','fan'],
+  mega9000:['slam','laser','ring','fan'], chefaoGO:['ring','fan','wisps','charge'],
   ortsa:['pounce','fan','charge','wisps'], wordDevourer:['slam','ring','wisps','laser'], universeDevourer:['ring','laser','fan','slam','wisps']
 };
 const MOVE_NAMES = { slam:'ESMAGAR!', charge:'INVESTIDA!', fan:'DISPARO!', laser:'LASER!', ring:'ONDA!', pounce:'BOTE!', wisps:'ALMAS!' };
@@ -4245,6 +4374,59 @@ function drawBugWorld(g){
   g.strokeStyle = 'rgba(0,255,220,0.3)'; g.lineWidth = 2;
   for (let x=0;x<W;x+=48) for (let y=H*0.62;y<H;y+=48) g.strokeRect(x,y,48,48);
   g.fillStyle = 'rgba(200,255,255,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar', W/2, H-14);
+}
+// Fábrica de Robôs: a steel factory floor — turning cogs on the back wall, hazard-striped conveyor belts, drifting sparks
+function drawFactoryWorld(g){
+  const t = Date.now()/1000;
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#1a1e26'); bg.addColorStop(1,'#2c323c');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 2;                      // wall panels
+  for (let x=0;x<W;x+=90){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,H*0.62); g.stroke(); }
+  [[120,110,46,1],[330,70,30,-1],[560,120,56,1],[790,80,36,-1]].forEach(([cx,cy,r,dir],i)=>{   // big cogs on the wall
+    g.save(); g.translate(cx,cy); g.rotate(t*0.5*dir+i);
+    g.fillStyle = 'rgba(120,130,145,0.55)';
+    for (let k=0;k<10;k++){ g.save(); g.rotate(k*Math.PI/5); g.fillRect(-r*0.12,-r*1.18,r*0.24,r*0.3); g.restore(); }
+    g.beginPath(); g.arc(0,0,r,0,Math.PI*2); g.fill();
+    g.fillStyle = '#1a1e26'; g.beginPath(); g.arc(0,0,r*0.35,0,Math.PI*2); g.fill();
+    g.restore();
+  });
+  g.fillStyle = '#343b46'; g.fillRect(0,H*0.62,W,H*0.4);                          // floor
+  for (let r=0;r<2;r++){                                                           // conveyor belts with moving chevrons
+    const by = H*0.7+r*70;
+    g.fillStyle = '#20252d'; g.fillRect(0,by,W,26);
+    g.fillStyle = r ? 'rgba(255,200,40,0.55)' : 'rgba(255,200,40,0.4)';
+    for (let x=-40;x<W+40;x+=40){ const xx = x + ((t*40*(r?-1:1))%40+40)%40; g.beginPath(); g.moveTo(xx,by+4); g.lineTo(xx+14,by+13); g.lineTo(xx,by+22); g.lineTo(xx+8,by+22); g.lineTo(xx+22,by+13); g.lineTo(xx+8,by+4); g.closePath(); g.fill(); }
+  }
+  g.save(); g.globalCompositeOperation = 'lighter';                                // sparks
+  for (let i=0;i<14;i++){ const u = (t*0.6+i*0.37)%1; g.fillStyle = `rgba(255,${150+i*6},60,${1-u})`; g.fillRect((fxRand(i,401)*W+u*30)%W, H*0.62+fxRand(i,402)*H*0.35 - u*70, 3, 3); }
+  g.restore();
+  g.fillStyle = 'rgba(255,225,170,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+  g.fillText('↓ Voltar', W/2, H-14);
+}
+// Mundo do Jogo: a neon arcade — dark violet room, glowing checker floor, drifting pixel invaders
+function drawArcadeWorld(g){
+  const t = Date.now()/1000;
+  const bg = g.createLinearGradient(0,0,0,H); bg.addColorStop(0,'#120a2a'); bg.addColorStop(1,'#241048');
+  g.fillStyle = bg; g.fillRect(0,0,W,H);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (let i=0;i<9;i++){                                                           // little pixel invaders floating about
+    const x = (fxRand(i,501)*W + Math.sin(t*0.5+i)*30), y = fxRand(i,502)*H*0.5+30 + Math.cos(t*0.7+i)*10, c = ['255,61,240','61,240,255','255,224,61','125,255,106'][i%4];
+    g.fillStyle = `rgba(${c},0.55)`;
+    [[1,0],[2,0],[3,0],[0,1],[1,1],[2,1],[3,1],[4,1],[0,2],[2,2],[4,2],[1,3],[3,3]].forEach(([px,py])=>{ g.fillRect(x+px*6,y+py*6,5,5); });
+  }
+  g.restore();
+  const fy = H*0.62;                                                                // neon checker floor
+  for (let x=0;x<W;x+=48) for (let y=fy;y<H;y+=48){
+    const on = ((x/48 + (y-fy)/48) & 1) === 0;
+    g.fillStyle = on ? 'rgba(90,40,160,0.55)' : 'rgba(30,14,70,0.7)'; g.fillRect(x,y,48,48);
+  }
+  g.strokeStyle = `rgba(80,255,240,${0.35+0.15*Math.sin(t*3)})`; g.lineWidth = 2;
+  for (let x=0;x<W;x+=48){ g.beginPath(); g.moveTo(x,fy); g.lineTo(x,H); g.stroke(); }
+  g.beginPath(); g.moveTo(0,fy); g.lineTo(W,fy); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,0.04)'; g.lineWidth = 1;                        // CRT scanlines
+  for (let y=0;y<H;y+=4){ g.beginPath(); g.moveTo(0,y); g.lineTo(W,y); g.stroke(); }
+  g.fillStyle = 'rgba(210,200,255,0.85)'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
   g.fillText('↓ Voltar', W/2, H-14);
 }
 // Além do Véu: a post-game bonus dimension — a heaven, not a void, all bright sky, gold light and cloud marble
@@ -5322,6 +5504,13 @@ DRAW.lever_mal = (g,x,y,s,activated)=> drawLeverProp(g,x,y,s,activated,'255,140,
 DRAW.lever_bug = (g,x,y,s,activated)=> drawLeverProp(g,x,y,s,activated,'80,220,255');
 Object.keys(HELL_SOULS).forEach(id=>{ DRAW['soul_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,HELL_SOULS[id].color); });
 Object.keys(BUG_FRAGMENTS).forEach(id=>{ DRAW['frag_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,BUG_FRAGMENTS[id].color); });
+DRAW.mega9000 = drawMega9000; DRAW.chefaoGO = drawChefaoGameOver;
+DRAW.factoryPortal = (g,x,y,s)=> drawThemedPortal(g,x,y,s,'#ffb02a','#7a8492');
+DRAW.arcadePortal = (g,x,y,s)=> drawThemedPortal(g,x,y,s,'#7a3aff','#3dffd8');
+DRAW.lever_factory = (g,x,y,s,activated)=> drawLeverProp(g,x,y,s,activated,'255,190,60');
+DRAW.lever_arcade = (g,x,y,s,activated)=> drawLeverProp(g,x,y,s,activated,'120,255,160');
+Object.keys(FACTORY_PARTS).forEach(id=>{ DRAW['part_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,FACTORY_PARTS[id].color); });
+Object.keys(ARCADE_ITEMS).forEach(id=>{ DRAW['arc_'+id] = (g,x,y,s,found)=> drawLostGem(g,x,y,s,found,ARCADE_ITEMS[id].color); });
 
 /* ---------------- CHAPTER 1 ---------------- */
 function buildChapter1(){
@@ -6392,7 +6581,12 @@ const ACHIEVEMENTS = [
   { id:'hellsouls', name:'Colecionador de Almas',  desc:'Encontre as 3 Almas Perdidas no Mundo do Mal',  reward:150, test:p=> hellSoulCount() >= 3 },
   { id:'malboss',   name:'Senhor das Chamas',      desc:'Derrote o Lorde do Caos no Mundo do Mal',       reward:450, test:p=> p.hellBossWon },
   { id:'bugfrags',  name:'Depurador',              desc:'Encontre os 3 Fragmentos de Dados no Mundo do Bug', reward:150, test:p=> bugFragCount() >= 3 },
-  { id:'bugboss',   name:'Sem Erros',              desc:'Derrote o Erro Fatal no Mundo do Bug',          reward:450, test:p=> p.bugBossWon }
+  { id:'bugboss',   name:'Sem Erros',              desc:'Derrote o Erro Fatal no Mundo do Bug',          reward:450, test:p=> p.bugBossWon },
+  { id:'factoryparts', name:'Engenheiro',          desc:'Encontre as 3 peças raras na Fábrica de Robôs',  reward:150, test:p=> factoryPartCount() >= 3 },
+  { id:'factoryboss',  name:'Fim da Linha',        desc:'Derrote o MEGA-9000 na Fábrica de Robôs',        reward:500, test:p=> p.factoryBossWon },
+  { id:'arcadeitems',  name:'Fliperama Completo',  desc:'Encontre os 3 itens de fliperama no Mundo do Jogo', reward:150, test:p=> arcadeItemCount() >= 3 },
+  { id:'arcadeboss',   name:'Recorde Mundial',     desc:'Derrote o Chefão Game Over no Mundo do Jogo',    reward:500, test:p=> p.arcadeBossWon },
+  { id:'shopper',      name:'Cliente Fiel',        desc:'Compre um personagem na Loja de Personagens',    reward:80,  test:p=> p.shopBuys >= 1 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -6423,7 +6617,11 @@ function checkUnlocks(){
   if (progress.kills >= 40) unlockChar('raphidash','Raphidash');
   if (progress.level >= 10) unlockChar('zapi','Zapi');
   if (emeraldCount() >= 4) unlockChar('naia','Naia');
-  if (Object.values(progress.robots).every(Boolean)) unlockChar('zebot','Zé Bot');
+  if (ZEBOT_ROBOTS.every(k=> progress.robots[k])) unlockChar('zebot','Zé Bot');
+  if (progress.hellBossWon) unlockChar('umbra','Umbra');
+  if (progress.blockBossWon) unlockChar('folha','Folha');
+  if (progress.arcadeBossWon) unlockChar('pixel','Pixel');
+  if (progress.factoryBossWon) unlockChar('gear','Gear');
 }
 function checkAchievements(){
   if (checkingAch) return;
@@ -6444,7 +6642,7 @@ function checkAchievements(){
   checkingAch = false;
   saveGame();
 }
-function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
+function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals+arcadeItemBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
 function refreshFollowers(){
   const order = Object.keys(ROSTER).filter(id=> progress.chars[id] && id !== progress.main);
   order.sort((a,b)=> (a===progress.sub ? -1 : 0) - (b===progress.sub ? -1 : 0));
@@ -6520,6 +6718,22 @@ function renderPanel(){
     });
     h += `<div class="pRow ${progress.bugBossWon ? 'done' : 'locked'}"><div style="font-size:22px">💻</div><div class="pInfo"><div class="pTitle">Erro Fatal</div>
       <div class="pSub">${progress.bugBossWon ? 'CORRIGIDO' : 'conserte os 3 terminais na ordem certa pra despertá-lo'}</div></div></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>Fábrica de Robôs (${factoryPartCount()}/3 peças) · portal em Terras Devastadas</span></div>`;
+    Object.entries(FACTORY_PARTS).forEach(([k,d])=>{
+      const got = progress.factoryParts[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'ENCONTRADA' : 'ainda não encontrada'}</div></div></div>`;
+    });
+    h += `<div class="pRow ${progress.factoryBossWon ? 'done' : 'locked'}"><div style="font-size:22px">🤖</div><div class="pInfo"><div class="pTitle">MEGA-9000</div>
+      <div class="pSub">${progress.factoryBossWon ? 'DESLIGADO' : 'ligue os 3 painéis na ordem certa pra despertá-lo'}</div></div></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>Mundo do Jogo (${arcadeItemCount()}/3 itens) · portal em Terras Devastadas</span></div>`;
+    Object.entries(ARCADE_ITEMS).forEach(([k,d])=>{
+      const got = progress.arcadeItems[k];
+      h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
+        <div class="pSub">${d.text} · ${got ? 'ENCONTRADO' : 'ainda não encontrado'}</div></div></div>`;
+    });
+    h += `<div class="pRow ${progress.arcadeBossWon ? 'done' : 'locked'}"><div style="font-size:22px">🕹️</div><div class="pInfo"><div class="pTitle">Chefão Game Over</div>
+      <div class="pSub">${progress.arcadeBossWon ? 'DERROTADO' : 'ligue os 3 consoles na ordem certa pra acordá-lo'}</div></div></div>`;
     h += `<div class="pHead" style="margin-top:6px"><span>Missões</span></div>`;
     QUESTS.forEach(q=>{
       const done = progress.quests[q.id], ready = !done && q.test(progress);
@@ -6527,7 +6741,8 @@ function renderPanel(){
         <div class="pSub">${q.desc} · recompensa ${q.reward} 💎 · em ${OW_NAMES[owBiome(q.area[0],q.area[1])]} · ${done?'CONCLUÍDA':(ready?'pronta pra resgatar!':'em andamento')}</div></div></div>`;
     });
   } else if (panelTab === 'chars'){
-    h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span></div>`;
+    h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span><span>💎 ${progress.crystals}</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">🛒 Loja de Personagens: quem ainda está trancado pode ser comprado com cristais — ou desbloqueado de graça cumprindo a conquista.</div>`;
     h += `<div class="pRow ${(progress.forms.super || progress.forms.max) ? '' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Forma de poder: ${FORMS[progress.form].name}</div>
       <div class="pSub">${(progress.forms.super || progress.forms.max) ? FORMS[progress.form].text : '🔒 Conquiste as formas Super e Max na Ilha Celestial (abre a cada 5 minutos na Praia Calma).'}</div></div>
       ${['normal','super','max'].map(k=> (k === 'normal' || progress.forms[k]) ? `<button class="pBtn ${k==='normal'?'':'alt'}" data-form="${k}" ${progress.form===k?'disabled':''}>${FORMS[k].icon} ${FORMS[k].name}</button>` : '').join('')}</div>`;
@@ -6535,7 +6750,8 @@ function renderPanel(){
       const r = ROSTER[id], has = progress.chars[id], st = rosterStats(id, true);
       h += `<div class="pRow ${has ? '' : 'locked'}"><div class="pInfo"><div class="pTitle">${r.name} ${progress.main===id?'⭐ principal':(progress.sub===id?'🤝 reserva':'')}</div>
         <div class="pSub">${r.desc}${has ? ` · Vida ${st.hp} · Ataque ${st.atk}` : ' · 🔒 '+r.unlock}</div></div>
-        ${has ? `<button class="pBtn" data-main="${id}" ${progress.main===id?'disabled':''}>Principal</button><button class="pBtn alt" data-sub="${id}" ${progress.sub===id||progress.main===id?'disabled':''}>Reserva</button>` : ''}</div>`;
+        ${has ? `<button class="pBtn" data-main="${id}" ${progress.main===id?'disabled':''}>Principal</button><button class="pBtn alt" data-sub="${id}" ${progress.sub===id||progress.main===id?'disabled':''}>Reserva</button>`
+          : (CHAR_PRICES[id] ? `<button class="pBtn alt" data-charbuy="${id}" ${progress.crystals < CHAR_PRICES[id] ? 'disabled' : ''}>Comprar (${CHAR_PRICES[id]} 💎)</button>` : '')}</div>`;
     });
   } else if (panelTab === 'robots'){
     h += `<div class="pHead"><span>🔧 Laboratório do Duo</span><span>💎 ${progress.crystals}</span></div>`;
@@ -6609,6 +6825,12 @@ panelBody.addEventListener('click', e=>{
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
+  } else if (b.dataset.charbuy){
+    const id = b.dataset.charbuy, price = CHAR_PRICES[id];
+    if (price && !progress.chars[id] && progress.crystals >= price){
+      progress.crystals -= price; progress.shopBuys = (progress.shopBuys || 0) + 1;
+      unlockChar(id, ROSTER[id].name); fxWhite = 0.4; checkAchievements();
+    }
   } else if (b.dataset.build){
     const k = b.dataset.build, d = ROBOT_DEFS[k];
     if (!progress.robots[k] && progress.crystals >= d.cost){ progress.crystals -= d.cost; progress.robots[k] = true; progress.robotEquipped = k; sfxPickup(); fxWhite = 0.4; checkAchievements(); }
@@ -6634,7 +6856,7 @@ function adminUnlock(what){
   const all = what === 'all';
   if (all || what === 'chars') Object.keys(progress.chars).forEach(k=> progress.chars[k] = true);
   if (all || what === 'gear') EQUIP_SLOTS.forEach(s=> Object.keys(EQUIP_DEFS[s]).forEach(k=> progress.equipOwned[s][k] = true));
-  if (all || what === 'gems') ['lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags'].forEach(f=> Object.keys(progress[f]).forEach(k=> progress[f][k] = true));
+  if (all || what === 'gems') ['lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags','factoryParts','arcadeItems'].forEach(f=> Object.keys(progress[f]).forEach(k=> progress[f][k] = true));
   if (all || what === 'emeralds'){
     Object.keys(progress.emeralds).forEach(k=> progress.emeralds[k] = true);
     upgrades.elementalEmerald = true; upgrades.disguiseEmerald = true; upgrades.monsterEmerald = true;
@@ -6651,7 +6873,7 @@ function adminAction(cmd){
   else if (k === 'unlock'){ adminUnlock(v); sfxPickup(); fxWhite = 0.3; }
   else if (k === 'toggle' && v === 'imortal'){ progress.immortalCode = !progress.immortalCode; sfxPickup(); }
   else if (k === 'fb'){ openFeedback(true); }
-  else if (k === 'puzzles' && ad){ ad.solvePuzzles(); sfxPickup(); showBanner('🧩 Puzzles resolvidos nos mundos do Mal e do Bug'); }
+  else if (k === 'puzzles' && ad){ ad.solvePuzzles(); sfxPickup(); showBanner('🧩 Puzzles resolvidos nos mundos do Mal, do Bug, da Fábrica e do Jogo'); }
   else if (k === 'tp' && ad){
     if (battle || duelActive){ showBanner('Termine a luta antes de teleportar.'); return; }
     const s = ad.scenes.find(x=> x.id === v);
@@ -6860,6 +7082,8 @@ function buildOpenWorld(){
       onInteract: ()=> startDialogue([{speaker:'Mestre', text:'Cristais viram poder. Vamos melhorar vida, ataque, especial, dash e crítico!', color:'#ffb86a'}], ()=> openPanel('up')) },
     { x:330, y:230, w:42, h:60, type:'father', scale:34, persistent:true, label:'Salão de Personagens',
       onInteract: ()=> startDialogue([{speaker:'Recrutador', text:'Escolha quem lidera o grupo e quem fica de reserva. Novos aliados se juntam ao ganhar conquistas!', color:'#9fd88a'}], ()=> openPanel('chars')) },
+    { x:700, y:230, w:42, h:60, type:'mother', scale:34, persistent:true, label:'🛒 Loja de Personagens',
+      onInteract: ()=> startDialogue([{speaker:'Lojista', text:'Bem-vindo à loja! Aqui você compra qualquer personagem com cristais — sem precisar cumprir a conquista. Dá uma olhada!', color:'#ffd27a'}], ()=> openPanel('chars')) },
     { x:600, y:230, w:50, h:50, type:'chest', scale:30, persistent:true, label:'Painel de Conquistas',
       onInteract: ()=> openPanel('ach') },
     { x:40, y:345, w:190, h:190, type:'labDoor', scale:85, persistent:true, label:'Laboratório do Duo →' },
@@ -7516,6 +7740,110 @@ function buildOpenWorld(){
   areas[key(4,3)].npcs.push({ x:250, y:100, w:90, h:90, type:'bugPortal', scale:44, persistent:true, label:'Portal do Bug →',
     onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal instável que pisca entre cores. Parece prestes a travar a qualquer momento.', color:'#8af0ff'}], ()=> goToScene(bugWorld, {x:W/2-17, y:H-90})) });
 
+  // ---- Fábrica de Robôs e Mundo do Jogo: same recipe as the Bug world (3 collectibles, 2 monsters, an ordered
+  // 1-2-3 puzzle, a boss), built from one config so the two stay in step. Beating each boss also drops an Ultra item. ----
+  function makeBonusWorld(c){
+    const puzzle = { step:0, solved:false };
+    const talk = (who, text, color)=> startDialogue([{speaker:who, text, color: color || c.color}]);
+    function press(idx){
+      if (puzzle.solved){ talk('???', c.doneMsg); return; }
+      if (idx === puzzle.step){
+        puzzle.step++;
+        if (puzzle.step >= 3){ puzzle.solved = true; sfxVictory(); fxWhite = 0.3; talk('???', c.okMsg); }
+        else { sfxPickup(); talk('???', `${c.stepMsg} (${puzzle.step}/3 na ordem certa)`, '#ffd54a'); }
+      } else {
+        puzzle.step = 0; fxShakeNow(0.2,4); sfxEnemyHit();
+        talk('???', c.failMsg, '#ff6a6a');
+      }
+    }
+    const leverNpc = (idx, x, y)=> ({ x, y, w:40, h:50, type:c.leverType, scale:30, persistent:true, label:`${c.leverLabel} ${idx+1}`,
+      get talking(){ return puzzle.solved || puzzle.step > idx; }, onInteract: ()=> press(idx) });
+    function fight(sc, npc, t){
+      owBattle({
+        title:`${t.article} ${t.name}!`, intro:t.intro, fleeChance:0.2, ranged:!!t.ranged,
+        enemy:{ name:t.name, type:t.type, hp:t.hp, maxHp:t.hp, atk:t.atk, speed:t.speed||120, scale:50, reach:60, hitColor:c.hitColor, projColor:c.projColor },
+        onVictory: ()=>{
+          player.type = progress.main; progress.kills++;
+          sc.npcs = sc.npcs.filter(n=> n !== npc);
+          grantCrystals(12); grantXp(40);
+          startDialogue([{speaker:ROSTER[progress.main].name, text:`${t.name} ${c.deathMsg} +12 💎  +40 XP`, color:'#7ef9ff'}]);
+        },
+        onDefeat: ()=>{ player.type = progress.main; startDialogue([{speaker:ROSTER[progress.main].name, text:'Forte demais por agora... preciso treinar mais.', color:'#7ef9ff'}]); }
+      });
+    }
+    function startBoss(){
+      owBattle({
+        title:c.bossName, intro:c.bossIntro, fleeChance:0.08, ranged:false,
+        enemy:{ name:c.bossName, type:c.bossType, hp:3500, maxHp:3500, atk:c.bossAtk, speed:92, scale:c.bossScale, reach:88, hitColor:c.hitColor },
+        onVictory: ()=>{
+          player.type = progress.main; progress[c.bossFlag] = true;
+          fxWhite = 0.9; fxShakeNow(0.5,7); sfxVictory(); grantCrystals(600); grantXp(600);
+          const fresh = c.prizes.filter(([slot,id])=> !progress.equipOwned[slot][id]);
+          c.prizes.forEach(([slot,id])=>{ progress.equipOwned[slot][id] = true; });
+          checkAchievements();
+          startDialogue([{speaker:c.bossName, text:c.bossDefeat, color:c.color}].concat(fresh.length ? [{speaker:'Você', text:`Itens Ultra: ${fresh.map(([slot,id])=> EQUIP_DEFS[slot][id].icon+' '+EQUIP_DEFS[slot][id].name).join(' e ')}! Veja na aba Equipamento.`, color:'#ffe8c0'}] : []));
+        },
+        onDefeat: ()=>{ player.type = progress.main; startDialogue([{speaker:ROSTER[progress.main].name, text:'Ainda não tenho força pra isso... preciso ficar mais forte.', color:'#7ef9ff'}]); }
+      });
+    }
+    function itemNpc(id, x, y){
+      const d = c.items[id];
+      return { x, y, w:50, h:50, type:c.itemType+id, scale:34, persistent:true, talking:!!progress[c.itemsKey][id], label:d.name,
+        onInteract: function(){
+          if (progress[c.itemsKey][id]){ startDialogue([{speaker:'Você', text:`Já peguei: ${d.name}.`, color:'#7ef9ff'}]); return; }
+          progress[c.itemsKey][id] = true; this.talking = true;
+          sfxPickup(); fxWhite = 0.35; checkAchievements(); saveGame();
+          startDialogue([{speaker:'Você', text:`${d.icon} ${d.name}! ${d.text}. (${c.countFn()}/3 ${c.countLabel})`, color:'#ffe8c0'}]);
+        } };
+    }
+    const world = { banner:c.banner, isOpenWorld:false, draw:c.draw, obstacles:[], npcs:[], exits:[ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(areas[key(4,3)], c.exitSpawn) } ] };
+    const ids = Object.keys(c.items);
+    world.npcs.push(itemNpc(ids[0],150,180), itemNpc(ids[1],W-190,180), itemNpc(ids[2],150,H-180),
+      leverNpc(1,W-220,320), leverNpc(0,180,420), leverNpc(2,W/2+40,460));
+    c.minions.forEach(m=> world.npcs.push({ x:m.x, y:m.y, w:56, h:56, type:m.type, scale:46, label:m.name,
+      onInteract: function(){ fight(world, this, m); } }));
+    world.npcs.push({ x:W/2-40, y:110, w:80, h:90, type:c.bossType, scale:48, persistent:true,
+      get label(){ return progress[c.bossFlag] ? `${c.bossName} (em paz)` : c.bossName; },
+      onInteract: function(){
+        if (progress[c.bossFlag]){ talk(c.bossName, c.bossQuiet); return; }
+        if (!puzzle.solved){ talk(c.bossName, c.bossLocked); return; }
+        startDialogue([{speaker:c.bossName, text:c.bossWake, color:c.color}], ()=> startBoss());
+      } });
+    areas[key(4,3)].npcs.push({ x:c.portal.x, y:c.portal.y, w:90, h:90, type:c.portalType, scale:44, persistent:true, label:c.portal.label,
+      onInteract: ()=> startDialogue([{speaker:'???', text:c.portal.text, color:c.color}], ()=> goToScene(world, {x:W/2-17, y:H-90})) });
+    return { world, puzzle, startBoss };
+  }
+  const factory = makeBonusWorld({
+    banner:'FÁBRICA DE ROBÔS', draw:drawFactoryWorld, color:'#ffd27a', hitColor:'255,170,50', projColor:'#ffb02a',
+    leverType:'lever_factory', leverLabel:'Painel', stepMsg:'*** peça encaixada ***', doneMsg:'A linha de montagem já está funcionando.',
+    okMsg:'*** LINHA DE MONTAGEM LIGADA *** A porta do chefe se abre!', failMsg:'*** CURTO-CIRCUITO *** fora de ordem — a linha reiniciou. Procure o Painel 1 primeiro!',
+    items:FACTORY_PARTS, itemsKey:'factoryParts', itemType:'part_', countFn:factoryPartCount, countLabel:'peças raras',
+    minions:[ { x:W-240, y:H-210, type:'drone', name:'Drone de Montagem', article:'Um', hp:170, atk:15, ranged:true, intro:'Um drone de montagem desgovernado gira na sua direção.' },
+              { x:W/2+150, y:220, type:'mechaEnemy', name:'Soldador Rebelde', article:'Um', hp:230, atk:16, ranged:true, intro:'Um robô soldador rebelde faísca o braço pra você.' } ],
+    deathMsg:'desmontou em mil pedaços!',
+    bossName:'MEGA-9000', bossType:'mega9000', bossAtk:29, bossScale:100, bossFlag:'factoryBossWon', prizes:[['weapon','megapunho'],['accessory','nucleo']],
+    bossIntro:'As esteiras param. Uma montanha de aço acende o núcleo de fornalha e gira a cabeça na sua direção.',
+    bossDefeat:'*** (os motores desligam, em paz) ***', bossQuiet:'*** (silêncio de máquina desligada) ***',
+    bossLocked:'Ligue os 3 painéis na ordem certa pra me despertar.', bossWake:'*** BIP BIP — INICIANDO PROTOCOLO DE ESMAGAMENTO ***',
+    exitSpawn:{x:510,y:240},
+    portalType:'factoryPortal', portal:{ x:510, y:100, label:'Portal da Fábrica →', text:'Um portal industrial, cheirando a óleo quente. Dá pra ouvir engrenagens gigantes girando do outro lado.' }
+  });
+  const arcade = makeBonusWorld({
+    banner:'MUNDO DO JOGO', draw:drawArcadeWorld, color:'#8af0ff', hitColor:'125,255,240', projColor:'#ff3df0',
+    leverType:'lever_arcade', leverLabel:'Console', stepMsg:'*** PLAYER 1 READY ***', doneMsg:'Os consoles já estão ligados.',
+    okMsg:'*** NOVO JOGO LIBERADO *** A tela do chefe acende!', failMsg:'*** GAME OVER *** fora de ordem — os consoles reiniciaram. Procure o Console 1 primeiro!',
+    items:ARCADE_ITEMS, itemsKey:'arcadeItems', itemType:'arc_', countFn:arcadeItemCount, countLabel:'itens de fliperama',
+    minions:[ { x:W-240, y:H-210, type:'bombom', name:'Slime de Pixel', article:'Um', hp:180, atk:14, intro:'Um slime de pixels quica na sua direção.' },
+              { x:W/2+150, y:220, type:'smiler', name:'Fantasma do Fliperama', article:'Um', hp:220, atk:15, ranged:true, intro:'Um fantasma de 8 bits pisca e persegue você.' } ],
+    deathMsg:'virou +1 pontuação!',
+    bossName:'Chefão Game Over', bossType:'chefaoGO', bossAtk:28, bossScale:98, bossFlag:'arcadeBossWon', prizes:[['armor','vidaextra'],['weapon','gameover']],
+    bossIntro:'A tela pisca "GAME OVER" e um fliperama gigante se levanta, de olhos vermelhos.',
+    bossDefeat:'*** (a tela escreve "VOCÊ VENCEU" e apaga) ***', bossQuiet:'*** (a tela mostra: INSERIR FICHA) ***',
+    bossLocked:'Ligue os 3 consoles na ordem certa pra me acordar.', bossWake:'*** PRESS START ***',
+    exitSpawn:{x:200,y:300},
+    portalType:'arcadePortal', portal:{ x:100, y:260, label:'Portal do Jogo →', text:'Um portal neon que pisca como uma tela de fliperama. Dá pra ouvir musiquinha de 8 bits do outro lado.' }
+  });
+
   // atalhos do Painel de Admin (código secreto): onde teleportar, quais chefes chamar, e como resolver os puzzles dos mundos
   const admin = {
     scenes: [
@@ -7531,6 +7859,8 @@ function buildOpenWorld(){
       { id:'blocos',  name:'Mundo dos Blocos',      scene:blockWorld,    spawn:{x:W/2-17,y:H-90} },
       { id:'mal',     name:'Mundo do Mal',          scene:hellWorld,     spawn:{x:W/2-17,y:H-90} },
       { id:'bug',     name:'Mundo do Bug',          scene:bugWorld,      spawn:{x:W/2-17,y:H-90} },
+      { id:'fabrica', name:'Fábrica de Robôs',      scene:factory.world, spawn:{x:W/2-17,y:H-90} },
+      { id:'jogo',    name:'Mundo do Jogo',         scene:arcade.world,  spawn:{x:W/2-17,y:H-90} },
       { id:'veu',     name:'Além do Véu',           scene:beyondVeil,    spawn:{x:W/2-17,y:H-90} },
       { id:'backrooms', name:'Backrooms',           scene:brRooms[brKey(0,0)], spawn:{x:W/2-17,y:H-110} }
     ],
@@ -7543,10 +7873,12 @@ function buildOpenWorld(){
       { id:'golem',   name:'Golem de Pedra',        fn:startGolemBoss },
       { id:'lorde',   name:'Lorde do Caos',         fn:startMalBoss },
       { id:'erro',    name:'Erro Fatal',            fn:startBugBoss },
+      { id:'mega',    name:'MEGA-9000',             fn:factory.startBoss },
+      { id:'gameover',name:'Chefão Game Over',      fn:arcade.startBoss },
       { id:'super',   name:'Guardião Super',        fn:()=> formFight('super') },
       { id:'max',     name:'Guardiões Max',         fn:()=> formFight('max') }
     ],
-    solvePuzzles: ()=>{ malPuzzle.solved = true; bugPuzzle.solved = true; }
+    solvePuzzles: ()=>{ malPuzzle.solved = true; bugPuzzle.solved = true; factory.puzzle.solved = true; arcade.puzzle.solved = true; }
   };
   return { areas, brRooms, island, admin, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
     goToScene(village, {x:W/2-17, y:430});
