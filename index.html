@@ -333,6 +333,10 @@
     border:1px solid #3a4a70; border-radius:7px;
   }
   .settingsRow input[type=range] { width:100%; }
+  .settingsRow input[type=text] {
+    padding:8px 10px; font-family:inherit; font-size:14px; background:#1a2340; color:#cfe0ff;
+    border:1px solid #3a4a70; border-radius:7px; min-width:0;
+  }
   .settingsVal { color:#7ef9ff; font-size:11px; letter-spacing:0; text-transform:none; }
   .settingsActions { display:flex; gap:12px; justify-content:center; margin-top:2px; flex-wrap:wrap; }
   .settingsHr { border:none; border-top:1px solid #2a3a63; margin:2px 0; }
@@ -410,6 +414,11 @@
         </div>
 
         <hr class="settingsHr">
+
+        <div class="settingsRow">
+          <label>Seu nome <span class="settingsVal">aparece no chat e no Jogar Junto</span></label>
+          <input type="text" id="inpPlayerName" maxlength="16" placeholder="Como você quer ser chamado?" autocomplete="off">
+        </div>
 
         <div class="settingsRow">
           <label>Dificuldade</label>
@@ -783,7 +792,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, playerName:'',
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -7826,6 +7835,7 @@ const settingsOverlay = document.getElementById('settingsOverlay');
 const segDifficulty = document.getElementById('segDifficulty');
 const segQuality = document.getElementById('segQuality');
 const selLanguage = document.getElementById('selLanguage');
+const inpPlayerName = document.getElementById('inpPlayerName');
 const rangeScale = document.getElementById('rangeScale');
 const rangeSafe = document.getElementById('rangeSafe');
 const rangeMusic = document.getElementById('rangeMusic');
@@ -7846,6 +7856,7 @@ function refreshSettingsUI(){
   [...segDifficulty.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.difficulty));
   [...segQuality.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.quality));
   selLanguage.value = settings.language;
+  inpPlayerName.value = progress.playerName || '';
   rangeScale.value = settings.scale;
   rangeSafe.value = settings.safe;
   rangeMusic.value = settings.music;
@@ -7885,6 +7896,8 @@ document.getElementById('btnRestart').addEventListener('click', ()=>{
   closeSettings();
   showMenu();
 });
+inpPlayerName.addEventListener('input', ()=>{ progress.playerName = inpPlayerName.value.trim().slice(0,16); });
+inpPlayerName.addEventListener('change', saveGame);
 segDifficulty.addEventListener('click', e=>{
   const b = e.target.closest('.segBtn'); if (!b) return;
   settings.difficulty = b.dataset.val;
@@ -8015,7 +8028,7 @@ function drawDuelHud(g){
     g.strokeStyle = 'rgba(255,255,255,0.4)'; g.lineWidth=1; g.strokeRect(x+4,18,162,8);
     g.fillStyle = '#fff'; g.font = 'bold 11px sans-serif'; g.textAlign = 'left'; g.fillText(label, x+4, 34);
   };
-  bar(W/2-180, ROSTER[player.type] ? ROSTER[player.type].name : 'Você', duelHp, duelMaxHp, '#5aff96');
+  bar(W/2-180, progress.playerName || (ROSTER[player.type] ? ROSTER[player.type].name : 'Você'), duelHp, duelMaxHp, '#5aff96');
   bar(W/2+10, mpRemote && mpRemote.name || 'Amigo', duelOppHp, duelOppMaxHp, '#ff6a6a');
   g.textAlign = 'center'; g.fillStyle = 'rgba(255,255,255,0.7)'; g.font = '11px sans-serif'; g.fillText('DUELO', W/2, 12);
 }
@@ -8033,14 +8046,14 @@ function mpOnDisconnect(msg){ if (duelActive) endDuel('left'); mpCleanup(); mpSe
 function mpSendRaw(d){ if (mpConn && mpConn.open){ try{ mpConn.send(d); }catch(e){} } }
 function mpSendState(){
   mpSendRaw({ t:'state', x:player.x, y:player.y, facing:player.facing||1, type:player.type, form:progress.form,
-    area:(currentScene && currentScene.mpKey) || null, name:(ROSTER[player.type] && ROSTER[player.type].name) || player.type });
+    area:(currentScene && currentScene.mpKey) || null, name:progress.playerName || (ROSTER[player.type] && ROSTER[player.type].name) || player.type });   // o nome que a pessoa escolheu no Menu, senão o do personagem
 }
 function mpSendEmote(e){ mpSendRaw({ t:'emote', e }); fxText(player.x+player.w/2, player.y-20, e, '#ffffff', 28, 1.2); }
 function mpOnData(d){
   if (!d || typeof d !== 'object') return;
   if (d.t === 'state'){
     if (!mpRemote) mpRemote = { dispX:d.x, dispY:d.y };
-    Object.assign(mpRemote, { name:d.name, type:d.type, form:d.form, area:d.area, facing:d.facing, x:d.x, y:d.y });
+    Object.assign(mpRemote, { name:String(d.name == null ? '' : d.name).slice(0,16), type:d.type, form:d.form, area:d.area, facing:d.facing, x:d.x, y:d.y });
   } else if (d.t === 'emote'){
     if (mpRemote){ mpRemote.emote = d.e; mpRemote.emoteT = 2.2; }
   } else if (d.t === 'bye'){
@@ -8171,13 +8184,13 @@ function mpRenderPanel(){
   let h = `<div class="coopStatus">${mpStatus || 'Ninguém conectado ainda.'}</div>`;
   const needsPick = mpPendingHost || (mpConn && mpConn.open && !mpMyChar);
   if (duelPending){
-    h += `<div class="coopNote">⚔️ ${mpRemote ? mpRemote.name : 'Seu amigo'} te desafiou pra um duelo!</div>`;
+    h += `<div class="coopNote">⚔️ ${escapeHtml(mpRemote && mpRemote.name || 'Seu amigo')} te desafiou pra um duelo!</div>`;
     h += `<div class="settingsActions"><button class="gameBtn" id="coopDuelAccept">Aceitar</button><button class="gameBtn secondary" id="coopDuelDecline">Recusar</button></div>`;
   } else if (needsPick){
     h += `<div class="coopNote">${mpPendingHost ? ('Você é o dono da sala — escolha seu personagem antes de abrir ' + (mpPendingOpenHost ? 'a partida aberta:' : 'o código:')) : 'Escolha seu personagem para entrar na sala:'}</div>`;
     h += `<div class="coopCharList">${mpCharList().map(id=>`<button class="pBtn" data-pick="${id}">${ROSTER[id].name}${progress.main===id?' (atual)':''}</button>`).join('')}</div>`;
   } else if (mpConn && mpConn.open){
-    h += `<div class="coopStatus">Você é: <b>${ROSTER[mpMyChar].name}</b>${mpRemote && mpRemote.name ? ' · Amigo: <b>'+mpRemote.name+'</b>' : ''}</div>`;
+    h += `<div class="coopStatus">Você é: <b>${ROSTER[mpMyChar].name}</b>${mpRemote && mpRemote.name ? ' · Amigo: <b>'+escapeHtml(mpRemote.name)+'</b>' : ''}</div>`;
     h += `<div class="coopStatus">Placar de duelos: 🏆 ${progress.duelWins} vitórias · 💀 ${progress.duelLosses} derrotas</div>`;
     h += `<div class="coopEmotes">${['👋','😂','❤️','⚔️'].map(e=>`<button data-emote="${e}">${e}</button>`).join('')}</div>`;
     h += `<hr class="coopDivider">`;
@@ -8233,7 +8246,7 @@ const fbOverlay = document.getElementById('fbOverlay'), fbBody = document.getEle
 let fbIsOpen = false, fbPeer = null, fbConn = null, fbConns = [], fbRole = null, fbMode = 'guest', fbLog = [], fbStatus = '', fbKind = 'bug', fbConnectTO = null, fbLastSend = 0, fbHintTO = null;
 function fbLoad(){ try{ return JSON.parse(localStorage.getItem(FB_KEY)) || {}; }catch(e){ return {}; } }
 function fbSave(patch){ try{ localStorage.setItem(FB_KEY, JSON.stringify(Object.assign(fbLoad(), patch))); }catch(e){} }
-function fbName(){ return String(fbLoad().name || '').trim().slice(0,16) || (fbRole === 'host' ? 'Dono' : ((ROSTER[progress.main] && ROSTER[progress.main].name) || 'Jogador')); }
+function fbName(){ return String(progress.playerName || '').trim().slice(0,16) || (fbRole === 'host' ? 'Dono' : ''); }   // o mesmo nome do Menu → Seu nome; quem não tem fica sem enviar
 function fbCtx(){ return ((currentScene && currentScene.banner) || 'menu') + ' · nv ' + progress.level; }
 function fbClean(m){
   if (!m || typeof m.text !== 'string') return null;
@@ -8323,6 +8336,7 @@ function fbFlush(){      // reenvia a fila de pendentes, uma a cada 1,7 s (o anf
   }, i*1700));
 }
 function fbSend(text){     // devolve true quando a mensagem foi aceita (enviada ou guardada na fila)
+  if (!fbName()){ fbHint('Escreva seu nome primeiro, pro dono saber quem mandou.'); const ni = document.getElementById('fbNameInput'); if (ni) ni.focus(); return false; }
   const m = fbClean({ kind:fbKind, text, who:fbName(), ctx:fbCtx() }); if (!m) return false;
   if (Date.now() - fbLastSend < 1700){ fbHint('Calma aí — espera um segundinho entre as mensagens.'); return false; }
   fbLastSend = Date.now();
@@ -8337,7 +8351,7 @@ function fbSend(text){     // devolve true quando a mensagem foi aceita (enviada
 }
 function fbCopyReport(){
   const ti = document.getElementById('fbTextInput'), k = FB_KINDS[fbKind];
-  const rep = `${k.icon} ${k.label.toUpperCase()} — Fuga Alienígena\n${(ti && ti.value.trim()) || '(escreva aqui)'}\n— ${fbName()} · ${fbCtx()} · dificuldade ${settings.difficulty}`;
+  const rep = `${k.icon} ${k.label.toUpperCase()} — Fuga Alienígena\n${(ti && ti.value.trim()) || '(escreva aqui)'}\n— ${fbName() || 'sem nome'} · ${fbCtx()} · dificuldade ${settings.difficulty}`;
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(rep).then(()=> fbHint('📋 Relatório copiado! Cole no WhatsApp do dono.'), ()=> fbHint('Não consegui copiar automaticamente.'));
   else { if (ti){ ti.value = rep.slice(0,280); ti.select(); } fbHint('Selecione o texto e copie.'); }
 }
@@ -8362,13 +8376,15 @@ function openFeedback(asHost){
     <div class="coopStatus" id="fbStatus"></div>
     <div class="fbLog" id="fbLog"></div>
     <div class="segGroup" id="fbKinds">${Object.entries(FB_KINDS).map(([k,d])=>`<button class="segBtn${k===fbKind?' active':''}" data-kind="${k}">${d.icon} ${d.label}</button>`).join('')}</div>
-    <div class="fbRow"><input id="fbNameInput" maxlength="16" placeholder="Seu nome (pro dono saber quem é)" value="${escapeHtml(fbLoad().name || '')}"></div>
+    <div class="fbRow"><input id="fbNameInput" maxlength="16" placeholder="Seu nome (obrigatório)" value="${escapeHtml(progress.playerName || '')}"></div>
     <div class="fbRow"><input id="fbTextInput" maxlength="280" placeholder="Descreva o bug ou a ideia..."><button class="gameBtn" id="fbSendBtn">Enviar</button></div>
     <div class="coopNote" id="fbHint" style="min-height:14px"></div>
     <div class="settingsActions" id="fbActions"></div>`;
   document.getElementById('fbKinds').onclick = e=>{ const b = e.target.closest('.segBtn'); if (!b) return; fbKind = b.dataset.kind;
     [...document.getElementById('fbKinds').children].forEach(x=> x.classList.toggle('active', x.dataset.kind === fbKind)); };
-  document.getElementById('fbNameInput').oninput = e=> fbSave({ name:e.target.value.slice(0,16) });
+  const nameIn = document.getElementById('fbNameInput');
+  nameIn.oninput = ()=>{ progress.playerName = nameIn.value.trim().slice(0,16); };      // mesmo nome do Menu, salvo junto com o jogo
+  nameIn.onchange = saveGame;
   const ti = document.getElementById('fbTextInput');
   const go = ()=>{ if (fbSend(ti.value)) ti.value = ''; };
   document.getElementById('fbSendBtn').onclick = go;
@@ -8379,6 +8395,7 @@ function openFeedback(asHost){
 }
 function closeFeedback(){
   fbIsOpen = false; fbOverlay.classList.remove('open');
+  inpPlayerName.value = progress.playerName || '';      // se o nome foi mudado aqui, o campo do Menu (por baixo) acompanha
   if (fbRole === 'guest') fbTeardown();      // quem só visita sai ao fechar; o dono segue como anfitrião em segundo plano
 }
 document.getElementById('fbClose').addEventListener('click', closeFeedback);
