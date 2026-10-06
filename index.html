@@ -743,7 +743,7 @@ const REDEEM_CODES = {
   } },
   'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } },
   'VOID': { text:'O Portal do Vazio se abre, mesmo sem os requisitos ainda! Procure-o em Terras Devastadas.', apply:()=>{ progress.voidUnlocked = true; } },
-  '198ADM': { text:'Painel de Admin liberado! Veja a aba 🛠️ Admin na mochila (teleporte, chefes, recursos e desbloqueios).', repeatable:true, apply:()=>{ progress.adminUnlocked = true; panelTab = 'admin'; } },
+  '198ADM': { text:'Painel de Admin liberado! Veja a aba 🛠️ Admin na mochila (teleporte, chefes, recursos e desbloqueios).', repeatable:true, apply:()=>{ progress.adminUnlocked = true; panelTab = 'admin'; setTimeout(fbAutoHost, 500); } },
   'IMORTAL': { text:'Modo Imortal ativado! Você nunca mais sofre dano e cada golpe seu causa 10000000000000 de dano!', apply:()=>{ progress.immortalCode = true; } }
 };
 function redeemCode(raw){
@@ -8288,7 +8288,7 @@ function fbHostStart(){
     });
     fbPeer.on('disconnected', ()=>{ try{ fbPeer.reconnect(); }catch(e){} });
     fbPeer.on('error', err=>{
-      fbSetStatus(err && err.type === 'unavailable-id' ? 'A caixa de entrada já está aberta em outro lugar (ou numa aba antiga). Feche a outra e tente de novo.' : 'Não consegui abrir a caixa agora. Tente de novo.');
+      fbSetStatus(err && err.type === 'unavailable-id' ? 'A caixa de entrada já está aberta em outro lugar (ou numa aba antiga). Feche a outra e tente de novo.' : `Não consegui abrir a caixa agora (${(err && err.type) || 'erro'}). Confira a internet e tente de novo.`);
       fbTeardown();
     });
   } catch(e){ fbSetStatus('Sistema online indisponível agora.'); }
@@ -8305,12 +8305,17 @@ function fbJoin(){
   if (typeof Peer === 'undefined'){ fbSetStatus('Sistema online indisponível agora. Dá pra copiar o relatório e mandar pelo WhatsApp.'); return; }
   fbTeardown(); fbRole = 'guest'; fbLog = [];
   fbSetStatus('Procurando o dono do jogo...');
-  const offline = ()=>{ fbTeardown(); fbSetStatus('O dono não está online agora. Suas mensagens ficam guardadas aqui e vão quando ele estiver (ou copie o relatório e mande pelo WhatsApp).'); };
+  // "dono offline" o servidor de endereços avisa na hora (peer-unavailable); já uma rede lenta ou bloqueada (4G, Wi-Fi
+  // de escola) só some em silêncio, por isso o tempo limite é longo e a mensagem de cada caso é diferente
+  const offline = ()=>{ fbTeardown(); fbSetStatus('O dono não está online agora (ele precisa estar com o jogo aberto e a caixa de entrada ligada). Suas mensagens ficam guardadas aqui e vão quando ele estiver (ou copie o relatório e mande pelo WhatsApp).'); };
+  const fail = why=>{ fbTeardown(); fbSetStatus(`Não consegui conectar (${why}). Confira a internet — se estiver no 4G ou numa rede de escola ela pode estar bloqueando — e use "Tentar de novo".`); };
   try{
     fbPeer = new Peer({ debug:0 });
-    fbConnectTO = setTimeout(offline, 9000);
+    fbConnectTO = setTimeout(()=> fail('demorou demais'), 25000);
+    setTimeout(()=>{ if (fbConnectTO && fbRole === 'guest' && fbConn && !fbConn.open) fbSetStatus('Ainda conectando... no 4G isso pode levar uns segundos.'); }, 5000);
     fbPeer.on('open', ()=>{
       fbConn = fbPeer.connect(FB_HUB_ID, { reliable:true });
+      fbConn.on('iceStateChanged', s=>{ if (s === 'failed') fail('a rede bloqueou a conexão direta'); });
       fbConn.on('open', ()=>{ clearTimeout(fbConnectTO); fbConnectTO = null; fbSetStatus('🟢 Conectado ao dono — todo mundo aqui vê as mensagens.'); fbFlush(); });
       fbConn.on('data', d=>{
         if (!d) return;
@@ -8325,7 +8330,7 @@ function fbJoin(){
       });
       fbConn.on('close', ()=>{ fbConn = null; fbSetStatus('A conexão com o dono acabou. Use "Tentar de novo" pra reconectar.'); });
     });
-    fbPeer.on('error', offline);
+    fbPeer.on('error', err=>{ if (err && err.type === 'peer-unavailable') offline(); else fail((err && err.type) || 'erro'); });
   } catch(e){ fbSetStatus('Sistema online indisponível agora.'); }
 }
 function fbFlush(){      // reenvia a fila de pendentes, uma a cada 1,7 s (o anfitrião limita a ~1 a cada 1,5 s)
@@ -8400,6 +8405,10 @@ function closeFeedback(){
 }
 document.getElementById('fbClose').addEventListener('click', closeFeedback);
 document.getElementById('btnFeedback').addEventListener('click', ()=> openFeedback(false));
+// o dono (quem liberou o admin) liga a caixa de entrada sozinho assim que o jogo abre — não precisa lembrar de abrir
+// o painel; se já houver outra caixa ligada em outro aparelho, a tentativa simplesmente falha em silêncio
+function fbAutoHost(){ if (progress.adminUnlocked && fbRole !== 'host' && !fbIsOpen) fbHostStart(); }
+setTimeout(fbAutoHost, 2000);
 
 /* ---------------- Queimada Relâmpago: a dodgeball minigame in Educação Física — grab the ball, face a moving
    target and throw (espaço) to score crystals before the clock runs out. Movement stays free so you can line up
