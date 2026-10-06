@@ -748,14 +748,35 @@ const REDEEM_CODES = {
   } },
   'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } },
   'VOID': { text:'O Portal do Vazio se abre, mesmo sem os requisitos ainda! Procure-o em Terras Devastadas.', apply:()=>{ progress.voidUnlocked = true; } },
-  '198ADM': { text:'Painel de Admin liberado! Veja a aba 🛠️ Admin na mochila (teleporte, chefes, recursos e desbloqueios).', repeatable:true, apply:()=>{ progress.adminUnlocked = true; panelTab = 'admin'; setTimeout(fbAutoHost, 500); } },
   'IMORTAL': { text:'Modo Imortal ativado! Você nunca mais sofre dano e cada golpe seu causa 10000000000000 de dano!', apply:()=>{ progress.immortalCode = true; } }
 };
+// O código do Admin é secreto: o jogo guarda só o hash SHA-256 dele (nunca o texto), então ler o código-fonte não revela a
+// senha. Pra trocar a senha, basta gerar outro hash: sha256('duo-adm|' + CODIGO_EM_MAIUSCULAS). Nada no navegador é à
+// prova de gente que mexe no console — isso barra quem só está tentando códigos ou lendo o arquivo.
+const ADMIN_HASH = 'd2252c2d56094e62dfd3cfe9fb9747b1513d83c8a505242496cfc73ca390fd4e';
+async function isAdminCode(code){
+  try{
+    if (!window.crypto || !crypto.subtle) return false;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('duo-adm|' + code));
+    return [...new Uint8Array(buf)].map(b=> b.toString(16).padStart(2,'0')).join('') === ADMIN_HASH;
+  } catch(e){ return false; }
+}
+function grantAdmin(){
+  progress.adminUnlocked = true; progress.adminKey = ADMIN_HASH; panelTab = 'admin'; setTimeout(fbAutoHost, 500);
+  sfxPickup(); fxWhite = 0.5; checkAchievements(); saveGame(); renderPanel();
+  startDialogue([{speaker:ROSTER[progress.main].name, text:'🎁 Código resgatado! Painel de Admin liberado! Veja a aba 🛠️ Admin na mochila (teleporte, chefes, recursos e desbloqueios).', color:'#7ef9ff'}]);
+}
 function redeemCode(raw){
   const code = (raw||'').trim().toUpperCase();
   if (!code) return;
   const def = REDEEM_CODES[code];
-  if (!def){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Esse código não existe. Confere a digitação!', color:'#ff9977'}]); return; }
+  if (!def){
+    isAdminCode(code).then(ok=>{
+      if (ok) grantAdmin();
+      else startDialogue([{speaker:ROSTER[progress.main].name, text:'Esse código não existe. Confere a digitação!', color:'#ff9977'}]);
+    });
+    return;
+  }
   if (progress.redeemedCodes[code] && !def.repeatable){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Já usei esse código antes.', color:'#ff9977'}]); return; }
   progress.redeemedCodes[code] = true; def.apply();
   sfxPickup(); fxWhite = 0.5; checkAchievements(); saveGame(); renderPanel();
@@ -797,7 +818,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, playerName:'',
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'',
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -834,6 +855,7 @@ function loadGame(){
     });
     Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, hellSouls:fresh.hellSouls, bugFrags:fresh.bugFrags, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
+    if (progress.adminUnlocked && progress.adminKey !== ADMIN_HASH) progress.adminUnlocked = false;   // admin liberado pelo código antigo (público) deixa de valer
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
     if (data.settings) Object.assign(settings, data.settings);
@@ -6606,7 +6628,7 @@ panelBody.addEventListener('click', e=>{
   saveGame();
   renderPanel();
 });
-// Painel de Admin (código 198ADM): atalhos pra testar e explorar sem andar o mapa todo. Teleporte e chefes dependem
+// Painel de Admin (código secreto): atalhos pra testar e explorar sem andar o mapa todo. Teleporte e chefes dependem
 // do Mundo Aberto (chOpen.admin, montado em buildOpenWorld); recursos e desbloqueios funcionam em qualquer lugar.
 function adminUnlock(what){
   const all = what === 'all';
@@ -7494,7 +7516,7 @@ function buildOpenWorld(){
   areas[key(4,3)].npcs.push({ x:250, y:100, w:90, h:90, type:'bugPortal', scale:44, persistent:true, label:'Portal do Bug →',
     onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal instável que pisca entre cores. Parece prestes a travar a qualquer momento.', color:'#8af0ff'}], ()=> goToScene(bugWorld, {x:W/2-17, y:H-90})) });
 
-  // atalhos do Painel de Admin (198ADM): onde teleportar, quais chefes chamar, e como resolver os puzzles dos mundos
+  // atalhos do Painel de Admin (código secreto): onde teleportar, quais chefes chamar, e como resolver os puzzles dos mundos
   const admin = {
     scenes: [
       { id:'vila',    name:'Vila',                  scene:village,       spawn:{x:W/2-17,y:430} },
