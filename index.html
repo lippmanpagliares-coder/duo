@@ -762,6 +762,15 @@ const EQUIP_DEFS = {
     cape:    { name:'Capa Veloz',       icon:'🧣', cost:120, dash:0.08, rarity:'raro',     specialBoost:0.12 },
     ring:    { name:'Anel Crítico',     icon:'💍', cost:220, crit:0.08, rarity:'epico',    specialBoost:0.18, specialCrit:true },
     cloak:   { name:'Manto Arcano',     icon:'🔮', cost:400, sp:0.20,   rarity:'lendario', specialBoost:0.30 },
+    // acessórios com golpe especial extra: além do bônus normal, quem usa um deles solta um ataque assinatura junto com o K
+    lapis:   { name:'Lápis Mágico',       icon:'✏️', cost:160, atk:4,     rarity:'raro',     specialBoost:0.10, special:'pencil' },
+    caixa:   { name:'Caixa Surpresa',     icon:'📦', cost:200, hp:10,     rarity:'raro',     specialBoost:0.10, special:'box' },
+    mascara: { name:'Máscara Fantasma',   icon:'🎭', cost:230, crit:0.04, rarity:'epico',    specialBoost:0.12, special:'mask' },
+    apagador:{ name:'Apagador Gigante',   icon:'🧽', cost:240, hp:12,     rarity:'epico',    specialBoost:0.12, special:'eraser' },
+    iman:    { name:'Ímã Gigante',        icon:'🧲', cost:260, atk:3,     rarity:'epico',    specialBoost:0.12, special:'magnet' },
+    nuvem:   { name:'Nuvem de Tempestade',icon:'☁️', cost:280, sp:0.08,   rarity:'epico',    specialBoost:0.14, special:'cloud' },
+    estrela: { name:'Estrela Cadente',    icon:'🌠', cost:320, crit:0.03, rarity:'epico',    specialBoost:0.14, special:'star' },
+    viper:   { name:'Super Víbora',       icon:'🐍', cost:450, atk:5,     rarity:'lendario', specialBoost:0.25, special:'viper' },
     oculos:  { name:'Óculos de Soldador', icon:'🥽', cost:150, crit:0.05, rarity:'raro',   specialBoost:0.14 },
     fone:    { name:'Fone Gamer',        icon:'🎧', cost:260, sp:0.12,   rarity:'epico',    specialBoost:0.22 },
     nucleo:  { name:'Núcleo de Energia', icon:'🔋', cost:0, atk:6, sp:0.12, rarity:'ultra', secret:true, specialBoost:0.40, specialCrit:true },
@@ -772,6 +781,17 @@ const EQUIP_SLOTS = ['weapon','armor','accessory'];
 // Fraquezas e resistências: a arma equipada, quando tem elemento, causa mais dano na fraqueza do inimigo e menos na
 // resistência dele — mostrado na hora do golpe com "FRAQUEZA!" ou "RESISTENTE". Armas sem elemento (adaga, espada de
 // ferro) nunca sofrem penalidade, mas também nunca exploram uma fraqueza.
+// ataques especiais extras dos acessórios: soltos junto com o golpe especial (K), com animação própria
+const ACC_SPECIALS = {
+  viper:   { name:'Super Víbora',        desc:'uma víbora gigante dá o bote e envenena o inimigo (dano por 3 s)' },
+  eraser:  { name:'Apagador',            desc:'apaga os ataques do inimigo da tela e o deixa atordoado por 2 s' },
+  pencil:  { name:'Traço do Lápis',      desc:'desenha 3 riscos que cortam o inimigo' },
+  mask:    { name:'Máscara Fantasma',    desc:'você some: 3 s de invencibilidade e um golpe surpresa' },
+  box:     { name:'Caixa Surpresa',      desc:'uma caixa cai e sorteia: explosão, cura ou atordoamento' },
+  cloud:   { name:'Nuvem de Tempestade', desc:'uma nuvem solta 5 raios no inimigo' },
+  star:    { name:'Chuva de Estrelas',   desc:'estrelas cadentes caem em cima do inimigo' },
+  magnet:  { name:'Ímã Gigante',         desc:'puxa o inimigo pra perto e o atordoa por 1,5 s' }
+};
 const ELEMENT_LABELS = { fogo:'🔥 Fogo', gelo:'🧊 Gelo', eletrico:'⚡ Elétrico', sombra:'🌑 Sombra' };
 const ENEMY_ELEMENTS = {
   plant:{weak:'fogo',resist:'gelo'}, drone:{weak:'eletrico',resist:'fogo'}, mechaEnemy:{weak:'eletrico',resist:'gelo'},
@@ -1063,6 +1083,8 @@ window.addEventListener('keydown', e=>{
   if (!e.repeat){
     if (e.key === 'Shift' || e.key === 'j' || e.key === 'J') tryDash();
     if (e.key === 'k' || e.key === 'K') battleSpecial();
+    if ((e.key === 'l' || e.key === 'L') && progress.adminUnlocked && battle){ battle.special = 100; refreshSpecialUI(); showBanner('⚡ Admin: especial cheio'); }      // atalho do admin pra testar os ataques especiais
+    if ((e.key === 'x' || e.key === 'X') && progress.adminUnlocked && battle && battle.introT <= 0){ battle.enemy.hp = 0; defeatEnemy(); }      // atalho do admin: vence a luta atual na hora
   }
   keys[e.key.toLowerCase()] = true;
   if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
@@ -2684,6 +2706,8 @@ const fxTexts = [];                // floating damage numbers / move names / KO
 const fxSlashes = [];              // bright crescent slash streaks
 const fxGemFx = [];                // themed one-shot creature effects from Joias Perdidas during the golpe especial
 function spawnGemFx(kind,x,y){ fxGemFx.push({ kind, x, y, life:0.5, max:0.5 }); }
+const fxAccFx = [];                // one-shot animations of the accessories' extra special attacks (víbora, apagador, nuvem…)
+function spawnAccFx(kind,x,y,life,extra){ life = life || 1.0; fxAccFx.push(Object.assign({ kind, x, y, life, max:life }, extra || {})); }
 const fxAfter = [];                // dash afterimages of the player sprite
 let fxHitStop = 0;                 // brief freeze-frame on heavy hits
 let fxZoom = 0;                    // camera punch-in, decays fast
@@ -2723,6 +2747,7 @@ function updateFx(dt){
     p.vx *= (1 - 1.5*dt);
   }
   for (let i=fxGemFx.length-1;i>=0;i--){ fxGemFx[i].life -= dt; if (fxGemFx[i].life <= 0) fxGemFx.splice(i,1); }
+  for (let i=fxAccFx.length-1;i>=0;i--){ fxAccFx[i].life -= dt; if (fxAccFx[i].life <= 0) fxAccFx.splice(i,1); }
   if (fxShake > 0){ fxShake -= dt; if (fxShake <= 0){ fxShake = 0; fxShakeMag = 0; } }
   if (fxPlayerHit > 0) fxPlayerHit = Math.max(0, fxPlayerHit - dt);
   for (let i=fxTexts.length-1;i>=0;i--){ const t = fxTexts[i]; t.life -= dt; t.y -= 46*dt; if (t.life <= 0) fxTexts.splice(i,1); }
@@ -2777,6 +2802,70 @@ function drawGemFxList(g){
       g.fillStyle = '#0a2a3a'; g.beginPath(); g.ellipse(0,-30*rise,26*rise,open,0,0,Math.PI*2); g.fill();
       g.fillStyle = '#fff'; for (let i=-3;i<=3;i++){ g.beginPath(); g.moveTo(i*7,-30*rise-open*0.7); g.lineTo(i*7+3,-30*rise-open*0.7+9); g.lineTo(i*7-3,-30*rise-open*0.7+9); g.closePath(); g.fill();
         g.beginPath(); g.moveTo(i*7,-30*rise+open*0.7); g.lineTo(i*7+3,-30*rise+open*0.7-9); g.lineTo(i*7-3,-30*rise+open*0.7-9); g.closePath(); g.fill(); }
+    }
+    g.restore();
+  });
+}
+// desenho de cada ataque especial de acessório — p vai de 0 a 1 durante a animação
+function drawAccFxList(g){
+  fxAccFx.forEach(e=>{
+    const k = e.life/e.max, p = 1-k, fade = Math.min(1, k*3), TAU = Math.PI*2;
+    g.save(); g.translate(e.x, e.y); g.globalAlpha = fade;
+    if (e.kind === 'viper'){           // a giant viper rises, sways and lunges down on the enemy
+      const lunge = Math.max(0, Math.sin(Math.min(1,p*1.6)*Math.PI)), hy = -150 + 130*Math.min(1,p*2.2), sway = Math.sin(p*14)*14;
+      g.strokeStyle = '#1f8a38'; g.lineWidth = 26; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(-10,70); g.bezierCurveTo(-80+sway,20,70-sway,-40,sway,hy); g.stroke();
+      g.strokeStyle = '#4fe06a'; g.lineWidth = 10; g.beginPath(); g.moveTo(-10,70); g.bezierCurveTo(-80+sway,20,70-sway,-40,sway,hy); g.stroke();
+      g.fillStyle = '#2fbf4a'; g.beginPath(); g.ellipse(sway,hy,26,19,0,0,TAU); g.fill();
+      g.fillStyle = '#ffe04a'; g.beginPath(); g.arc(sway-9,hy-5,4.5,0,TAU); g.arc(sway+9,hy-5,4.5,0,TAU); g.fill();
+      g.fillStyle = '#fff'; g.beginPath(); g.moveTo(sway-8,hy+10); g.lineTo(sway-4,hy+10+16*lunge); g.lineTo(sway,hy+10); g.moveTo(sway,hy+10); g.lineTo(sway+4,hy+10+16*lunge); g.lineTo(sway+8,hy+10); g.fill();
+    } else if (e.kind === 'eraser'){   // a huge pink eraser swipes across, wiping a white streak
+      const x = -200 + 400*Math.min(1,p*1.3);
+      g.fillStyle = 'rgba(255,255,255,0.55)'; g.fillRect(-200,-40,x+200,80);
+      g.save(); g.translate(x,0); g.rotate(-0.2);
+      g.fillStyle = '#ff9ab8'; g.fillRect(-46,-34,92,68); g.fillStyle = '#4a7ad8'; g.fillRect(-46,-34,30,68);
+      g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 3; g.strokeRect(-46,-34,92,68);
+      g.restore();
+    } else if (e.kind === 'pencil'){   // a yellow pencil scribbles a zigzag across the enemy
+      const n = Math.floor(Math.min(1,p*1.5)*14);
+      g.strokeStyle = '#3a3a48'; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round';
+      g.beginPath(); for (let i=0;i<=n;i++){ const x = -90+i*13.8, y = (i%2 ? -46 : 46); if (i===0) g.moveTo(x,y); else g.lineTo(x,y); } g.stroke();
+      const lx = -90+n*13.8, ly = (n%2 ? -46 : 46);
+      g.save(); g.translate(lx,ly); g.rotate(0.9); g.fillStyle = '#ffd23a'; g.fillRect(-6,-60,12,58);
+      g.fillStyle = '#f0c8a0'; g.beginPath(); g.moveTo(-6,-2); g.lineTo(6,-2); g.lineTo(0,14); g.closePath(); g.fill();
+      g.fillStyle = '#ff8aa0'; g.fillRect(-6,-68,12,8); g.restore();
+    } else if (e.kind === 'mask'){     // a theatre mask looms over the enemy
+      const s = 1 + 0.25*Math.sin(p*Math.PI);
+      g.scale(s,s); g.translate(0,-70);
+      g.fillStyle = '#f4f0ff'; g.beginPath(); g.ellipse(0,0,42,52,0,0,TAU); g.fill();
+      g.fillStyle = '#1a1030'; g.beginPath(); g.ellipse(-16,-10,10,14,0.3,0,TAU); g.ellipse(16,-10,10,14,-0.3,0,TAU); g.fill();
+      g.strokeStyle = '#1a1030'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.arc(0,16,18,0.2,Math.PI-0.2); g.stroke();
+      g.fillStyle = 'rgba(180,120,255,0.5)'; g.beginPath(); g.arc(0,0,64,0,TAU); g.fill();
+    } else if (e.kind === 'box'){      // a gift box drops from above and pops its lid
+      const drop = Math.min(1,p*2.2), y = -240*(1-drop), open = Math.max(0,(p-0.45)*2);
+      g.translate(0,y);
+      g.fillStyle = '#e8503a'; g.fillRect(-34,-30,68,60); g.fillStyle = '#ffd54a'; g.fillRect(-6,-30,12,60);
+      g.save(); g.translate(0,-30-30*open); g.rotate(-0.5*open); g.fillStyle = '#c83a28'; g.fillRect(-40,-12,80,14); g.fillStyle = '#ffd54a'; g.fillRect(-6,-12,12,14); g.restore();
+      if (open > 0){ g.fillStyle = `rgba(255,240,150,${Math.min(1,open)*0.8})`; for (let i=0;i<8;i++){ const a=i*0.8; g.beginPath(); g.arc(Math.cos(a)*50*open,-30-Math.sin(a)*50*open,5,0,TAU); g.fill(); } }
+    } else if (e.kind === 'cloud'){    // a dark cloud hovering above, flashing bolts
+      g.translate(0,-120);
+      g.fillStyle = '#4a5068'; [[-36,6,30],[0,-8,40],[38,6,30],[0,12,34]].forEach(([cx,cy,r])=>{ g.beginPath(); g.arc(cx,cy,r,0,TAU); g.fill(); });
+      if (Math.floor(p*14)%2 === 0){
+        g.strokeStyle = '#fff6a0'; g.lineWidth = 7; g.lineJoin = 'miter'; g.beginPath(); g.moveTo(-4,34); g.lineTo(10,70); g.lineTo(-8,76); g.lineTo(6,126); g.stroke();
+        g.strokeStyle = 'rgba(255,240,120,0.4)'; g.lineWidth = 16; g.beginPath(); g.moveTo(-4,34); g.lineTo(10,70); g.lineTo(-8,76); g.lineTo(6,126); g.stroke();
+      }
+    } else if (e.kind === 'star'){     // one falling star (spawned several times at different spots)
+      const sy = -220 + 220*Math.min(1,p*1.4), sx = -e.dx*(1-Math.min(1,p*1.4));
+      g.translate(sx,sy); g.fillStyle = '#ffe96a';
+      g.beginPath(); for (let i=0;i<10;i++){ const a = -Math.PI/2+i*Math.PI/5, r = i%2 ? 8 : 17; g.lineTo(Math.cos(a)*r, Math.sin(a)*r); } g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(255,230,120,0.5)'; g.lineWidth = 6; g.beginPath(); g.moveTo(0,0); g.lineTo(-e.dx*0.4,-70); g.stroke();
+    } else if (e.kind === 'magnet'){   // a horseshoe magnet pulls in from above
+      g.translate(0,-90+30*Math.sin(p*Math.PI));
+      g.strokeStyle = '#d83a3a'; g.lineWidth = 18; g.lineCap = 'butt'; g.beginPath(); g.arc(0,0,30,Math.PI,Math.PI*1.5+0.0); g.stroke();
+      g.strokeStyle = '#3a5ad8'; g.beginPath(); g.arc(0,0,30,Math.PI*1.5,TAU); g.stroke();
+      g.fillStyle = '#e8e8f0'; g.fillRect(-39,0,18,14); g.fillRect(21,0,18,14);
+      g.strokeStyle = 'rgba(160,200,255,0.6)'; g.lineWidth = 3;
+      for (let i=0;i<4;i++){ const u = (p*2+i*0.25)%1; g.beginPath(); g.arc(0,80,70*(1-u),0.4,Math.PI-0.4); g.stroke(); }
     }
     g.restore();
   });
@@ -3068,6 +3157,7 @@ function renderScene(){
   fxDrawParticles(ctx);
   fxDrawSlashes(ctx);
   drawGemFxList(ctx);
+  drawAccFxList(ctx);
   fxDrawTexts(ctx);
   ctx.restore();
   // screen-wide finishing: colour grade, drifting ambience, soft dark edges
@@ -3150,6 +3240,7 @@ function startBattle(config){
   battle.special = 0; battle.specialT = 0; battle.specialStep = 0;   // power gauge + cinematic special move
   battle.iframes = 0; battle.dashStrikeT = 0;   // invulnerability window / bonus for attacking right after a dash
   battle.hazards = []; battle.act = null; battle.actWind = 0; battle.enemyLift = 0;   // enemy special moves in progress
+  battle.timers = []; battle.stunT = 0;         // ataques especiais de acessório: ações com atraso + inimigo atordoado
   battle.moveCd = 4.2; battle.introT = 1.25; battle.introMax = 1.25;    // time until the enemy's first special move / intro banner clock
   fxHitStop = 0;
 
@@ -3414,6 +3505,68 @@ function battleSpecial(){
   fxZoom = 0.07; fxWhite = 0.55; fxSpeed = 1.05; fxDim = 1.05; fxShakeNow(0.25, 5);
   fxText(W/2, 150, 'GOLPE ESPECIAL!', '#ffe27a', 56, 1.15);
   sfxSpecial(); refreshSpecialUI();
+  const acc = progress.equip.accessory && EQUIP_DEFS.accessory[progress.equip.accessory];
+  if (acc && acc.special) accSpecialFire(acc.special);       // o ataque assinatura do acessório equipado sai junto com o golpe
+}
+// Super Víbora, Apagador, Lápis, Máscara, Caixa, Nuvem, Estrelas e Ímã: cada acessório com `special` solta um ataque
+// próprio durante o golpe especial. Danos escalam com o ataque do herói e com o bônus de especial (Joias + acessório).
+function accStun(sec){
+  const b = battle; if (!b) return;
+  b.stunT = Math.max(b.stunT, sec);
+  b.act = null; b.actWind = 0; b.enemyLift = 0; b.hazards = [];
+  b.projectiles = b.projectiles.filter(p=> p.target === 'enemy');
+  fxText(b.enemyPos.x, b.enemyPos.y-130, 'ATORDOADO!', '#ffe27a', 24);
+}
+function accSpecialFire(id){
+  const b = battle, info = ACC_SPECIALS[id]; if (!b || !info) return;
+  const ex = b.enemyPos.x, ey = b.enemyPos.y, atk = b.player.atk, mul = specialPowerMul();
+  const hit = (m, o)=> hitEnemy(Math.round(atk*m*mul), Object.assign({ heavy:true, noGauge:true, stop:0.03 }, o || {}));
+  const later = (t, fn)=> b.timers.push({ t, fn });
+  fxText(W/2, 215, info.name.toUpperCase()+'!', '#8affc8', 38, 1.3);
+  if (id === 'viper'){
+    spawnAccFx('viper', ex, ey, 1.1);
+    later(0.45, ()=>{ fxBurst(ex, ey, 26, '80,255,110', 260, 3, 0.6, 60); fxShakeNow(0.2, 5); hit(1.8); });
+    for (let i=1;i<=6;i++) later(0.9+i*0.5, ()=>{ if (!battle) return; fxBurst(battle.enemyPos.x, battle.enemyPos.y, 8, '120,255,80', 120, 2.4, 0.5, -30); hit(0.4, { heavy:false, stop:0 }); });
+    later(1.0, ()=> { if (battle) fxText(battle.enemyPos.x, battle.enemyPos.y-118, 'VENENO!', '#6aff6a', 24); });
+  } else if (id === 'eraser'){
+    spawnAccFx('eraser', ex, ey, 0.9);
+    later(0.35, ()=>{ accStun(2); fxWhite = Math.max(fxWhite, 0.4); hit(1.3); });
+  } else if (id === 'pencil'){
+    spawnAccFx('pencil', ex, ey, 1.0);
+    [0.25, 0.5, 0.75].forEach((t,i)=> later(t, ()=>{ if (!battle) return; fxSlash(battle.enemyPos.x, battle.enemyPos.y, -0.6+i*0.9, 150, '230,230,255'); hit(0.85); }));
+  } else if (id === 'mask'){
+    spawnAccFx('mask', ex, ey, 1.2);
+    b.iframes = Math.max(b.iframes, 3.2);
+    later(0.5, ()=>{ fxText(player.x+player.w/2, player.y-20, 'FANTASMA!', '#c8a0ff', 26); hit(1.6); });
+  } else if (id === 'box'){
+    spawnAccFx('box', ex, ey, 1.2);
+    later(0.7, ()=>{
+      if (!battle) return;
+      const r = Math.random();
+      if (r < 0.4){ fxBurst(ex, ey, 40, '255,170,60', 340, 3.6, 0.8, 120); fxShakeNow(0.3, 8); fxText(ex, ey-110, 'EXPLOSÃO!', '#ff9a3a', 30); hit(2.6); }
+      else if (r < 0.7){ battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + Math.round(battle.player.maxHp*0.25)); refreshHpUI(); fxText(ex, ey-110, 'CURA!', '#6aff9a', 30); fxBurst(player.x+player.w/2, player.y, 18, '120,255,160', 140, 2.6, 0.7, -40); hit(0.9); }
+      else { fxText(ex, ey-110, 'SURPRESA!', '#ffd54a', 30); accStun(2.5); hit(1.3); }
+    });
+  } else if (id === 'cloud'){
+    spawnAccFx('cloud', ex, ey, 1.6);
+    for (let i=0;i<5;i++) later(0.3+i*0.22, ()=>{ if (!battle) return; fxBurst(battle.enemyPos.x, battle.enemyPos.y, 14, '255,240,120', 240, 2.8, 0.4, 0); fxShakeNow(0.12, 4); hit(0.75); });
+  } else if (id === 'star'){
+    for (let i=0;i<6;i++) later(i*0.17, ()=>{
+      if (!battle) return;
+      const dx = (Math.random()-0.5)*160;
+      spawnAccFx('star', battle.enemyPos.x+dx*0.5, battle.enemyPos.y, 0.5, { dx });
+      later(0.3, ()=>{ if (!battle) return; fxBurst(battle.enemyPos.x+dx*0.5, battle.enemyPos.y, 12, '255,230,110', 220, 2.6, 0.45, 60); hit(0.6); });
+    });
+  } else if (id === 'magnet'){
+    spawnAccFx('magnet', ex, ey, 1.1);
+    later(0.4, ()=>{
+      if (!battle) return;
+      const px = player.x+player.w/2, py = player.y+player.h/2, a = Math.atan2(ey-py, ex-px);
+      battle.enemyPos.x = arenaX(px + Math.cos(a)*90); battle.enemyPos.y = arenaY(py + Math.sin(a)*90);
+      fxBurst(battle.enemyPos.x, battle.enemyPos.y, 20, '150,190,255', 260, 3, 0.5, 0);
+      accStun(1.5); hit(1.1);
+    });
+  }
 }
 const GEM_ORDER = ['forest','fungo','pantano','deserto','lava','costa'];   // maps each golpe especial hit to the gem whose themed creature shows up there
 function updateSpecial(dt){
@@ -3625,6 +3778,13 @@ function updateBattle(dt){
   b.dashStrikeT = Math.max(0, b.dashStrikeT - dt);
   b.comboT = Math.max(0, b.comboT - dt);
   if (b.introT > 0) b.introT -= dt;
+  if (b.stunT > 0) b.stunT -= dt;
+  if (b.timers && b.timers.length){      // ações com atraso dos ataques especiais de acessório
+    for (let i = b.timers.length-1; i >= 0; i--){
+      const tm = b.timers[i]; tm.t -= dt;
+      if (tm.t <= 0){ b.timers.splice(i,1); tm.fn(); if (!battle) return; }
+    }
+  }
 
   const px = player.x+player.w/2, py = player.y+player.h/2;
   const ex = b.enemyPos.x, ey = b.enemyPos.y;
@@ -3661,7 +3821,7 @@ function updateBattle(dt){
       vy:-26-Math.random()*34, life:0.9, max:0.9, size:2+Math.random()*2, color:au[0], grav:0 });
   }
 
-  const frozen = b.introT > 0 || b.specialT > 0;   // enemy holds still during the intro banner and the player's special
+  const frozen = b.introT > 0 || b.specialT > 0 || b.stunT > 0;   // enemy holds still during the intro banner, the player's special and a stun
   if (b.specialT > 0 && updateSpecial(dt)) return;
   if (!battle) return;
   updateHazards(dt, px, py);
@@ -6779,6 +6939,7 @@ function renderPanel(){
           ? ` · elemento: ${ELEMENT_LABELS[d.element]} (-30% de dano de inimigos desse elemento)`
           : ` · elemento: ${ELEMENT_LABELS[d.element]} (+50% na fraqueza, -40% na resistência do inimigo)`;
         if (d.specialBoost) stat += ` · +${Math.round(d.specialBoost*100)}% no golpe especial (K)${d.specialCrit ? ' + crítico garantido' : ''}`;
+        if (d.special) stat += ` · ⚡ ataque extra no K: ${ACC_SPECIALS[d.special].name} — ${ACC_SPECIALS[d.special].desc}`;
         h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
           <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
           ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
