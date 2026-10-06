@@ -368,6 +368,7 @@
           <button class="segBtn" data-tab="robots">🤖 Robôs</button>
           <button class="segBtn" data-tab="equip">🗡️ Equipamento</button>
           <button class="segBtn" data-tab="ach">🏆 Conquistas</button>
+          <button class="segBtn" data-tab="admin" style="display:none">🛠️ Admin</button>
         </div>
         <div id="panelBody"></div>
         <div class="settingsActions"><button class="gameBtn" id="panelClose">Fechar</button></div>
@@ -701,6 +702,7 @@ const REDEEM_CODES = {
   } },
   'ALEMDOVEU': { text:'O portal para Além do Véu se abre, mesmo sem vencer o chefe final ainda!', apply:()=>{ progress.veilUnlocked = true; } },
   'VOID': { text:'O Portal do Vazio se abre, mesmo sem os requisitos ainda! Procure-o em Terras Devastadas.', apply:()=>{ progress.voidUnlocked = true; } },
+  '198ADM': { text:'Painel de Admin liberado! Veja a aba 🛠️ Admin na mochila (teleporte, chefes, recursos e desbloqueios).', repeatable:true, apply:()=>{ progress.adminUnlocked = true; panelTab = 'admin'; } },
   'IMORTAL': { text:'Modo Imortal ativado! Você nunca mais sofre dano e cada golpe seu causa 10000000000000 de dano!', apply:()=>{ progress.immortalCode = true; } }
 };
 function redeemCode(raw){
@@ -708,7 +710,7 @@ function redeemCode(raw){
   if (!code) return;
   const def = REDEEM_CODES[code];
   if (!def){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Esse código não existe. Confere a digitação!', color:'#ff9977'}]); return; }
-  if (progress.redeemedCodes[code]){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Já usei esse código antes.', color:'#ff9977'}]); return; }
+  if (progress.redeemedCodes[code] && !def.repeatable){ startDialogue([{speaker:ROSTER[progress.main].name, text:'Já usei esse código antes.', color:'#ff9977'}]); return; }
   progress.redeemedCodes[code] = true; def.apply();
   sfxPickup(); fxWhite = 0.5; checkAchievements(); saveGame(); renderPanel();
   startDialogue([{speaker:ROSTER[progress.main].name, text:`🎁 Código resgatado! ${def.text}`, color:'#7ef9ff'}]);
@@ -749,7 +751,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -2331,7 +2333,7 @@ function updateActionButton(){
   dashBtn.style.display = (menuVisible || endVisible || dialogueActive) ? 'none' : '';
   {
     const uiOk = !battleVisible && !dialogueActive && !menuVisible && !endVisible;
-    const packOn = uiOk && !!(currentScene && currentScene.isOpenWorld);
+    const packOn = uiOk && !!(currentScene && (currentScene.isOpenWorld || progress.adminUnlocked));   // com o admin liberado a mochila abre em qualquer cena (dá pra teleportar de dentro dos mundos bônus)
     const mapOn = uiOk && !!currentScene && (currentScene.isOpenWorld || !!mapCur);
     const coopOn = uiOk && !!(currentScene && currentScene.mpKey);
     packBtn.classList.toggle('show', packOn);
@@ -6384,7 +6386,11 @@ function upgradeCost(k){ return UPGRADE_DEFS[k].base*(progress[k+'Lv']+1); }
 function openPanel(tab){ if (tab) panelTab = tab; panelOpen = true; panelOverlay.classList.add('open'); renderPanel(); }
 function closePanel(){ panelOpen = false; panelOverlay.classList.remove('open'); }
 function renderPanel(){
-  [...panelTabs.children].forEach(b=> b.classList.toggle('active', b.dataset.tab === panelTab));
+  if (panelTab === 'admin' && !progress.adminUnlocked) panelTab = 'up';
+  [...panelTabs.children].forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab === panelTab);
+    if (b.dataset.tab === 'admin') b.style.display = progress.adminUnlocked ? '' : 'none';
+  });
   let h = '';
   if (panelTab === 'up'){
     h += `<div class="pHead"><span>💎 Cristais: ${progress.crystals}</span><span>Nível ${progress.level} (${progress.xp}/${xpNeed(progress.level)} XP)</span><span>Esmeraldas: ${emeraldCount()}/6</span></div>`;
@@ -6494,6 +6500,24 @@ function renderPanel(){
           ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
       });
     });
+  } else if (panelTab === 'admin'){
+    const ad = chOpen && chOpen.admin;
+    const btns = list=> `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px">${list.map(([k,l])=>`<button class="pBtn" data-admin="${k}">${l}</button>`).join('')}</div>`;
+    h += `<div class="pHead"><span>🛠️ Painel de Admin</span><span>💎 ${progress.crystals} · Nv ${progress.level}</span></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>Recursos</span></div>`;
+    h += btns([['cry:100','+100 💎'],['cry:1000','+1.000 💎'],['cry:10000','+10.000 💎'],['lv:1','+1 nível'],['lv:10','+10 níveis'],['lvset:50','Ir pro nível 50']]);
+    h += `<div class="pHead"><span>Desbloquear</span></div>`;
+    h += btns([['unlock:chars','Personagens'],['unlock:gear','Equipamentos'],['unlock:gems','Joias e colecionáveis'],['unlock:emeralds','Esmeraldas'],['unlock:forms','Super/Max'],['unlock:robots','Robôs'],['unlock:portals','Portais (Vazio e Véu)'],['unlock:all','🔓 TUDO']]);
+    h += `<div class="pHead"><span>Modos</span></div>`;
+    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles']]);
+    if (!ad){
+      h += `<div class="pSub" style="margin:8px 0">Teleporte e chefes só funcionam no Mundo Aberto — comece uma partida lá primeiro.</div>`;
+    } else {
+      h += `<div class="pHead"><span>Teleporte</span></div>`;
+      h += btns(ad.scenes.map(s=>['tp:'+s.id, s.name]));
+      h += `<div class="pHead"><span>Chamar chefe</span></div>`;
+      h += btns(ad.bosses.map(b=>['boss:'+b.id, b.name]));
+    }
   } else {
     const got = ACHIEVEMENTS.filter(a=> progress.achievements[a.id]).length;
     h += `<div class="pHead"><span>🏆 ${got}/${ACHIEVEMENTS.length} conquistas</span><span>Monstros derrotados: ${progress.kills}</span></div>`;
@@ -6528,12 +6552,48 @@ panelBody.addEventListener('click', e=>{
   } else if (b.dataset.gearset){
     const [slot,k] = b.dataset.gearset.split(':');
     if (progress.equipOwned[slot][k]) { progress.equip[slot] = k; sfxPickup(); }
+  } else if (b.dataset.admin){
+    adminAction(b.dataset.admin);
   } else if (b.dataset.redeem){
     const ci = document.getElementById('codeInput'); redeemCode(ci ? ci.value : ''); if (ci) ci.value = '';
   }
   saveGame();
   renderPanel();
 });
+// Painel de Admin (código 198ADM): atalhos pra testar e explorar sem andar o mapa todo. Teleporte e chefes dependem
+// do Mundo Aberto (chOpen.admin, montado em buildOpenWorld); recursos e desbloqueios funcionam em qualquer lugar.
+function adminUnlock(what){
+  const all = what === 'all';
+  if (all || what === 'chars') Object.keys(progress.chars).forEach(k=> progress.chars[k] = true);
+  if (all || what === 'gear') EQUIP_SLOTS.forEach(s=> Object.keys(EQUIP_DEFS[s]).forEach(k=> progress.equipOwned[s][k] = true));
+  if (all || what === 'gems') ['lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags'].forEach(f=> Object.keys(progress[f]).forEach(k=> progress[f][k] = true));
+  if (all || what === 'emeralds'){
+    Object.keys(progress.emeralds).forEach(k=> progress.emeralds[k] = true);
+    upgrades.elementalEmerald = true; upgrades.disguiseEmerald = true; upgrades.monsterEmerald = true;
+  }
+  if (all || what === 'forms'){ progress.forms.super = true; progress.forms.max = true; }
+  if (all || what === 'robots') Object.keys(progress.robots).forEach(k=> progress.robots[k] = true);
+  if (all || what === 'portals'){ progress.voidUnlocked = true; progress.veilUnlocked = true; }
+}
+function adminAction(cmd){
+  const [k, v] = cmd.split(':'), ad = chOpen && chOpen.admin;
+  if (k === 'cry'){ progress.crystals += +v; progress.earned += +v; sfxPickup(); }
+  else if (k === 'lv'){ progress.level = Math.min(99, progress.level + +v); progress.xp = 0; sfxSpecial(); }
+  else if (k === 'lvset'){ progress.level = Math.max(progress.level, +v); progress.xp = 0; sfxSpecial(); }
+  else if (k === 'unlock'){ adminUnlock(v); sfxPickup(); fxWhite = 0.3; }
+  else if (k === 'toggle' && v === 'imortal'){ progress.immortalCode = !progress.immortalCode; sfxPickup(); }
+  else if (k === 'puzzles' && ad){ ad.solvePuzzles(); sfxPickup(); showBanner('🧩 Puzzles resolvidos nos mundos do Mal e do Bug'); }
+  else if (k === 'tp' && ad){
+    if (battle || duelActive){ showBanner('Termine a luta antes de teleportar.'); return; }
+    const s = ad.scenes.find(x=> x.id === v);
+    if (s){ closePanel(); sfxSpecial(); goToScene(s.scene, s.spawn); }
+  } else if (k === 'boss' && ad){
+    if (battle || duelActive){ showBanner('Termine a luta atual antes de chamar outro chefe.'); return; }
+    const b = ad.bosses.find(x=> x.id === v);
+    if (b){ closePanel(); b.fn(); }
+  }
+  checkAchievements();
+}
 panelBody.addEventListener('keydown', e=>{ if (e.key === 'Enter' && e.target.id === 'codeInput'){ redeemCode(e.target.value); e.target.value = ''; renderPanel(); } });
 panelTabs.addEventListener('click', e=>{ const b = e.target.closest('button'); if (b){ panelTab = b.dataset.tab; renderPanel(); } });
 document.getElementById('panelClose').addEventListener('click', closePanel);
@@ -7387,7 +7447,39 @@ function buildOpenWorld(){
   areas[key(4,3)].npcs.push({ x:250, y:100, w:90, h:90, type:'bugPortal', scale:44, persistent:true, label:'Portal do Bug →',
     onInteract: ()=> startDialogue([{speaker:'???', text:'Um portal instável que pisca entre cores. Parece prestes a travar a qualquer momento.', color:'#8af0ff'}], ()=> goToScene(bugWorld, {x:W/2-17, y:H-90})) });
 
-  return { areas, brRooms, island, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
+  // atalhos do Painel de Admin (198ADM): onde teleportar, quais chefes chamar, e como resolver os puzzles dos mundos
+  const admin = {
+    scenes: [
+      { id:'vila',    name:'Vila',                  scene:village,       spawn:{x:W/2-17,y:430} },
+      { id:'lab',     name:'Laboratório',           scene:labInterior,   spawn:{x:W/2-17,y:H-90} },
+      { id:'escola',  name:'Escola',                scene:schoolHall,    spawn:{x:W/2-17,y:H-90} },
+      { id:'artes',   name:'Sala de Artes',         scene:salaArtes,     spawn:{x:W/2-17,y:H-90} },
+      { id:'edfis',   name:'Educação Física',       scene:salaEdFisica,  spawn:{x:W/2-17,y:H-90} },
+      { id:'ingles',  name:'Sala de Inglês',        scene:salaIngles,    spawn:{x:W/2-17,y:H-90} },
+      { id:'biblio',  name:'Biblioteca',            scene:biblioteca,    spawn:{x:W/2-17,y:H-90} },
+      { id:'terras',  name:'Terras Devastadas (portais)', scene:areas[key(4,3)], spawn:{x:260,y:500} },
+      { id:'praia',   name:'Praia Calma (barco da Ilha)', scene:areas[key(4,2)], spawn:{x:720,y:300} },
+      { id:'blocos',  name:'Mundo dos Blocos',      scene:blockWorld,    spawn:{x:W/2-17,y:H-90} },
+      { id:'mal',     name:'Mundo do Mal',          scene:hellWorld,     spawn:{x:W/2-17,y:H-90} },
+      { id:'bug',     name:'Mundo do Bug',          scene:bugWorld,      spawn:{x:W/2-17,y:H-90} },
+      { id:'veu',     name:'Além do Véu',           scene:beyondVeil,    spawn:{x:W/2-17,y:H-90} },
+      { id:'backrooms', name:'Backrooms',           scene:brRooms[brKey(0,0)], spawn:{x:W/2-17,y:H-110} }
+    ],
+    bosses: [
+      { id:'final',   name:'Chefe final (Ortsa → Devourer)', fn:startFinalBoss },
+      { id:'cronos',  name:'Cronos',                fn:startSecretTimeBoss },
+      { id:'entidade',name:'Entidade Suprema',      fn:startBackroomsBoss },
+      { id:'arquiteto', name:'Arquiteto do Vazio',  fn:startVeilBoss },
+      { id:'anjo',    name:'Anjo Guardião',         fn:veilAltarFight },
+      { id:'golem',   name:'Golem de Pedra',        fn:startGolemBoss },
+      { id:'lorde',   name:'Lorde do Caos',         fn:startMalBoss },
+      { id:'erro',    name:'Erro Fatal',            fn:startBugBoss },
+      { id:'super',   name:'Guardião Super',        fn:()=> formFight('super') },
+      { id:'max',     name:'Guardiões Max',         fn:()=> formFight('max') }
+    ],
+    solvePuzzles: ()=>{ malPuzzle.solved = true; bugPuzzle.solved = true; }
+  };
+  return { areas, brRooms, island, admin, shiftIsland:(ms)=>{ islandShift += ms; }, start: ()=>{
     goToScene(village, {x:W/2-17, y:430});
     startDialogue([{speaker:ROSTER[progress.main].name, text:'O mundo aberto! Explore as regiões, derrote monstros, conquiste esmeraldas e melhore o time na mochila 🎒.', color:'#7ef9ff'}]);
   } };
