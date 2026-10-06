@@ -165,6 +165,24 @@
   .coopChatLog { max-height:110px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; background:#0d1a14; border:1px solid #204030; border-radius:8px; padding:6px 8px; }
   .coopChatMsg { font-size:12px; color:#dfffe8; word-break:break-word; }
   .coopChatMsg.me { color:#9fe8ff; }
+  /* bugs e sugestões: chat aberto com o dono do jogo (por cima do menu/mochila, que continuam abertos por baixo) */
+  #fbOverlay { position:absolute; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.88); }
+  #fbOverlay.open { display:flex; }
+  #fbBox {
+    width:min(460px,94%); max-height:94%; overflow-y:auto; display:flex; flex-direction:column; gap:10px;
+    background:linear-gradient(180deg,#141a2e,#0c1020); border:1px solid #3a4a8a; border-radius:12px; padding:16px 18px;
+  }
+  #fbBox h3 { color:#9fb8ff; font-size:17px; text-align:center; letter-spacing:1px; margin:0; }
+  .fbLog { height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; background:#0b0f1e; border:1px solid #2a3560; border-radius:8px; padding:7px 9px; }
+  .fbMsg { font-size:12px; color:#e4eaff; word-break:break-word; }
+  .fbMsg.pending { opacity:0.55; }
+  .fbBadge { font-weight:bold; }
+  .fbCtx { font-size:10px; color:#6a7aa8; margin-left:4px; }
+  .fbRow { display:flex; gap:8px; }
+  .fbRow input {
+    flex:1; min-width:0; padding:8px 10px; font-family:inherit; font-size:14px;
+    background:#101830; color:#e4eaff; border:1px solid #3a4a8a; border-radius:7px;
+  }
   .coopCharList { display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
   .coopCharList .pBtn { text-align:center; }
   #panelOverlay { position:absolute; inset:0; z-index:45; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.86); }
@@ -360,6 +378,14 @@
         <div class="settingsActions"><button class="gameBtn" id="coopClose">Fechar</button></div>
       </div>
     </div>
+    <div id="fbOverlay">
+      <div id="fbBox">
+        <h3>💬 Bugs e sugestões</h3>
+        <p class="coopNote">Chat aberto com o dono do jogo: mande bugs e ideias de melhoria. Todo mundo que entra vê as mensagens. Se o dono não estiver online agora, a mensagem fica guardada neste aparelho e vai assim que a conexão abrir.</p>
+        <div id="fbBody"></div>
+        <div class="settingsActions"><button class="gameBtn" id="fbClose">Fechar</button></div>
+      </div>
+    </div>
     <div id="panelOverlay">
       <div id="panelBox">
         <div class="panelTabs" id="panelTabs">
@@ -426,6 +452,12 @@
         <div class="settingsRow">
           <label>Volume da música <span class="settingsVal" id="valMusic">60%</span></label>
           <input type="range" id="rangeMusic" min="0" max="100" step="5" value="60">
+        </div>
+
+        <hr class="settingsHr">
+
+        <div class="settingsActions">
+          <button class="gameBtn secondary" id="btnFeedback">💬 Bugs e sugestões</button>
         </div>
 
         <hr class="settingsHr">
@@ -939,9 +971,9 @@ function sfxSpecial(){ [392,523,659,784,1047].forEach((f,i)=> beep(f,0.12,'trian
 /* ---------------- input ---------------- */
 const keys = {};
 window.addEventListener('keydown', e=>{
-  if (e.key === 'Escape'){ if (mapOpen) mapOpen = false; else if (coopOverlay.classList.contains('open')) closeCoop(); else if (panelOpen) closePanel(); else toggleSettings(); return; }
-  if ((e.key === 'm' || e.key === 'M') && !e.repeat && !settingsOpen && !panelOpen){ toggleMap(); return; }
-  if (settingsOpen || panelOpen) return;
+  if (e.key === 'Escape'){ if (fbIsOpen) closeFeedback(); else if (mapOpen) mapOpen = false; else if (coopOverlay.classList.contains('open')) closeCoop(); else if (panelOpen) closePanel(); else toggleSettings(); return; }
+  if ((e.key === 'm' || e.key === 'M') && !e.repeat && !settingsOpen && !panelOpen && !fbIsOpen){ toggleMap(); return; }
+  if (settingsOpen || panelOpen || fbIsOpen) return;
   if (!e.repeat){
     if (e.key === 'Shift' || e.key === 'j' || e.key === 'J') tryDash();
     if (e.key === 'k' || e.key === 'K') battleSpecial();
@@ -6509,7 +6541,7 @@ function renderPanel(){
     h += `<div class="pHead"><span>Desbloquear</span></div>`;
     h += btns([['unlock:chars','Personagens'],['unlock:gear','Equipamentos'],['unlock:gems','Joias e colecionáveis'],['unlock:emeralds','Esmeraldas'],['unlock:forms','Super/Max'],['unlock:robots','Robôs'],['unlock:portals','Portais (Vazio e Véu)'],['unlock:all','🔓 TUDO']]);
     h += `<div class="pHead"><span>Modos</span></div>`;
-    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles']]);
+    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles'],['fb:host', fbRole === 'host' ? '📬 Caixa de bugs: ABERTA (ver)' : '📬 Abrir caixa de bugs e sugestões']]);
     if (!ad){
       h += `<div class="pSub" style="margin:8px 0">Teleporte e chefes só funcionam no Mundo Aberto — comece uma partida lá primeiro.</div>`;
     } else {
@@ -6582,6 +6614,7 @@ function adminAction(cmd){
   else if (k === 'lvset'){ progress.level = Math.max(progress.level, +v); progress.xp = 0; sfxSpecial(); }
   else if (k === 'unlock'){ adminUnlock(v); sfxPickup(); fxWhite = 0.3; }
   else if (k === 'toggle' && v === 'imortal'){ progress.immortalCode = !progress.immortalCode; sfxPickup(); }
+  else if (k === 'fb'){ openFeedback(true); }
   else if (k === 'puzzles' && ad){ ad.solvePuzzles(); sfxPickup(); showBanner('🧩 Puzzles resolvidos nos mundos do Mal e do Bug'); }
   else if (k === 'tp' && ad){
     if (battle || duelActive){ showBanner('Termine a luta antes de teleportar.'); return; }
@@ -8187,6 +8220,169 @@ function openCoop(){ coopOverlay.classList.add('open'); mpRenderPanel(); }
 function closeCoop(){ coopOverlay.classList.remove('open'); }
 coopBtn.addEventListener('click', openCoop);
 document.getElementById('coopClose').addEventListener('click', closeCoop);
+
+/* ---------------- Bugs e sugestões: um chat aberto direto com o dono do jogo, sem servidor próprio ---------------- */
+// O dono abre a "caixa de entrada" pelo Painel de Admin (vira o anfitrião de um endereço fixo e segue ativa em segundo
+// plano mesmo com a janela fechada); os amigos entram por Menu → 💬 Bugs e sugestões. O anfitrião repassa cada mensagem
+// pra todo mundo e guarda o histórico neste aparelho. Se o dono estiver offline, a mensagem fica numa fila local e é
+// reenviada quando a conexão abrir. Tudo que chega é limpo e escapado antes de aparecer na tela.
+const FB_HUB_ID = 'duo-feedback-hub-v1';
+const FB_KEY = 'fugaAlienigena_feedback_v1';   // separado do save do jogo: nome, fila de pendentes e (no dono) o histórico
+const FB_KINDS = { bug:{ icon:'🐞', label:'Bug', color:'#ff8a8a' }, ideia:{ icon:'💡', label:'Ideia', color:'#ffe27a' }, papo:{ icon:'💬', label:'Papo', color:'#9fe8ff' } };
+const fbOverlay = document.getElementById('fbOverlay'), fbBody = document.getElementById('fbBody');
+let fbIsOpen = false, fbPeer = null, fbConn = null, fbConns = [], fbRole = null, fbMode = 'guest', fbLog = [], fbStatus = '', fbKind = 'bug', fbConnectTO = null, fbLastSend = 0, fbHintTO = null;
+function fbLoad(){ try{ return JSON.parse(localStorage.getItem(FB_KEY)) || {}; }catch(e){ return {}; } }
+function fbSave(patch){ try{ localStorage.setItem(FB_KEY, JSON.stringify(Object.assign(fbLoad(), patch))); }catch(e){} }
+function fbName(){ return String(fbLoad().name || '').trim().slice(0,16) || (fbRole === 'host' ? 'Dono' : ((ROSTER[progress.main] && ROSTER[progress.main].name) || 'Jogador')); }
+function fbCtx(){ return ((currentScene && currentScene.banner) || 'menu') + ' · nv ' + progress.level; }
+function fbClean(m){
+  if (!m || typeof m.text !== 'string') return null;
+  const text = m.text.trim().slice(0,280); if (!text) return null;
+  return { kind: FB_KINDS[m.kind] ? m.kind : 'papo', who: String(m.who || 'Amigo').trim().slice(0,16) || 'Amigo',
+    ctx: typeof m.ctx === 'string' ? m.ctx.slice(0,60) : '', text };
+}
+function fbSetStatus(s){ fbStatus = s; fbRender(); }
+function fbHint(s){
+  const el = document.getElementById('fbHint'); if (!el) return;
+  el.textContent = s; clearTimeout(fbHintTO); fbHintTO = setTimeout(()=>{ const e2 = document.getElementById('fbHint'); if (e2) e2.textContent = ''; }, 3500);
+}
+function fbTeardown(){
+  clearTimeout(fbConnectTO); fbConnectTO = null;
+  try{ fbConn && fbConn.close(); }catch(e){}
+  fbConns.forEach(c=>{ try{ c.close(); }catch(e){} });
+  try{ fbPeer && fbPeer.destroy(); }catch(e){}
+  fbPeer = null; fbConn = null; fbConns = []; fbRole = null;
+}
+function fbHostCount(){ return fbConns.filter(c=> c.open).length; }
+function fbHostStart(){
+  if (typeof Peer === 'undefined'){ fbSetStatus('Sistema online indisponível agora.'); return; }
+  fbTeardown(); fbRole = 'host'; fbLog = fbLoad().log || [];
+  fbSetStatus('Abrindo a caixa de entrada...');
+  try{
+    fbPeer = new Peer(FB_HUB_ID, { debug:0 });
+    fbPeer.on('open', ()=> fbSetStatus('📬 Caixa de entrada aberta — amigos conectados: 0. Pode fechar esta janela: ela continua ativa em segundo plano.'));
+    fbPeer.on('connection', conn=>{
+      fbConns.push(conn);
+      let last = 0;
+      const drop = ()=>{ fbConns = fbConns.filter(c=> c !== conn); fbSetStatus(`📬 Caixa de entrada aberta — amigos conectados: ${fbHostCount()}.`); };
+      conn.on('open', ()=>{ try{ conn.send({ t:'fbhist', log:fbLog.slice(-50) }); }catch(e){} fbSetStatus(`📬 Caixa de entrada aberta — amigos conectados: ${fbHostCount()}.`); });
+      conn.on('data', d=>{
+        if (!d || d.t !== 'fb') return;
+        const now = Date.now(); if (now - last < 1500) return; last = now;     // anti-spam por conexão
+        const m = fbClean(d); if (m) fbHostAdd(m);
+      });
+      conn.on('close', drop); conn.on('error', drop);
+    });
+    fbPeer.on('disconnected', ()=>{ try{ fbPeer.reconnect(); }catch(e){} });
+    fbPeer.on('error', err=>{
+      fbSetStatus(err && err.type === 'unavailable-id' ? 'A caixa de entrada já está aberta em outro lugar (ou numa aba antiga). Feche a outra e tente de novo.' : 'Não consegui abrir a caixa agora. Tente de novo.');
+      fbTeardown();
+    });
+  } catch(e){ fbSetStatus('Sistema online indisponível agora.'); }
+}
+function fbHostAdd(m){
+  const full = Object.assign({ at:Date.now() }, m);
+  fbLog.push(full); if (fbLog.length > 200) fbLog.shift();
+  fbSave({ log:fbLog });
+  fbConns.forEach(c=>{ if (c.open){ try{ c.send({ t:'fbmsg', m:full }); }catch(e){} } });
+  if (!fbIsOpen) showBanner(`📬 ${FB_KINDS[full.kind].icon} ${full.who}: ${full.text.slice(0,50)}`);
+  fbRender();
+}
+function fbJoin(){
+  if (typeof Peer === 'undefined'){ fbSetStatus('Sistema online indisponível agora. Dá pra copiar o relatório e mandar pelo WhatsApp.'); return; }
+  fbTeardown(); fbRole = 'guest'; fbLog = [];
+  fbSetStatus('Procurando o dono do jogo...');
+  const offline = ()=>{ fbTeardown(); fbSetStatus('O dono não está online agora. Suas mensagens ficam guardadas aqui e vão quando ele estiver (ou copie o relatório e mande pelo WhatsApp).'); };
+  try{
+    fbPeer = new Peer({ debug:0 });
+    fbConnectTO = setTimeout(offline, 9000);
+    fbPeer.on('open', ()=>{
+      fbConn = fbPeer.connect(FB_HUB_ID, { reliable:true });
+      fbConn.on('open', ()=>{ clearTimeout(fbConnectTO); fbConnectTO = null; fbSetStatus('🟢 Conectado ao dono — todo mundo aqui vê as mensagens.'); fbFlush(); });
+      fbConn.on('data', d=>{
+        if (!d) return;
+        const show = m=> ({ kind: FB_KINDS[m && m.kind] ? m.kind : 'papo', who: String((m && m.who) || '').slice(0,16), text: String((m && m.text) || '').slice(0,280), ctx: String((m && m.ctx) || '').slice(0,60) });
+        if (d.t === 'fbhist' && Array.isArray(d.log)) fbLog = d.log.slice(-50).map(show);
+        else if (d.t === 'fbmsg'){
+          const sm = show(d.m); fbLog.push(sm); if (fbLog.length > 100) fbLog.shift();
+          const ob = fbLoad().outbox || [], i = ob.findIndex(x=> x.text === sm.text && x.kind === sm.kind && x.who === sm.who);
+          if (i >= 0){ ob.splice(i,1); fbSave({ outbox:ob }); }       // o anfitrião devolve a mensagem pra todos: ver a própria de volta confirma a entrega
+        }
+        fbRender();
+      });
+      fbConn.on('close', ()=>{ fbConn = null; fbSetStatus('A conexão com o dono acabou. Use "Tentar de novo" pra reconectar.'); });
+    });
+    fbPeer.on('error', offline);
+  } catch(e){ fbSetStatus('Sistema online indisponível agora.'); }
+}
+function fbFlush(){      // reenvia a fila de pendentes, uma a cada 1,7 s (o anfitrião limita a ~1 a cada 1,5 s)
+  // um item só sai da fila quando o anfitrião devolve a mensagem (ver o handler de 'fbmsg'), então nada se perde
+  // se a conexão cair no meio
+  (fbLoad().outbox || []).forEach((m,i)=> setTimeout(()=>{
+    if (fbConn && fbConn.open){ try{ fbConn.send(Object.assign({ t:'fb' }, m)); }catch(e){} }
+  }, i*1700));
+}
+function fbSend(text){     // devolve true quando a mensagem foi aceita (enviada ou guardada na fila)
+  const m = fbClean({ kind:fbKind, text, who:fbName(), ctx:fbCtx() }); if (!m) return false;
+  if (Date.now() - fbLastSend < 1700){ fbHint('Calma aí — espera um segundinho entre as mensagens.'); return false; }
+  fbLastSend = Date.now();
+  if (fbRole === 'host'){ fbHostAdd(m); }
+  else {
+    const ob = fbLoad().outbox || []; fbSave({ outbox:[...ob, m].slice(-20) });      // fica na fila até o anfitrião confirmar devolvendo a mensagem
+    if (fbConn && fbConn.open){ try{ fbConn.send(Object.assign({ t:'fb' }, m)); fbHint('Enviado! (⏳ some da fila quando o dono receber)'); }catch(e){} }
+    else fbHint('Sem conexão com o dono: guardei a mensagem e ela vai quando conectar.');
+  }
+  fbRender();
+  return true;
+}
+function fbCopyReport(){
+  const ti = document.getElementById('fbTextInput'), k = FB_KINDS[fbKind];
+  const rep = `${k.icon} ${k.label.toUpperCase()} — Fuga Alienígena\n${(ti && ti.value.trim()) || '(escreva aqui)'}\n— ${fbName()} · ${fbCtx()} · dificuldade ${settings.difficulty}`;
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(rep).then(()=> fbHint('📋 Relatório copiado! Cole no WhatsApp do dono.'), ()=> fbHint('Não consegui copiar automaticamente.'));
+  else { if (ti){ ti.value = rep.slice(0,280); ti.select(); } fbHint('Selecione o texto e copie.'); }
+}
+function fbRender(){
+  if (!fbIsOpen) return;
+  const st = document.getElementById('fbStatus'), lg = document.getElementById('fbLog'), ac = document.getElementById('fbActions');
+  if (!st || !lg || !ac) return;
+  st.textContent = fbStatus;
+  const ob = fbRole === 'host' ? [] : (fbLoad().outbox || []), atBottom = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 8;   // o dono nunca tem fila de pendentes
+  const row = (m, pending)=>{ const k = FB_KINDS[m.kind] || FB_KINDS.papo;
+    return `<div class="fbMsg${pending?' pending':''}"><span class="fbBadge" style="color:${k.color}">${k.icon} ${k.label}</span> <b>${escapeHtml(m.who)}</b>: ${escapeHtml(m.text)}${m.ctx ? `<span class="fbCtx">${escapeHtml(m.ctx)}</span>` : ''}${pending ? ' ⏳' : ''}</div>`; };
+  lg.innerHTML = (fbLog.length || ob.length) ? fbLog.map(m=> row(m,false)).join('') + ob.map(m=> row(m,true)).join('') : '<div class="fbMsg" style="opacity:0.6">Nenhuma mensagem ainda. Seja o primeiro!</div>';
+  if (atBottom) lg.scrollTop = lg.scrollHeight;
+  ac.innerHTML = (fbRole === 'host' ? '<button class="gameBtn" id="fbClear">🗑️ Limpar histórico</button>' : '<button class="gameBtn" id="fbRetry">🔄 Tentar de novo</button>') + '<button class="gameBtn secondary" id="fbCopy">📋 Copiar relatório</button>';
+  const cl = document.getElementById('fbClear'); if (cl) cl.onclick = ()=>{ fbLog = []; fbSave({ log:[] }); fbRender(); };
+  const rt = document.getElementById('fbRetry'); if (rt) rt.onclick = ()=> fbMode === 'host' ? fbHostStart() : fbJoin();
+  document.getElementById('fbCopy').onclick = fbCopyReport;
+}
+function openFeedback(asHost){
+  fbIsOpen = true; fbMode = asHost ? 'host' : 'guest'; fbOverlay.classList.add('open');
+  fbBody.innerHTML = `
+    <div class="coopStatus" id="fbStatus"></div>
+    <div class="fbLog" id="fbLog"></div>
+    <div class="segGroup" id="fbKinds">${Object.entries(FB_KINDS).map(([k,d])=>`<button class="segBtn${k===fbKind?' active':''}" data-kind="${k}">${d.icon} ${d.label}</button>`).join('')}</div>
+    <div class="fbRow"><input id="fbNameInput" maxlength="16" placeholder="Seu nome (pro dono saber quem é)" value="${escapeHtml(fbLoad().name || '')}"></div>
+    <div class="fbRow"><input id="fbTextInput" maxlength="280" placeholder="Descreva o bug ou a ideia..."><button class="gameBtn" id="fbSendBtn">Enviar</button></div>
+    <div class="coopNote" id="fbHint" style="min-height:14px"></div>
+    <div class="settingsActions" id="fbActions"></div>`;
+  document.getElementById('fbKinds').onclick = e=>{ const b = e.target.closest('.segBtn'); if (!b) return; fbKind = b.dataset.kind;
+    [...document.getElementById('fbKinds').children].forEach(x=> x.classList.toggle('active', x.dataset.kind === fbKind)); };
+  document.getElementById('fbNameInput').oninput = e=> fbSave({ name:e.target.value.slice(0,16) });
+  const ti = document.getElementById('fbTextInput');
+  const go = ()=>{ if (fbSend(ti.value)) ti.value = ''; };
+  document.getElementById('fbSendBtn').onclick = go;
+  ti.addEventListener('keydown', e=>{ if (e.key === 'Enter') go(); });
+  if (asHost){ if (fbRole !== 'host') fbHostStart(); }
+  else if (fbRole !== 'guest' || !fbConn || !fbConn.open) { if (fbRole !== 'host') fbJoin(); }
+  fbRender();
+}
+function closeFeedback(){
+  fbIsOpen = false; fbOverlay.classList.remove('open');
+  if (fbRole === 'guest') fbTeardown();      // quem só visita sai ao fechar; o dono segue como anfitrião em segundo plano
+}
+document.getElementById('fbClose').addEventListener('click', closeFeedback);
+document.getElementById('btnFeedback').addEventListener('click', ()=> openFeedback(false));
 
 /* ---------------- Queimada Relâmpago: a dodgeball minigame in Educação Física — grab the ball, face a moving
    target and throw (espaço) to score crystals before the clock runs out. Movement stays free so you can line up
