@@ -12,14 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Duo">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
 <style>
-  /* Visual 8-bit (Menu → ⚙): fonte de pixel, cantos retos e a tela do jogo pixelada com poucas cores (ver px8Begin/px8End) */
-  body.px8, body.px8 button, body.px8 input, body.px8 select, body.px8 textarea { font-family:'Pixelify Sans','Press Start 2P',monospace !important; -webkit-font-smoothing:none; }
-  body.px8 *, body.px8 *::before, body.px8 *::after { border-radius:0 !important; }
-  body.px8 button, body.px8 .pRow, body.px8 .settingsPanel, body.px8 .segBtn { border-style:solid; }
   * { margin:0; padding:0; box-sizing:border-box; }
   :root {
     --ui-scale:1; --safe:0px;
@@ -448,14 +441,6 @@
             <button class="segBtn" data-val="alta">Alta</button>
             <button class="segBtn" data-val="media">Média</button>
             <button class="segBtn" data-val="baixa">Baixa</button>
-          </div>
-        </div>
-
-        <div class="settingsRow">
-          <label>Visual <span class="settingsVal">pixels, poucas cores e música de chiptune</span></label>
-          <div class="segGroup" id="segPx8">
-            <button class="segBtn" data-val="on">👾 8-bit</button>
-            <button class="segBtn" data-val="off">Normal</button>
           </div>
         </div>
 
@@ -924,7 +909,7 @@ let saveIndicatorT = 0;   // brief "💾 salvo" flash after each save, purely vi
 function saveGame(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({ v:1, ts:Date.now(), progress, upgrades, unlocked,
-      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language, music:settings.music, px8:settings.px8 } }));
+      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language, music:settings.music } }));
     saveIndicatorT = 1.4;
   } catch(e){ /* private browsing / storage disabled — the game still works, it just won't remember next time */ }
 }
@@ -969,7 +954,7 @@ function progressMods(){
 }
 
 /* ---------------- settings (session-only, no storage) ---------------- */
-let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0, music:60, px8:true };
+let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0, music:60 };
 const hadSave = loadGame();      // runs once at boot, now that progress/upgrades/unlocked/settings all exist — everything below sees the restored state
 const DIFFICULTY_MULT = {
   facil:      { hp:0.75, atk:0.7 },
@@ -1014,34 +999,10 @@ function applyMusicVolume(){
   if (musicGain) musicGain.gain.value = musicVol();
   const el = document.getElementById('valMusic'); if (el) el.textContent = settings.music + '%';
 }
-// no visual 8-bit o som também muda: ondas suaves (seno/serra) viram quadrada e triangular, como nos consoles antigos
-function px8Wave(t){ return settings.px8 ? ({ sine:'triangle', sawtooth:'square' }[t] || t) : t; }
-const PX8_TEMPO = { village:0.2, explore:0.22, battle:0.14, boss:0.12, backrooms:0.3 };      // segundos por nota do arpejo de chiptune
-let px8Step = 0;
-function px8MusicNote(){       // um passo do chiptune: arpejo em onda quadrada + baixo triangular no tempo forte
-  const mood = MUSIC_MOODS[musicMood], freqs = mood.chords[Math.max(0,musicChordIdx)] || mood.chords[0];
-  const ctx = getAudioCtx(), now = ctx.currentTime, pat = [0,1,2,1,0,2,1,2], n = px8Step++;
-  const f = freqs[pat[n%8]] * ((n%16) >= 8 ? 2 : 1), len = PX8_TEMPO[musicMood]*0.9;
-  const g = ctx.createGain(), osc = ctx.createOscillator();
-  osc.type = 'square'; osc.frequency.value = f;
-  g.gain.setValueAtTime(0.32, now); g.gain.exponentialRampToValueAtTime(0.001, now+len);
-  osc.connect(g); g.connect(musicGain); osc.start(now); osc.stop(now+len+0.02);
-  if (n%4 === 0){
-    const bg = ctx.createGain(), bo = ctx.createOscillator();
-    bo.type = 'triangle'; bo.frequency.value = freqs[0]/2;
-    bg.gain.setValueAtTime(0.5, now); bg.gain.exponentialRampToValueAtTime(0.001, now+len*3.2);
-    bo.connect(bg); bg.connect(musicGain); bo.start(now); bo.stop(now+len*3.3);
-  }
-  if (mood.pulse && n%2 === 0){      // lutas: um "tchi" de ruído curto marcando o ritmo
-    const buf = ctx.createBuffer(1, Math.round(ctx.sampleRate*0.04), ctx.sampleRate), data = buf.getChannelData(0);
-    for (let i=0;i<data.length;i++) data[i] = (Math.random()*2-1)*(1-i/data.length);
-    const ns = ctx.createBufferSource(), ng = ctx.createGain(); ns.buffer = buf; ng.gain.value = 0.22; ns.connect(ng); ng.connect(musicGain); ns.start(now);
-  }
-}
 function musicPulse(){
   const ctx = getAudioCtx(), now = ctx.currentTime;
   const osc = ctx.createOscillator(), g = ctx.createGain();
-  osc.type = px8Wave('sine'); osc.frequency.value = 80;
+  osc.type = 'sine'; osc.frequency.value = 80;
   g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.5, now+0.02); g.gain.exponentialRampToValueAtTime(0.001, now+0.35);
   osc.connect(g); g.connect(musicGain); osc.start(now); osc.stop(now+0.4);
 }
@@ -1055,7 +1016,6 @@ function musicChordStep(){
   const oldNodes = musicChordNodes;
   oldNodes.forEach(({gain})=>{ try{ gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(gain.gain.value, now); gain.gain.linearRampToValueAtTime(0, now+fadeOut); }catch(e){} });
   setTimeout(()=> oldNodes.forEach(({osc})=>{ try{ osc.stop(); }catch(e){} }), (fadeOut+0.15)*1000);
-  if (settings.px8){ musicChordNodes = []; musicGain.gain.linearRampToValueAtTime(musicVol(), now+0.2); musicChordTO = setTimeout(musicChordStep, mood.dur*1000); return; }   // 8-bit: sem colchão de acordes, só o arpejo
   musicChordNodes = freqs.map((f,i)=>{
     const osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = i===0 ? 'sine' : 'triangle'; osc.frequency.value = f; osc.detune.value = (i-1)*2;
@@ -1069,7 +1029,6 @@ function musicChordStep(){
 }
 function musicArpStep(){
   if (!musicOn) return;
-  if (settings.px8){ px8MusicNote(); musicArpTO = setTimeout(musicArpStep, PX8_TEMPO[musicMood]*1000); return; }
   const mood = MUSIC_MOODS[musicMood], freqs = mood.chords[Math.max(0,musicChordIdx)] || mood.chords[0];
   if (Math.random() < 0.85){
     const f = freqs[Math.floor(Math.random()*freqs.length)] * (Math.random() < 0.4 ? 2 : 1);
@@ -1094,7 +1053,7 @@ function beep(freq, duration, type, volume, delay){
     const startAt = ctx.currentTime + (delay||0);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = px8Wave(type || 'square');
+    osc.type = type || 'square';
     osc.frequency.setValueAtTime(freq, startAt);
     gain.gain.setValueAtTime(volume||0.15, startAt);
     gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
@@ -2990,39 +2949,6 @@ function fxLights(g, lights, t){
   });
   g.restore();
 }
-// luzes do visual 8-bit: em vez de degradê suave, 3 anéis chapados que piscam em degraus (como nas Backrooms 8-bit)
-function px8Disc(g,x,y,r){
-  const P = PX8_SIZE, x0 = Math.round(x/P)*P, y0 = Math.round(y/P)*P, R = Math.round(r/P)*P;
-  for (let dy=-R; dy<=R; dy+=P){ const half = Math.round(Math.sqrt(Math.max(0,R*R-dy*dy))/P)*P; if (half > 0) g.fillRect(x0-half, y0+dy, half*2, P); }
-}
-// Pra não pesar: o piscar anda em 4 degraus, então só existem 4 "quadros de luz" por cena. Cada um é montado UMA vez
-// numa imagem de baixa resolução (com todas as luzes da cena juntas) e depois é só uma imagem esticada por quadro.
-const px8LightCache = new Map();      // array de luzes da cena → [4 imagens]
-function px8BakeLights(lights, f){
-  const P = PX8_SIZE, c = document.createElement('canvas'); c.width = Math.round(W/P); c.height = Math.round(H/P);
-  const lc = c.getContext('2d'); lc.scale(1/P, 1/P); lc.globalCompositeOperation = 'lighter';
-  lights.forEach((L,i)=>{
-    const fl = [0.82,0.92,1,0.9][(f + Math.round(i*1.7)) & 3];
-    if (L.shaft){
-      [[1,0.05],[0.66,0.05],[0.33,0.06]].forEach(([k,a])=>{
-        lc.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; lc.beginPath();
-        lc.moveTo(L.x-L.w/2,L.y); lc.lineTo(L.x+L.w/2,L.y); lc.lineTo(L.x+L.w*(0.5+0.7*k),L.y+L.len*k); lc.lineTo(L.x-L.w*(0.5+0.7*k),L.y+L.len*k); lc.closePath(); lc.fill();
-      });
-    } else {
-      [[1,0.07],[0.7,0.08],[0.42,0.1]].forEach(([k,a])=>{ lc.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; px8Disc(lc, L.x, L.y, L.r*k); });
-    }
-  });
-  return c;
-}
-function fxLightsPx(g, lights, t){
-  if (!lights || fxQuality() === 0) return;
-  let v = px8LightCache.get(lights); if (!v){ v = []; px8LightCache.set(lights, v); }
-  const f = Math.floor(t*7) & 3;
-  const c = v[f] || (v[f] = px8BakeLights(lights, f));
-  g.save(); g.globalCompositeOperation = 'lighter'; g.imageSmoothingEnabled = false;
-  g.drawImage(c, 0, 0, c.width, c.height, 0, 0, W, H);
-  g.restore();
-}
 // ground mist: two slow, wide translucent bands
 function fxMist(g, color, t, y, alpha){
   if (fxQuality() === 0) return;
@@ -3114,193 +3040,17 @@ function registerSceneFx(){
       g.fillStyle='#ffd54a'; g.fillRect(x,70,40,6); g.beginPath(); g.arc(x+20,140,9,0,Math.PI*2); g.fill(); }); } });
 }
 registerSceneFx();
-/* ---------------- Visual 8-bit: a cena é desenhada normal e depois pixelada (blocos de 3x3), com poucas cores e
-   trama (dither) de Bayer, no estilo dos consoles antigos. Textos não passam pelo filtro (ficariam ilegíveis): são guardados
-   durante o desenho e reaplicados nítidos por cima, já com a fonte de pixel. ---------------- */
-const PX8_SIZE = 3, PX8_LEVELS = 12, PX8_FONT = "'Pixelify Sans','Press Start 2P',monospace";
-const px8Low = document.createElement('canvas'); px8Low.width = Math.round(W/PX8_SIZE); px8Low.height = Math.round(H/PX8_SIZE);
-const px8LowCtx = px8Low.getContext('2d', { willReadFrequently:true });
-px8LowCtx.imageSmoothingQuality = 'high';
-const PX8_BAYER = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
-const px8NativeFill = ctx.fillText.bind(ctx), px8NativeStroke = ctx.strokeText.bind(ctx);
-let px8Queue = null;
-function px8FixFont(){
-  if (!settings.px8) return;
-  const f = ctx.font;
-  if (f.indexOf('Pixelify') < 0){ const m = /^(.*?\d+(?:\.\d+)?px)\s/.exec(f); if (m) ctx.font = m[1] + ' ' + PX8_FONT; }
-}
-function px8Snap(kind, t, x, y, mw){
-  return { kind, t, x, y, mw, font:ctx.font, fs:ctx.fillStyle, ss:ctx.strokeStyle, lw:ctx.lineWidth, lj:ctx.lineJoin, ta:ctx.textAlign, tb:ctx.textBaseline,
-    ga:ctx.globalAlpha, gco:ctx.globalCompositeOperation, m:ctx.getTransform() };
-}
-ctx.fillText = function(t,x,y,mw){ px8FixFont(); if (px8Queue) px8Queue.push(px8Snap('f',t,x,y,mw)); else px8NativeFill(t,x,y,mw); };
-ctx.strokeText = function(t,x,y,mw){ px8FixFont(); if (px8Queue) px8Queue.push(px8Snap('s',t,x,y,mw)); else px8NativeStroke(t,x,y,mw); };
-function px8Begin(){ px8Queue = settings.px8 ? [] : null; }
-// 1ª passada: só o cenário (chão, casas, decoração) vira blocos de pixel; os personagens são pixelados um a um (px8WrapSprite).
-// O resultado do cenário fica guardado e é reaproveitado por ~0,1 s (px8BgCache): refazer tudo a cada quadro pesava.
-const px8BgCanvas = document.createElement('canvas'); px8BgCanvas.width = px8Low.width; px8BgCanvas.height = px8Low.height;
-let px8BgCache = null;      // { scene, t, texts }
-function px8Replay(q){
-  q.forEach(r=>{
-    ctx.setTransform(r.m); ctx.font = r.font; ctx.fillStyle = r.fs; ctx.strokeStyle = r.ss; ctx.lineWidth = r.lw; ctx.lineJoin = r.lj;
-    ctx.textAlign = r.ta; ctx.textBaseline = r.tb; ctx.globalAlpha = r.ga; ctx.globalCompositeOperation = r.gco;
-    if (r.kind === 'f') px8NativeFill(r.t, r.x, r.y, r.mw); else px8NativeStroke(r.t, r.x, r.y, r.mw);
-  });
-}
-// reduz as cores por brilho/saturação/tom (HSV) em vez de arredondar R, G e B separados: assim um degradê de laranja só vira
-// "laranja mais claro / mais escuro", sem os pixels rosa ou verdes que o arredondamento por canal faz perto dos limites
-function px8Quant(d, i, vl, sl, hl){
-  const r = d[i], g = d[i+1], b = d[i+2], mx = Math.max(r,g,b), mn = Math.min(r,g,b), df = mx-mn;
-  let h = 0;
-  if (df > 0){ if (mx === r) h = ((g-b)/df) % 6; else if (mx === g) h = (b-r)/df + 2; else h = (r-g)/df + 4; h /= 6; if (h < 0) h += 1; }
-  const v = Math.round((mx/255)*(vl-1))/(vl-1), s = Math.round((mx === 0 ? 0 : df/mx)*(sl-1))/(sl-1), hh = ((Math.round(h*hl) % hl)/hl)*6;
-  const c = v*s, x = c*(1-Math.abs(hh%2-1)), m = v-c, k = Math.floor(hh) % 6;
-  const rr = k===0||k===5 ? c : (k===1||k===4 ? x : 0), gg = k===1||k===2 ? c : (k===0||k===3 ? x : 0), bb = k===3||k===4 ? c : (k===2||k===5 ? x : 0);
-  d[i] = (rr+m)*255; d[i+1] = (gg+m)*255; d[i+2] = (bb+m)*255;
-}
-// "achata" texturas fracas (linhas de tijolo, ruído de grama) antes de reduzir as cores: pixels que quase não diferem da vizinhança
-// viram a média dela. Sem isso, essas variações pequenas caem em cima de um limite da paleta e viram pontinhos aleatórios.
-// Contornos e cores fortes (diferença grande) passam intactos.
-function px8Flatten(d, lw, lh, thr, passes, alpha){
-  for (let p=0; p<passes; p++){
-    const src = new Uint8ClampedArray(d);
-    for (let y=0; y<lh; y++) for (let x=0; x<lw; x++){
-      const i = (y*lw+x)*4;
-      if (alpha && src[i+3] < 90) continue;
-      let n = 0, sr = 0, sg = 0, sb = 0;
-      for (let k=0; k<4; k++){
-        const nx = x + (k===0 ? -1 : k===1 ? 1 : 0), ny = y + (k===2 ? -1 : k===3 ? 1 : 0);
-        if (nx < 0 || ny < 0 || nx >= lw || ny >= lh) continue;
-        const j = (ny*lw+nx)*4; if (alpha && src[j+3] < 90) continue;
-        n++; sr += src[j]; sg += src[j+1]; sb += src[j+2];
-      }
-      if (!n) continue;
-      const mr = sr/n, mg = sg/n, mb = sb/n;
-      if (Math.abs(src[i]-mr) + Math.abs(src[i+1]-mg) + Math.abs(src[i+2]-mb) < thr){ d[i] = mr; d[i+1] = mg; d[i+2] = mb; }
-    }
-  }
-}
-function px8Bg(store){
-  const q = px8Queue; px8Queue = null;
-  if (!q) return;
-  const lw = px8Low.width, lh = px8Low.height;
-  px8LowCtx.imageSmoothingEnabled = true;
-  px8LowCtx.clearRect(0,0,lw,lh);
-  px8LowCtx.drawImage(canvas, 0, 0, W, H, 0, 0, lw, lh);
-  const img = px8LowCtx.getImageData(0,0,lw,lh), d = img.data, step = 255/(PX8_LEVELS-1);
-  px8Flatten(d, lw, lh, 40, 1, false);
-  for (let i=0; i<d.length; i+=4){      // sem trama de pontinhos: cores chapadas, como nos sprites de 8-bit
-    px8Quant(d, i, 10, 7, 36);
-    d[i+3] = 255;
-  }
-  px8LowCtx.putImageData(img,0,0);
-  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(px8Low, 0, 0, lw, lh, 0, 0, W, H);
-  px8Replay(q);
-  ctx.restore();
-  if (store){ px8BgCanvas.getContext('2d').drawImage(px8Low, 0, 0); px8BgCache = { scene:store, t:performance.now(), texts:q }; }
-}
-function px8BgBlit(c){      // cenário vindo do cache: o mesmo quadro pixelado + os textos nítidos de novo
-  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(px8BgCanvas, 0, 0, px8BgCanvas.width, px8BgCanvas.height, 0, 0, W, H);
-  px8Replay(c.texts);
-  ctx.restore();
-}
-// Sprites em pixel art de verdade: cada personagem/monstro/chefe é desenhado num quadro à parte, reduzido pra grade de
-// pixels 3x3, com poucas cores chapadas (sem degradê) e um contorno escuro de 1 pixel, e ampliado sem suavização. A
-// posição é encaixada na mesma grade do cenário pra os pixels nunca ficarem "meio pixel" desalinhados.
-// Pra não pesar: o sprite pronto é guardado e reaproveitado por 1/8 de segundo (a animação anda em 8 quadros por segundo,
-// como nos consoles antigos) — durante esse tempo o relógio do jogo é "congelado" na hora do desenho pra o resultado ser igual.
-const PX8_SPR_LEVELS = 6, PX8_OUTLINE = [22,14,40], PX8_SPR_MS = 200, PX8_BUILDS_PER_FRAME = 2;
-const px8Pool = new Map(), px8SprCache = new Map();
-let frameCounter = 0;
-let px8SpriteDepth = 0, px8SprIds = 0, px8BuildsLeft = PX8_BUILDS_PER_FRAME, px8BuildFrame = -1;
-function px8Canvases(B){
-  let e = px8Pool.get(B);
-  if (!e){
-    const full = document.createElement('canvas'); full.width = full.height = B;
-    const low = document.createElement('canvas'); low.width = low.height = B/PX8_SIZE;
-    e = { full, fctx:full.getContext('2d', { willReadFrequently:true }), low, lctx:low.getContext('2d', { willReadFrequently:true }), solid:new Uint8Array((B/PX8_SIZE)*(B/PX8_SIZE)) };
-    e.lctx.imageSmoothingQuality = 'high';
-    px8Pool.set(B, e);
-  }
-  return e;
-}
-// monta (ou remonta, reaproveitando o quadro `low` da entrada) o sprite pixelado
-function px8BuildSprite(fn, args, s, B, bucketMs, low){
-  const P = PX8_SIZE, e = px8Canvases(B), fc = e.fctx, lw = B/P, solid = e.solid;
-  fc.setTransform(1,0,0,1,0,0); fc.globalAlpha = 1; fc.globalCompositeOperation = 'source-over'; fc.clearRect(0,0,B,B);
-  const realNow = Date.now; Date.now = ()=> bucketMs;       // relógio congelado: o mesmo desenho dentro dessa janela de tempo
-  px8SpriteDepth++;
-  try { fn.apply(null, [fc, B/2, B/2, s].concat(args)); } finally { px8SpriteDepth--; Date.now = realNow; }
-  e.lctx.imageSmoothingEnabled = true; e.lctx.clearRect(0,0,lw,lw);
-  e.lctx.drawImage(e.full, 0, 0, B, B, 0, 0, lw, lw);
-  const img = e.lctx.getImageData(0,0,lw,lw), d = img.data, step = 255/(PX8_SPR_LEVELS-1);
-  px8Flatten(d, lw, lw, 70, 2, true);
-  solid.fill(0);
-  for (let i=0, p=0; i<d.length; i+=4, p++){
-    if (d[i+3] < 90){ d[i+3] = 0; continue; }
-    solid[p] = 1; d[i+3] = 255;
-    px8Quant(d, i, 6, 4, 18);
-  }
-  for (let yy=0; yy<lw; yy++) for (let xx=0; xx<lw; xx++){       // contorno de 1 pixel em volta de tudo que é sólido
-    const p = yy*lw+xx; if (solid[p]) continue;
-    if ((xx>0 && solid[p-1]) || (xx<lw-1 && solid[p+1]) || (yy>0 && solid[p-lw]) || (yy<lw-1 && solid[p+lw])){
-      const i = p*4; d[i] = PX8_OUTLINE[0]; d[i+1] = PX8_OUTLINE[1]; d[i+2] = PX8_OUTLINE[2]; d[i+3] = 255;
-    }
-  }
-  if (!low){ low = document.createElement('canvas'); low.width = low.height = lw; }
-  low.getContext('2d').putImageData(img, 0, 0);
-  return low;
-}
-function px8WrapSprite(fn){
-  const id = ++px8SprIds;
-  return function(g, x, y, s){
-    if (!settings.px8 || px8SpriteDepth > 0 || !(s > 0)) return fn.apply(null, arguments);
-    const args = Array.prototype.slice.call(arguments, 4), P = PX8_SIZE;
-    try {
-      const bucket = Math.floor(Date.now()/PX8_SPR_MS), sq = Math.round(s*2)/2;
-      if (px8BuildFrame !== frameCounter){ px8BuildFrame = frameCounter; px8BuildsLeft = PX8_BUILDS_PER_FRAME; }
-      const B = Math.min(600, Math.max(96, Math.ceil(sq*4.4/(2*P))*2*P));       // múltiplo de 2P: o centro do sprite cai sempre na grade
-      let key = id + '|' + sq + '|' + fxRage;
-      for (let i=0;i<args.length;i++){ const a = args[i]; if (a !== null && (typeof a === 'object' || typeof a === 'function')){ key = null; break; } key += '|' + a; }
-      let ent = key ? px8SprCache.get(key) : null, low;
-      if (ent && (ent.bucket === bucket || px8BuildsLeft <= 0)) low = ent.low;      // pronto, ou ainda velhinho: sem fôlego pra refazer agora, usa o quadro anterior
-      else {
-        px8BuildsLeft--;
-        low = px8BuildSprite(fn, args, sq, B, bucket*PX8_SPR_MS, ent ? ent.low : null);
-        if (key){ if (!ent){ ent = { low, B, bucket }; if (px8SprCache.size > 400) px8SprCache.clear(); px8SprCache.set(key, ent); } else ent.bucket = bucket; }
-      }
-      const lw = B/P, m = g.getTransform();      // encaixa o centro do sprite na grade de pixels da tela
-      const sx = m.e + x*m.a + y*m.c, sy = m.f + x*m.b + y*m.d;
-      const dxl = Math.abs(m.a) > 0.01 ? (Math.round(sx/P)*P - sx)/m.a : 0, dyl = Math.abs(m.d) > 0.01 ? (Math.round(sy/P)*P - sy)/m.d : 0;
-      g.save(); g.imageSmoothingEnabled = false;
-      g.drawImage(low, 0, 0, lw, lw, x + dxl - B/2, y + dyl - B/2, B, B);
-      g.restore();
-    } catch(err){ px8SpriteDepth = 0; return fn.apply(null, arguments); }
-  };
-}
 function renderScene(){
   ctx.clearRect(0,0,W,H);
   if (!currentScene) return;
-  frameCounter++;
-  px8Begin();
   const tSec = Date.now()/1000;
   const sfx = currentScene.fx || SCENE_FX.get(currentScene.draw) || { ambient:{kind:'dust',count:18} };
-  // 8-bit: com a câmera parada, o cenário pixelado é reaproveitado por ~0,1 s em vez de redesenhado a cada quadro
-  const bgStill = settings.px8 && !duelActive && fxShake <= 0 && fxZoom <= 0.001;
-  const bgCached = bgStill && px8BgCache && px8BgCache.scene === currentScene && performance.now() - px8BgCache.t < 300;
-  if (bgCached){ px8Queue = null; px8BgBlit(px8BgCache); }
   ctx.save();
   if (fxShake > 0){ const m = fxShakeMag*(fxShake > 0.2 ? 1 : fxShake/0.2); ctx.translate((Math.random()-0.5)*2*m,(Math.random()-0.5)*2*m); }
   if (fxZoom > 0.001){ ctx.translate(W/2,H/2); ctx.scale(1+fxZoom,1+fxZoom); ctx.translate(-W/2,-H/2); }   // camera punch-in
-  if (!bgCached){
-    if (duelActive) drawDuelArena(ctx); else currentScene.draw(ctx);
-    if (sfx.decor && !duelActive) sfx.decor(ctx, tSec);
-    if (sfx.lights && !duelActive && !settings.px8) fxLights(ctx, sfx.lights, tSec);
-    px8Bg(bgStill ? currentScene : null);      // cenário pronto: vira blocos de pixel (e os textos já desenhados voltam nítidos); depois entram os sprites
-  }
-  if (sfx.lights && !duelActive && settings.px8) fxLightsPx(ctx, sfx.lights, tSec);      // no 8-bit as luzes são desenhadas ao vivo, em degraus de pixel, por cima do cenário guardado
+  if (duelActive) drawDuelArena(ctx); else currentScene.draw(ctx);
+  if (sfx.decor && !duelActive) sfx.decor(ctx, tSec);
+  if (sfx.lights && !duelActive) fxLights(ctx, sfx.lights, tSec);
   if (battle) drawHazards(ctx, tSec);
   if (!duelActive) for (const npc of (currentScene.npcs||[])){   // the duel arena stands alone — no stray villagers or monsters from the real room
     const draw = DRAW[npc.type];
@@ -3394,8 +3144,7 @@ function renderScene(){
       fxFlashCtx.fillRect(0,0,360,360);
       fxFlashCtx.globalCompositeOperation = 'source-over';
     }
-    const fdx = ex-180+(pdx/pd)*lunge, fdy = ey-180+(pdy/pd)*lunge-lift;
-    ctx.drawImage(fxFlashCanvas, settings.px8 ? Math.round(fdx/PX8_SIZE)*PX8_SIZE : fdx, settings.px8 ? Math.round(fdy/PX8_SIZE)*PX8_SIZE : fdy);
+    ctx.drawImage(fxFlashCanvas, ex-180+(pdx/pd)*lunge, ey-180+(pdy/pd)*lunge-lift);
     battle.projectiles.forEach(pr=>{
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = pr.color; ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r*2.4,0,Math.PI*2); ctx.fill();
@@ -3414,10 +3163,9 @@ function renderScene(){
   // screen-wide finishing: colour grade, drifting ambience, soft dark edges
   if (sfx.tint && !duelActive && fxQuality() > 0){ ctx.fillStyle = sfx.tint; ctx.fillRect(0,0,W,H); }
   fxAmbient(ctx, sfx.ambient, tSec);
-  if (fxQuality() > 0 && !settings.px8) ctx.drawImage(fxVignette, 0, 0);      // no 8-bit a vinheta viraria anéis de cor
+  if (fxQuality() > 0) ctx.drawImage(fxVignette, 0, 0);
   fxDrawSpeed(ctx, tSec);
   if (fxWhite > 0.01){ ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9,fxWhite).toFixed(3)})`; ctx.fillRect(0,0,W,H); }
-  px8Queue = null;
   if (battle) drawBattleHud(ctx, tSec);
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
   else drawChapterMiniMap(ctx);
@@ -8606,7 +8354,6 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const segDifficulty = document.getElementById('segDifficulty');
 const segQuality = document.getElementById('segQuality');
-const segPx8 = document.getElementById('segPx8');
 const selLanguage = document.getElementById('selLanguage');
 const inpPlayerName = document.getElementById('inpPlayerName');
 const rangeScale = document.getElementById('rangeScale');
@@ -8625,10 +8372,6 @@ function applySafeArea(){
 function applyQuality(){
   document.body.classList.toggle('lowfx', settings.quality === 'baixa');
 }
-function applyPx8(){
-  document.body.classList.toggle('px8', !!settings.px8);
-  [...segPx8.children].forEach(b=> b.classList.toggle('active', (b.dataset.val === 'on') === !!settings.px8));
-}
 function refreshSettingsUI(){
   [...segDifficulty.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.difficulty));
   [...segQuality.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.quality));
@@ -8637,7 +8380,7 @@ function refreshSettingsUI(){
   rangeScale.value = settings.scale;
   rangeSafe.value = settings.safe;
   rangeMusic.value = settings.music;
-  applyScale(); applySafeArea(); applyQuality(); applyPx8(); applyMusicVolume();
+  applyScale(); applySafeArea(); applyQuality(); applyMusicVolume();
 }
 function toggleSettings(){ settingsOpen ? closeSettings() : openSettings(); }
 function openSettings(){
@@ -8684,11 +8427,6 @@ segQuality.addEventListener('click', e=>{
   const b = e.target.closest('.segBtn'); if (!b) return;
   settings.quality = b.dataset.val;
   refreshSettingsUI();
-});
-segPx8.addEventListener('click', e=>{
-  const b = e.target.closest('.segBtn'); if (!b) return;
-  settings.px8 = b.dataset.val === 'on';
-  refreshSettingsUI(); saveGame();
 });
 selLanguage.addEventListener('change', ()=>{ settings.language = selLanguage.value; });
 rangeScale.addEventListener('input', ()=>{ settings.scale = +rangeScale.value; applyScale(); });
@@ -9477,14 +9215,12 @@ function loop(t){
   } catch(err){
     // a bug in one frame must never permanently freeze the whole game —
     // log it and keep the loop alive so the player can still act next frame
-    px8Queue = null;      // se um frame quebrou no meio da pixelização, os textos não ficam presos na fila
     console.error('loop error', err);
   }
   requestAnimationFrame(loop);
 }
-Object.keys(DRAW).forEach(k=>{ if (typeof DRAW[k] === 'function' && !DRAW[k].px8){ const w = px8WrapSprite(DRAW[k]); w.px8 = true; DRAW[k] = w; } });   // todos os sprites passam pelo filtro de pixel art quando o 8-bit está ligado
 requestAnimationFrame(loop);
-showMenu();                                                           // reflects the restored save (shows "Continuar" when there's one)
+showMenu();                                                            // reflects the restored save (shows "Continuar" when there's one)
 setInterval(saveGame, 5000);                                          // safety net: saves at least every 5s even if some event site forgets to
 window.addEventListener('beforeunload', ()=>{ saveGame(); mpSendRaw({ t:'bye' }); });
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') saveGame(); });
