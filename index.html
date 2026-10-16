@@ -402,6 +402,7 @@
           <button class="segBtn" data-tab="chars">🧑 Personagens</button>
           <button class="segBtn" data-tab="robots">🤖 Robôs</button>
           <button class="segBtn" data-tab="equip">🗡️ Equipamento</button>
+          <button class="segBtn" data-tab="daily">📅 Diário</button>
           <button class="segBtn" data-tab="ach">🏆 Conquistas</button>
           <button class="segBtn" data-tab="admin" style="display:none">🛠️ Admin</button>
         </div>
@@ -886,7 +887,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -907,6 +908,7 @@ let progress = freshProgress();
 const SAVE_KEY = 'fugaAlienigena_save_v1';
 let saveIndicatorT = 0;   // brief "💾 salvo" flash after each save, purely visual
 function saveGame(){
+  try{ dailyEnsure(); }catch(e){}      // vira o dia sozinho (e guarda de onde a contagem do desafio diário começa)
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({ v:1, ts:Date.now(), progress, upgrades, unlocked,
       settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language, music:settings.music } }));
@@ -6715,8 +6717,8 @@ const ACHIEVEMENTS = [
   { id:'lv50',    name:'Lenda',                 desc:'Chegue ao nível 50',                   reward:400, test:p=> p.level >= 50 },
   { id:'backrooms',name:'Fora dos Limites',     desc:'Encontre a passagem secreta e entre nas Backrooms', reward:100, test:p=> p.backrooms },
   { id:'bug',     name:'Erro de Sistema',       desc:'Pegue a Joia do Bug nas Backrooms',    reward:150, test:p=> p.bugGem },
-  { id:'super',   name:'Além do Limite',        desc:'Conquiste a forma Super na Ilha Celestial', reward:150, test:p=> p.forms.super },
-  { id:'max',     name:'Poder Máximo',          desc:'Conquiste a forma Max na Ilha Celestial',   reward:300, test:p=> p.forms.max },
+  { id:'super',   name:'Além do Limite',        desc:'Libere a forma Super (3 esmeraldas ou o altar da Ilha Celestial)', reward:150, test:p=> p.forms.super },
+  { id:'max',     name:'Poder Máximo',          desc:'Libere a forma Max (6 esmeraldas ou o altar da Ilha Celestial)',   reward:300, test:p=> p.forms.max },
   { id:'lostgems',name:'Caçador de Joias',       desc:'Encontre as 6 Joias Perdidas espalhadas pelo mundo', reward:200, test:p=> lostGemCount() >= 6 },
   { id:'robot1',  name:'Engenheiro',             desc:'Construa seu primeiro robô no Laboratório do Duo',   reward:40,  test:p=> Object.values(p.robots).some(Boolean) },
   { id:'robotall',name:'Fábrica de Robôs',       desc:'Construa todos os robôs do Laboratório',             reward:250, test:p=> Object.values(p.robots).every(Boolean) },
@@ -6746,7 +6748,9 @@ const ACHIEVEMENTS = [
   { id:'factoryboss',  name:'Fim da Linha',        desc:'Derrote o MEGA-9000 na Fábrica de Robôs',        reward:500, test:p=> p.factoryBossWon },
   { id:'arcadeitems',  name:'Fliperama Completo',  desc:'Encontre os 3 itens de fliperama no Mundo do Jogo', reward:150, test:p=> arcadeItemCount() >= 3 },
   { id:'arcadeboss',   name:'Recorde Mundial',     desc:'Derrote o Chefão Game Over no Mundo do Jogo',    reward:500, test:p=> p.arcadeBossWon },
-  { id:'shopper',      name:'Cliente Fiel',        desc:'Compre um personagem na Loja de Personagens',    reward:80,  test:p=> p.shopBuys >= 1 }
+  { id:'shopper',      name:'Cliente Fiel',        desc:'Compre um personagem na Loja de Personagens',    reward:80,  test:p=> p.shopBuys >= 1 },
+  { id:'daily1',       name:'Missão do Dia',       desc:'Resgate seu primeiro Desafio Diário',            reward:60,  test:p=> p.dailyClaims >= 1 },
+  { id:'daily7',       name:'Semana Perfeita',     desc:'Resgate o Desafio Diário 7 dias seguidos',       reward:400, test:p=> p.dailyBest >= 7 }
 ];
 let panelOpen = false, panelTab = 'up', checkingAch = false;
 const panelOverlay = document.getElementById('panelOverlay');
@@ -6767,6 +6771,43 @@ function grantXp(n){
 function finalReady(){
   return progress.voidUnlocked || (progress.level >= FINAL_LEVEL && emeraldCount() >= 6 && upgrades.elementalEmerald && upgrades.disguiseEmerald && upgrades.monsterEmerald);
 }
+/* ---------------- Desafio diário: uma missão nova por dia (sorteada pela data), com recompensa e sequência de dias seguidos ---------------- */
+const DAILY_POOL = [
+  { id:'kills',   icon:'⚔️', text:n=>`Derrote ${n} monstros`,                                     stat:p=> p.kills,          targets:[5,10,18] },
+  { id:'crystals',icon:'💎', text:n=>`Ganhe ${n} cristais`,                                       stat:p=> p.earned,         targets:[80,200,400] },
+  { id:'fish',    icon:'🎣', text:n=>`Pesque ${n} peixes`,                                        stat:p=> p.fishCaught,     targets:[2,4,6] },
+  { id:'dodge',   icon:'🏃', text:n=>`Acerte ${n} alvos na Queimada Relâmpago (Escola)`,          stat:p=> p.dodgeballHits,  targets:[6,12,20] },
+  { id:'class',   icon:'📚', text:n=>`Acerte ${n} vezes nos minigames de Artes, Inglês e Biblioteca`, stat:p=> p.classGameHits, targets:[6,12,20] },
+  { id:'arena',   icon:'🏟️', text:n=>`Vença a Arena de Ondas ${n} ${n > 1 ? 'vezes' : 'vez'}`,    stat:p=> p.arenaWins,      targets:[1,1,2] }
+];
+function dailyKey(d){ d = d || new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function dailyYesterdayKey(){ const n = new Date(); return dailyKey(new Date(n.getFullYear(), n.getMonth(), n.getDate()-1)); }
+function dailyTier(){ return progress.level < 10 ? 0 : (progress.level < 25 ? 1 : 2); }
+function dailyEnsure(){
+  const k = dailyKey(), cur = progress.daily;
+  if (cur && cur.date === k && DAILY_POOL.some(d=> d.id === cur.id)) return cur;
+  let h = 0; for (const ch of k) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  const def = DAILY_POOL[h % DAILY_POOL.length];
+  progress.daily = { date:k, id:def.id, target:def.targets[dailyTier()], base:def.stat(progress), done:false, claimed:false };
+  return progress.daily;
+}
+function dailyDef(d){ return DAILY_POOL.find(x=> x.id === d.id); }
+function dailyValue(d){ return Math.max(0, dailyDef(d).stat(progress) - d.base); }
+function dailyStreakNow(){ return (progress.dailyLastClaim === dailyKey() || progress.dailyLastClaim === dailyYesterdayKey()) ? progress.dailyStreak : 0; }
+function dailyReward(streakAfter){ return 80 + 20*Math.min(streakAfter, 10) + dailyTier()*40; }
+function dailyTick(){
+  const d = dailyEnsure();
+  if (!d.done && dailyValue(d) >= d.target){ d.done = true; showBanner('📅 Desafio diário concluído! Resgate a recompensa na mochila → 📅 Diário'); sfxPickup(); }
+}
+function dailyClaim(){
+  const d = dailyEnsure(); if (!d.done || d.claimed) return;
+  progress.dailyStreak = progress.dailyLastClaim === dailyYesterdayKey() ? progress.dailyStreak + 1 : 1;
+  progress.dailyLastClaim = dailyKey(); progress.dailyBest = Math.max(progress.dailyBest || 0, progress.dailyStreak);
+  progress.dailyClaims = (progress.dailyClaims || 0) + 1; d.claimed = true;
+  const r = dailyReward(progress.dailyStreak);
+  progress.crystals += r; progress.earned += r; grantXp(60 + 10*dailyTier());
+  showBanner(`📅 +${r} 💎! Sequência: ${progress.dailyStreak} ${progress.dailyStreak > 1 ? 'dias' : 'dia'}`); sfxVictory(); fxWhite = 0.4;
+}
 function unlockChar(id, msg){ if (!progress.chars[id]){ progress.chars[id] = true; showBanner('🧑 Novo personagem: '+msg+'!'); sfxPickup(); } }
 function checkUnlocks(){
   if (progress.arenaWins >= 1) unlockChar('hunter','Caçador');
@@ -6778,6 +6819,9 @@ function checkUnlocks(){
   if (progress.level >= 10) unlockChar('zapi','Zapi');
   if (emeraldCount() >= 4) unlockChar('naia','Naia');
   if (ZEBOT_ROBOTS.every(k=> progress.robots[k])) unlockChar('zebot','Zé Bot');
+  // as formas de poder abrem junto com as esmeraldas: Super com 3 e Max com as 6 (os altares da Ilha Celestial seguem valendo como atalho)
+  if (emeraldCount() >= 3 && !progress.forms.super){ progress.forms.super = true; showBanner('✨ Forma SUPER liberada pelas esmeraldas! Equipe na mochila → Personagens'); sfxSpecial(); fxWhite = 0.5; }
+  if (emeraldCount() >= 6 && !progress.forms.max){ progress.forms.max = true; showBanner('🌟 Forma MAX liberada pelas 6 esmeraldas! Equipe na mochila → Personagens'); sfxSpecial(); fxWhite = 0.6; }
   if (progress.hellBossWon) unlockChar('umbra','Umbra');
   if (progress.blockBossWon) unlockChar('folha','Folha');
   if (progress.arcadeBossWon) unlockChar('pixel','Pixel');
@@ -6787,6 +6831,7 @@ function checkAchievements(){
   if (checkingAch) return;
   checkingAch = true;
   checkUnlocks();
+  dailyTick();
   let again = true;
   while (again){
     again = false;
@@ -6904,7 +6949,7 @@ function renderPanel(){
     h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">🛒 Loja de Personagens: quem ainda está trancado pode ser comprado com cristais — ou desbloqueado de graça cumprindo a conquista.</div>`;
     h += `<div class="pRow ${(progress.forms.super || progress.forms.max) ? '' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Forma de poder: ${FORMS[progress.form].name}</div>
-      <div class="pSub">${(progress.forms.super || progress.forms.max) ? FORMS[progress.form].text : '🔒 Conquiste as formas Super e Max na Ilha Celestial (abre a cada 5 minutos na Praia Calma).'}</div></div>
+      <div class="pSub">${(progress.forms.super || progress.forms.max) ? FORMS[progress.form].text : '🔒 Super abre com 3 esmeraldas e Max com as 6 (ou vença os altares na Ilha Celestial, que abre a cada 5 minutos na Praia Calma).'}</div></div>
       ${['normal','super','max'].map(k=> (k === 'normal' || progress.forms[k]) ? `<button class="pBtn ${k==='normal'?'':'alt'}" data-form="${k}" ${progress.form===k?'disabled':''}>${FORMS[k].icon} ${FORMS[k].name}</button>` : '').join('')}</div>`;
     Object.keys(ROSTER).forEach(id=>{
       const r = ROSTER[id], has = progress.chars[id], st = rosterStats(id, true);
@@ -6913,6 +6958,17 @@ function renderPanel(){
         ${has ? `<button class="pBtn" data-main="${id}" ${progress.main===id?'disabled':''}>Principal</button><button class="pBtn alt" data-sub="${id}" ${progress.sub===id||progress.main===id?'disabled':''}>Reserva</button>`
           : (CHAR_PRICES[id] ? `<button class="pBtn alt" data-charbuy="${id}" ${progress.crystals < CHAR_PRICES[id] ? 'disabled' : ''}>Comprar (${CHAR_PRICES[id]} 💎)</button>` : '')}</div>`;
     });
+  } else if (panelTab === 'daily'){
+    const d = dailyEnsure(), def = dailyDef(d), val = Math.min(d.target, dailyValue(d)), pct = Math.round(val/d.target*100), st = dailyStreakNow();
+    const nextStreak = (progress.dailyLastClaim === dailyYesterdayKey() ? progress.dailyStreak : 0) + 1;
+    const now = new Date(), left = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1) - now, hh = Math.floor(left/3600000), mm = Math.floor(left%3600000/60000);
+    h += `<div class="pHead"><span>📅 Desafio Diário</span><span>🔥 Sequência: ${st} ${st === 1 ? 'dia' : 'dias'} (recorde ${progress.dailyBest || 0})</span></div>`;
+    h += `<div class="pRow ${d.claimed ? 'done' : (d.done ? '' : 'locked')}"><div style="font-size:26px">${def.icon}</div><div class="pInfo"><div class="pTitle">${def.text(d.target)}</div>
+      <div class="pSub">${val}/${d.target} · ${d.claimed ? 'RESGATADO — volte amanhã!' : (d.done ? 'CONCLUÍDO! Resgate a recompensa' : 'em andamento')}</div>
+      <div style="height:8px;background:#1a2340;border:1px solid #2a3560;margin-top:5px;border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${d.done ? '#5aff96' : '#ffd54a'}"></div></div></div>
+      ${d.claimed ? '' : `<button class="pBtn alt" data-dailyclaim="1" ${d.done ? '' : 'disabled'}>Resgatar</button>`}</div>`;
+    h += `<div class="pSub" style="margin:8px 0">🎁 ${d.claimed ? `Amanhã, se resgatar: ${dailyReward(progress.dailyStreak + 1)} 💎` : `Recompensa de hoje: ${dailyReward(nextStreak)} 💎`} + XP. Cada dia seguido soma +20 💎 (até 10 dias). Faltam ${hh}h${String(mm).padStart(2,'0')} pro desafio mudar${st > 0 && !d.claimed ? ' — resgate hoje pra não perder a sequência!' : '.'}</div>`;
+    h += `<div class="pSub">O desafio muda todo dia e fica mais difícil conforme seu nível. Conquistas: Missão do Dia (1º resgate) e Semana Perfeita (7 dias seguidos).</div>`;
   } else if (panelTab === 'robots'){
     h += `<div class="pHead"><span>🔧 Laboratório do Duo</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">Gaste cristais pra construir robôs na vila. Só um fica equipado por vez — o poder dele soma nas suas estatísticas.</div>`;
@@ -6954,7 +7010,7 @@ function renderPanel(){
     h += `<div class="pHead"><span>Desbloquear</span></div>`;
     h += btns([['unlock:chars','Personagens'],['unlock:gear','Equipamentos'],['unlock:gems','Joias e colecionáveis'],['unlock:emeralds','Esmeraldas'],['unlock:forms','Super/Max'],['unlock:robots','Robôs'],['unlock:portals','Portais (Vazio e Véu)'],['unlock:all','🔓 TUDO']]);
     h += `<div class="pHead"><span>Modos</span></div>`;
-    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles'],['fb:host', fbRole === 'host' ? '📬 Caixa de bugs: ABERTA (ver)' : '📬 Abrir caixa de bugs e sugestões']]);
+    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles'],['daily:done','📅 Completar desafio diário'],['fb:host', fbRole === 'host' ? '📬 Caixa de bugs: ABERTA (ver)' : '📬 Abrir caixa de bugs e sugestões']]);
     if (!ad){
       h += `<div class="pSub" style="margin:8px 0">Teleporte e chefes só funcionam no Mundo Aberto — comece uma partida lá primeiro.</div>`;
     } else {
@@ -6986,6 +7042,8 @@ panelBody.addEventListener('click', e=>{
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
+  } else if (b.dataset.dailyclaim){
+    dailyClaim();
   } else if (b.dataset.charbuy){
     const id = b.dataset.charbuy, price = CHAR_PRICES[id];
     if (price && !progress.chars[id] && progress.crystals >= price){
@@ -7034,6 +7092,7 @@ function adminAction(cmd){
   else if (k === 'unlock'){ adminUnlock(v); sfxPickup(); fxWhite = 0.3; }
   else if (k === 'toggle' && v === 'imortal'){ progress.immortalCode = !progress.immortalCode; sfxPickup(); }
   else if (k === 'fb'){ openFeedback(true); }
+  else if (k === 'daily'){ dailyEnsure().done = true; sfxPickup(); }      // admin: marca o desafio de hoje como concluído (aí é só resgatar)
   else if (k === 'puzzles' && ad){ ad.solvePuzzles(); sfxPickup(); showBanner('🧩 Puzzles resolvidos nos mundos do Mal, do Bug, da Fábrica e do Jogo'); }
   else if (k === 'tp' && ad){
     if (battle || duelActive){ showBanner('Termine a luta antes de teleportar.'); return; }
@@ -7245,6 +7304,9 @@ function buildOpenWorld(){
       onInteract: ()=> startDialogue([{speaker:'Recrutador', text:'Escolha quem lidera o grupo e quem fica de reserva. Novos aliados se juntam ao ganhar conquistas!', color:'#9fd88a'}], ()=> openPanel('chars')) },
     { x:700, y:230, w:42, h:60, type:'mother', scale:34, persistent:true, label:'🛒 Loja de Personagens',
       onInteract: ()=> startDialogue([{speaker:'Lojista', text:'Bem-vindo à loja! Aqui você compra qualquer personagem com cristais — sem precisar cumprir a conquista. Dá uma olhada!', color:'#ffd27a'}], ()=> openPanel('chars')) },
+    { x:560, y:130, w:50, h:50, type:'quizBoardProp', scale:30, persistent:true, label:'📅 Desafio Diário',
+      onInteract: ()=>{ const d = dailyEnsure(), def = dailyDef(d);
+        startDialogue([{speaker:'Quadro de Desafios', text:`Hoje: ${def.text(d.target)} (${Math.min(d.target, dailyValue(d))}/${d.target}). ${d.claimed ? 'Já resgatado — volte amanhã!' : (d.done ? 'Concluído! Resgate a recompensa.' : 'Cumpra e volte aqui!')}`, color:'#ffd27a'}], ()=> openPanel('daily')); } },
     { x:600, y:230, w:50, h:50, type:'chest', scale:30, persistent:true, label:'Painel de Conquistas',
       onInteract: ()=> openPanel('ach') },
     { x:40, y:345, w:190, h:190, type:'labDoor', scale:85, persistent:true, label:'Laboratório do Duo →' },
