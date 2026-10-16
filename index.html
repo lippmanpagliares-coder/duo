@@ -2995,20 +2995,32 @@ function px8Disc(g,x,y,r){
   const P = PX8_SIZE, x0 = Math.round(x/P)*P, y0 = Math.round(y/P)*P, R = Math.round(r/P)*P;
   for (let dy=-R; dy<=R; dy+=P){ const half = Math.round(Math.sqrt(Math.max(0,R*R-dy*dy))/P)*P; if (half > 0) g.fillRect(x0-half, y0+dy, half*2, P); }
 }
-function fxLightsPx(g, lights, t){
-  if (!lights || fxQuality() === 0) return;
-  g.save(); g.globalCompositeOperation = 'lighter';
+// Pra não pesar: o piscar anda em 4 degraus, então só existem 4 "quadros de luz" por cena. Cada um é montado UMA vez
+// numa imagem de baixa resolução (com todas as luzes da cena juntas) e depois é só uma imagem esticada por quadro.
+const px8LightCache = new Map();      // array de luzes da cena → [4 imagens]
+function px8BakeLights(lights, f){
+  const P = PX8_SIZE, c = document.createElement('canvas'); c.width = Math.round(W/P); c.height = Math.round(H/P);
+  const lc = c.getContext('2d'); lc.scale(1/P, 1/P); lc.globalCompositeOperation = 'lighter';
   lights.forEach((L,i)=>{
-    const fl = [0.82,0.92,1,0.9][Math.floor(t*7 + i*1.7) & 3];
+    const fl = [0.82,0.92,1,0.9][(f + Math.round(i*1.7)) & 3];
     if (L.shaft){
       [[1,0.05],[0.66,0.05],[0.33,0.06]].forEach(([k,a])=>{
-        g.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; g.beginPath();
-        g.moveTo(L.x-L.w/2,L.y); g.lineTo(L.x+L.w/2,L.y); g.lineTo(L.x+L.w*(0.5+0.7*k),L.y+L.len*k); g.lineTo(L.x-L.w*(0.5+0.7*k),L.y+L.len*k); g.closePath(); g.fill();
+        lc.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; lc.beginPath();
+        lc.moveTo(L.x-L.w/2,L.y); lc.lineTo(L.x+L.w/2,L.y); lc.lineTo(L.x+L.w*(0.5+0.7*k),L.y+L.len*k); lc.lineTo(L.x-L.w*(0.5+0.7*k),L.y+L.len*k); lc.closePath(); lc.fill();
       });
     } else {
-      [[1,0.07],[0.7,0.08],[0.42,0.1]].forEach(([k,a])=>{ g.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; px8Disc(g, L.x, L.y, L.r*k); });
+      [[1,0.07],[0.7,0.08],[0.42,0.1]].forEach(([k,a])=>{ lc.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; px8Disc(lc, L.x, L.y, L.r*k); });
     }
   });
+  return c;
+}
+function fxLightsPx(g, lights, t){
+  if (!lights || fxQuality() === 0) return;
+  let v = px8LightCache.get(lights); if (!v){ v = []; px8LightCache.set(lights, v); }
+  const f = Math.floor(t*7) & 3;
+  const c = v[f] || (v[f] = px8BakeLights(lights, f));
+  g.save(); g.globalCompositeOperation = 'lighter'; g.imageSmoothingEnabled = false;
+  g.drawImage(c, 0, 0, c.width, c.height, 0, 0, W, H);
   g.restore();
 }
 // ground mist: two slow, wide translucent bands
@@ -3135,6 +3147,39 @@ function px8Replay(q){
     if (r.kind === 'f') px8NativeFill(r.t, r.x, r.y, r.mw); else px8NativeStroke(r.t, r.x, r.y, r.mw);
   });
 }
+// reduz as cores por brilho/saturação/tom (HSV) em vez de arredondar R, G e B separados: assim um degradê de laranja só vira
+// "laranja mais claro / mais escuro", sem os pixels rosa ou verdes que o arredondamento por canal faz perto dos limites
+function px8Quant(d, i, vl, sl, hl){
+  const r = d[i], g = d[i+1], b = d[i+2], mx = Math.max(r,g,b), mn = Math.min(r,g,b), df = mx-mn;
+  let h = 0;
+  if (df > 0){ if (mx === r) h = ((g-b)/df) % 6; else if (mx === g) h = (b-r)/df + 2; else h = (r-g)/df + 4; h /= 6; if (h < 0) h += 1; }
+  const v = Math.round((mx/255)*(vl-1))/(vl-1), s = Math.round((mx === 0 ? 0 : df/mx)*(sl-1))/(sl-1), hh = ((Math.round(h*hl) % hl)/hl)*6;
+  const c = v*s, x = c*(1-Math.abs(hh%2-1)), m = v-c, k = Math.floor(hh) % 6;
+  const rr = k===0||k===5 ? c : (k===1||k===4 ? x : 0), gg = k===1||k===2 ? c : (k===0||k===3 ? x : 0), bb = k===3||k===4 ? c : (k===2||k===5 ? x : 0);
+  d[i] = (rr+m)*255; d[i+1] = (gg+m)*255; d[i+2] = (bb+m)*255;
+}
+// "achata" texturas fracas (linhas de tijolo, ruído de grama) antes de reduzir as cores: pixels que quase não diferem da vizinhança
+// viram a média dela. Sem isso, essas variações pequenas caem em cima de um limite da paleta e viram pontinhos aleatórios.
+// Contornos e cores fortes (diferença grande) passam intactos.
+function px8Flatten(d, lw, lh, thr, passes, alpha){
+  for (let p=0; p<passes; p++){
+    const src = new Uint8ClampedArray(d);
+    for (let y=0; y<lh; y++) for (let x=0; x<lw; x++){
+      const i = (y*lw+x)*4;
+      if (alpha && src[i+3] < 90) continue;
+      let n = 0, sr = 0, sg = 0, sb = 0;
+      for (let k=0; k<4; k++){
+        const nx = x + (k===0 ? -1 : k===1 ? 1 : 0), ny = y + (k===2 ? -1 : k===3 ? 1 : 0);
+        if (nx < 0 || ny < 0 || nx >= lw || ny >= lh) continue;
+        const j = (ny*lw+nx)*4; if (alpha && src[j+3] < 90) continue;
+        n++; sr += src[j]; sg += src[j+1]; sb += src[j+2];
+      }
+      if (!n) continue;
+      const mr = sr/n, mg = sg/n, mb = sb/n;
+      if (Math.abs(src[i]-mr) + Math.abs(src[i+1]-mg) + Math.abs(src[i+2]-mb) < thr){ d[i] = mr; d[i+1] = mg; d[i+2] = mb; }
+    }
+  }
+}
 function px8Bg(store){
   const q = px8Queue; px8Queue = null;
   if (!q) return;
@@ -3143,10 +3188,9 @@ function px8Bg(store){
   px8LowCtx.clearRect(0,0,lw,lh);
   px8LowCtx.drawImage(canvas, 0, 0, W, H, 0, 0, lw, lh);
   const img = px8LowCtx.getImageData(0,0,lw,lh), d = img.data, step = 255/(PX8_LEVELS-1);
+  px8Flatten(d, lw, lh, 40, 1, false);
   for (let i=0; i<d.length; i+=4){      // sem trama de pontinhos: cores chapadas, como nos sprites de 8-bit
-    let v = Math.round(d[i]/step)*step; d[i] = v > 255 ? 255 : v;
-    v = Math.round(d[i+1]/step)*step; d[i+1] = v > 255 ? 255 : v;
-    v = Math.round(d[i+2]/step)*step; d[i+2] = v > 255 ? 255 : v;
+    px8Quant(d, i, 10, 7, 36);
     d[i+3] = 255;
   }
   px8LowCtx.putImageData(img,0,0);
@@ -3192,11 +3236,12 @@ function px8BuildSprite(fn, args, s, B, bucketMs, low){
   e.lctx.imageSmoothingEnabled = true; e.lctx.clearRect(0,0,lw,lw);
   e.lctx.drawImage(e.full, 0, 0, B, B, 0, 0, lw, lw);
   const img = e.lctx.getImageData(0,0,lw,lw), d = img.data, step = 255/(PX8_SPR_LEVELS-1);
+  px8Flatten(d, lw, lw, 70, 2, true);
   solid.fill(0);
   for (let i=0, p=0; i<d.length; i+=4, p++){
     if (d[i+3] < 90){ d[i+3] = 0; continue; }
     solid[p] = 1; d[i+3] = 255;
-    d[i] = Math.round(d[i]/step)*step; d[i+1] = Math.round(d[i+1]/step)*step; d[i+2] = Math.round(d[i+2]/step)*step;
+    px8Quant(d, i, 6, 4, 18);
   }
   for (let yy=0; yy<lw; yy++) for (let xx=0; xx<lw; xx++){       // contorno de 1 pixel em volta de tudo que é sólido
     const p = yy*lw+xx; if (solid[p]) continue;
@@ -3244,7 +3289,7 @@ function renderScene(){
   const sfx = currentScene.fx || SCENE_FX.get(currentScene.draw) || { ambient:{kind:'dust',count:18} };
   // 8-bit: com a câmera parada, o cenário pixelado é reaproveitado por ~0,1 s em vez de redesenhado a cada quadro
   const bgStill = settings.px8 && !duelActive && fxShake <= 0 && fxZoom <= 0.001;
-  const bgCached = bgStill && px8BgCache && px8BgCache.scene === currentScene && performance.now() - px8BgCache.t < 200;
+  const bgCached = bgStill && px8BgCache && px8BgCache.scene === currentScene && performance.now() - px8BgCache.t < 300;
   if (bgCached){ px8Queue = null; px8BgBlit(px8BgCache); }
   ctx.save();
   if (fxShake > 0){ const m = fxShakeMag*(fxShake > 0.2 ? 1 : fxShake/0.2); ctx.translate((Math.random()-0.5)*2*m,(Math.random()-0.5)*2*m); }
