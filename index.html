@@ -2990,6 +2990,27 @@ function fxLights(g, lights, t){
   });
   g.restore();
 }
+// luzes do visual 8-bit: em vez de degradê suave, 3 anéis chapados que piscam em degraus (como nas Backrooms 8-bit)
+function px8Disc(g,x,y,r){
+  const P = PX8_SIZE, x0 = Math.round(x/P)*P, y0 = Math.round(y/P)*P, R = Math.round(r/P)*P;
+  for (let dy=-R; dy<=R; dy+=P){ const half = Math.round(Math.sqrt(Math.max(0,R*R-dy*dy))/P)*P; if (half > 0) g.fillRect(x0-half, y0+dy, half*2, P); }
+}
+function fxLightsPx(g, lights, t){
+  if (!lights || fxQuality() === 0) return;
+  g.save(); g.globalCompositeOperation = 'lighter';
+  lights.forEach((L,i)=>{
+    const fl = [0.82,0.92,1,0.9][Math.floor(t*7 + i*1.7) & 3];
+    if (L.shaft){
+      [[1,0.05],[0.66,0.05],[0.33,0.06]].forEach(([k,a])=>{
+        g.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; g.beginPath();
+        g.moveTo(L.x-L.w/2,L.y); g.lineTo(L.x+L.w/2,L.y); g.lineTo(L.x+L.w*(0.5+0.7*k),L.y+L.len*k); g.lineTo(L.x-L.w*(0.5+0.7*k),L.y+L.len*k); g.closePath(); g.fill();
+      });
+    } else {
+      [[1,0.07],[0.7,0.08],[0.42,0.1]].forEach(([k,a])=>{ g.fillStyle = `rgba(${L.c},${(a*fl).toFixed(3)})`; px8Disc(g, L.x, L.y, L.r*k); });
+    }
+  });
+  g.restore();
+}
 // ground mist: two slow, wide translucent bands
 function fxMist(g, color, t, y, alpha){
   if (fxQuality() === 0) return;
@@ -3103,7 +3124,18 @@ function px8Snap(kind, t, x, y, mw){
 ctx.fillText = function(t,x,y,mw){ px8FixFont(); if (px8Queue) px8Queue.push(px8Snap('f',t,x,y,mw)); else px8NativeFill(t,x,y,mw); };
 ctx.strokeText = function(t,x,y,mw){ px8FixFont(); if (px8Queue) px8Queue.push(px8Snap('s',t,x,y,mw)); else px8NativeStroke(t,x,y,mw); };
 function px8Begin(){ px8Queue = settings.px8 ? [] : null; }
-function px8End(){
+// 1ª passada: só o cenário (chão, casas, decoração) vira blocos de pixel; os personagens são pixelados um a um (px8WrapSprite).
+// O resultado do cenário fica guardado e é reaproveitado por ~0,1 s (px8BgCache): refazer tudo a cada quadro pesava.
+const px8BgCanvas = document.createElement('canvas'); px8BgCanvas.width = px8Low.width; px8BgCanvas.height = px8Low.height;
+let px8BgCache = null;      // { scene, t, texts }
+function px8Replay(q){
+  q.forEach(r=>{
+    ctx.setTransform(r.m); ctx.font = r.font; ctx.fillStyle = r.fs; ctx.strokeStyle = r.ss; ctx.lineWidth = r.lw; ctx.lineJoin = r.lj;
+    ctx.textAlign = r.ta; ctx.textBaseline = r.tb; ctx.globalAlpha = r.ga; ctx.globalCompositeOperation = r.gco;
+    if (r.kind === 'f') px8NativeFill(r.t, r.x, r.y, r.mw); else px8NativeStroke(r.t, r.x, r.y, r.mw);
+  });
+}
+function px8Bg(store){
   const q = px8Queue; px8Queue = null;
   if (!q) return;
   const lw = px8Low.width, lh = px8Low.height;
@@ -3111,35 +3143,119 @@ function px8End(){
   px8LowCtx.clearRect(0,0,lw,lh);
   px8LowCtx.drawImage(canvas, 0, 0, W, H, 0, 0, lw, lh);
   const img = px8LowCtx.getImageData(0,0,lw,lh), d = img.data, step = 255/(PX8_LEVELS-1);
-  for (let y=0;y<lh;y++){
-    for (let x=0;x<lw;x++){
-      const i = (y*lw+x)*4;      // sem trama de pontinhos: cores chapadas, como nos sprites de 8-bit
-      for (let c=0;c<3;c++){ const v = Math.round(d[i+c]/step)*step; d[i+c] = v < 0 ? 0 : (v > 255 ? 255 : v); }
-      d[i+3] = 255;
-    }
+  for (let i=0; i<d.length; i+=4){      // sem trama de pontinhos: cores chapadas, como nos sprites de 8-bit
+    let v = Math.round(d[i]/step)*step; d[i] = v > 255 ? 255 : v;
+    v = Math.round(d[i+1]/step)*step; d[i+1] = v > 255 ? 255 : v;
+    v = Math.round(d[i+2]/step)*step; d[i+2] = v > 255 ? 255 : v;
+    d[i+3] = 255;
   }
   px8LowCtx.putImageData(img,0,0);
   ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(px8Low, 0, 0, lw, lh, 0, 0, W, H);
-  q.forEach(r=>{
-    ctx.setTransform(r.m); ctx.font = r.font; ctx.fillStyle = r.fs; ctx.strokeStyle = r.ss; ctx.lineWidth = r.lw; ctx.lineJoin = r.lj;
-    ctx.textAlign = r.ta; ctx.textBaseline = r.tb; ctx.globalAlpha = r.ga; ctx.globalCompositeOperation = r.gco;
-    if (r.kind === 'f') px8NativeFill(r.t, r.x, r.y, r.mw); else px8NativeStroke(r.t, r.x, r.y, r.mw);
-  });
+  px8Replay(q);
   ctx.restore();
+  if (store){ px8BgCanvas.getContext('2d').drawImage(px8Low, 0, 0); px8BgCache = { scene:store, t:performance.now(), texts:q }; }
+}
+function px8BgBlit(c){      // cenário vindo do cache: o mesmo quadro pixelado + os textos nítidos de novo
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(px8BgCanvas, 0, 0, px8BgCanvas.width, px8BgCanvas.height, 0, 0, W, H);
+  px8Replay(c.texts);
+  ctx.restore();
+}
+// Sprites em pixel art de verdade: cada personagem/monstro/chefe é desenhado num quadro à parte, reduzido pra grade de
+// pixels 3x3, com poucas cores chapadas (sem degradê) e um contorno escuro de 1 pixel, e ampliado sem suavização. A
+// posição é encaixada na mesma grade do cenário pra os pixels nunca ficarem "meio pixel" desalinhados.
+// Pra não pesar: o sprite pronto é guardado e reaproveitado por 1/8 de segundo (a animação anda em 8 quadros por segundo,
+// como nos consoles antigos) — durante esse tempo o relógio do jogo é "congelado" na hora do desenho pra o resultado ser igual.
+const PX8_SPR_LEVELS = 6, PX8_OUTLINE = [22,14,40], PX8_SPR_MS = 200, PX8_BUILDS_PER_FRAME = 2;
+const px8Pool = new Map(), px8SprCache = new Map();
+let frameCounter = 0;
+let px8SpriteDepth = 0, px8SprIds = 0, px8BuildsLeft = PX8_BUILDS_PER_FRAME, px8BuildFrame = -1;
+function px8Canvases(B){
+  let e = px8Pool.get(B);
+  if (!e){
+    const full = document.createElement('canvas'); full.width = full.height = B;
+    const low = document.createElement('canvas'); low.width = low.height = B/PX8_SIZE;
+    e = { full, fctx:full.getContext('2d', { willReadFrequently:true }), low, lctx:low.getContext('2d', { willReadFrequently:true }), solid:new Uint8Array((B/PX8_SIZE)*(B/PX8_SIZE)) };
+    e.lctx.imageSmoothingQuality = 'high';
+    px8Pool.set(B, e);
+  }
+  return e;
+}
+// monta (ou remonta, reaproveitando o quadro `low` da entrada) o sprite pixelado
+function px8BuildSprite(fn, args, s, B, bucketMs, low){
+  const P = PX8_SIZE, e = px8Canvases(B), fc = e.fctx, lw = B/P, solid = e.solid;
+  fc.setTransform(1,0,0,1,0,0); fc.globalAlpha = 1; fc.globalCompositeOperation = 'source-over'; fc.clearRect(0,0,B,B);
+  const realNow = Date.now; Date.now = ()=> bucketMs;       // relógio congelado: o mesmo desenho dentro dessa janela de tempo
+  px8SpriteDepth++;
+  try { fn.apply(null, [fc, B/2, B/2, s].concat(args)); } finally { px8SpriteDepth--; Date.now = realNow; }
+  e.lctx.imageSmoothingEnabled = true; e.lctx.clearRect(0,0,lw,lw);
+  e.lctx.drawImage(e.full, 0, 0, B, B, 0, 0, lw, lw);
+  const img = e.lctx.getImageData(0,0,lw,lw), d = img.data, step = 255/(PX8_SPR_LEVELS-1);
+  solid.fill(0);
+  for (let i=0, p=0; i<d.length; i+=4, p++){
+    if (d[i+3] < 90){ d[i+3] = 0; continue; }
+    solid[p] = 1; d[i+3] = 255;
+    d[i] = Math.round(d[i]/step)*step; d[i+1] = Math.round(d[i+1]/step)*step; d[i+2] = Math.round(d[i+2]/step)*step;
+  }
+  for (let yy=0; yy<lw; yy++) for (let xx=0; xx<lw; xx++){       // contorno de 1 pixel em volta de tudo que é sólido
+    const p = yy*lw+xx; if (solid[p]) continue;
+    if ((xx>0 && solid[p-1]) || (xx<lw-1 && solid[p+1]) || (yy>0 && solid[p-lw]) || (yy<lw-1 && solid[p+lw])){
+      const i = p*4; d[i] = PX8_OUTLINE[0]; d[i+1] = PX8_OUTLINE[1]; d[i+2] = PX8_OUTLINE[2]; d[i+3] = 255;
+    }
+  }
+  if (!low){ low = document.createElement('canvas'); low.width = low.height = lw; }
+  low.getContext('2d').putImageData(img, 0, 0);
+  return low;
+}
+function px8WrapSprite(fn){
+  const id = ++px8SprIds;
+  return function(g, x, y, s){
+    if (!settings.px8 || px8SpriteDepth > 0 || !(s > 0)) return fn.apply(null, arguments);
+    const args = Array.prototype.slice.call(arguments, 4), P = PX8_SIZE;
+    try {
+      const bucket = Math.floor(Date.now()/PX8_SPR_MS), sq = Math.round(s*2)/2;
+      if (px8BuildFrame !== frameCounter){ px8BuildFrame = frameCounter; px8BuildsLeft = PX8_BUILDS_PER_FRAME; }
+      const B = Math.min(600, Math.max(96, Math.ceil(sq*4.4/(2*P))*2*P));       // múltiplo de 2P: o centro do sprite cai sempre na grade
+      let key = id + '|' + sq + '|' + fxRage;
+      for (let i=0;i<args.length;i++){ const a = args[i]; if (a !== null && (typeof a === 'object' || typeof a === 'function')){ key = null; break; } key += '|' + a; }
+      let ent = key ? px8SprCache.get(key) : null, low;
+      if (ent && (ent.bucket === bucket || px8BuildsLeft <= 0)) low = ent.low;      // pronto, ou ainda velhinho: sem fôlego pra refazer agora, usa o quadro anterior
+      else {
+        px8BuildsLeft--;
+        low = px8BuildSprite(fn, args, sq, B, bucket*PX8_SPR_MS, ent ? ent.low : null);
+        if (key){ if (!ent){ ent = { low, B, bucket }; if (px8SprCache.size > 400) px8SprCache.clear(); px8SprCache.set(key, ent); } else ent.bucket = bucket; }
+      }
+      const lw = B/P, m = g.getTransform();      // encaixa o centro do sprite na grade de pixels da tela
+      const sx = m.e + x*m.a + y*m.c, sy = m.f + x*m.b + y*m.d;
+      const dxl = Math.abs(m.a) > 0.01 ? (Math.round(sx/P)*P - sx)/m.a : 0, dyl = Math.abs(m.d) > 0.01 ? (Math.round(sy/P)*P - sy)/m.d : 0;
+      g.save(); g.imageSmoothingEnabled = false;
+      g.drawImage(low, 0, 0, lw, lw, x + dxl - B/2, y + dyl - B/2, B, B);
+      g.restore();
+    } catch(err){ px8SpriteDepth = 0; return fn.apply(null, arguments); }
+  };
 }
 function renderScene(){
   ctx.clearRect(0,0,W,H);
   if (!currentScene) return;
+  frameCounter++;
   px8Begin();
   const tSec = Date.now()/1000;
   const sfx = currentScene.fx || SCENE_FX.get(currentScene.draw) || { ambient:{kind:'dust',count:18} };
+  // 8-bit: com a câmera parada, o cenário pixelado é reaproveitado por ~0,1 s em vez de redesenhado a cada quadro
+  const bgStill = settings.px8 && !duelActive && fxShake <= 0 && fxZoom <= 0.001;
+  const bgCached = bgStill && px8BgCache && px8BgCache.scene === currentScene && performance.now() - px8BgCache.t < 200;
+  if (bgCached){ px8Queue = null; px8BgBlit(px8BgCache); }
   ctx.save();
   if (fxShake > 0){ const m = fxShakeMag*(fxShake > 0.2 ? 1 : fxShake/0.2); ctx.translate((Math.random()-0.5)*2*m,(Math.random()-0.5)*2*m); }
   if (fxZoom > 0.001){ ctx.translate(W/2,H/2); ctx.scale(1+fxZoom,1+fxZoom); ctx.translate(-W/2,-H/2); }   // camera punch-in
-  if (duelActive) drawDuelArena(ctx); else currentScene.draw(ctx);
-  if (sfx.decor && !duelActive) sfx.decor(ctx, tSec);
-  if (sfx.lights && !duelActive) fxLights(ctx, sfx.lights, tSec);
+  if (!bgCached){
+    if (duelActive) drawDuelArena(ctx); else currentScene.draw(ctx);
+    if (sfx.decor && !duelActive) sfx.decor(ctx, tSec);
+    if (sfx.lights && !duelActive && !settings.px8) fxLights(ctx, sfx.lights, tSec);
+    px8Bg(bgStill ? currentScene : null);      // cenário pronto: vira blocos de pixel (e os textos já desenhados voltam nítidos); depois entram os sprites
+  }
+  if (sfx.lights && !duelActive && settings.px8) fxLightsPx(ctx, sfx.lights, tSec);      // no 8-bit as luzes são desenhadas ao vivo, em degraus de pixel, por cima do cenário guardado
   if (battle) drawHazards(ctx, tSec);
   if (!duelActive) for (const npc of (currentScene.npcs||[])){   // the duel arena stands alone — no stray villagers or monsters from the real room
     const draw = DRAW[npc.type];
@@ -3233,7 +3349,8 @@ function renderScene(){
       fxFlashCtx.fillRect(0,0,360,360);
       fxFlashCtx.globalCompositeOperation = 'source-over';
     }
-    ctx.drawImage(fxFlashCanvas, ex-180+(pdx/pd)*lunge, ey-180+(pdy/pd)*lunge-lift);
+    const fdx = ex-180+(pdx/pd)*lunge, fdy = ey-180+(pdy/pd)*lunge-lift;
+    ctx.drawImage(fxFlashCanvas, settings.px8 ? Math.round(fdx/PX8_SIZE)*PX8_SIZE : fdx, settings.px8 ? Math.round(fdy/PX8_SIZE)*PX8_SIZE : fdy);
     battle.projectiles.forEach(pr=>{
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       ctx.fillStyle = pr.color; ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.arc(pr.x,pr.y,pr.r*2.4,0,Math.PI*2); ctx.fill();
@@ -3255,7 +3372,7 @@ function renderScene(){
   if (fxQuality() > 0 && !settings.px8) ctx.drawImage(fxVignette, 0, 0);      // no 8-bit a vinheta viraria anéis de cor
   fxDrawSpeed(ctx, tSec);
   if (fxWhite > 0.01){ ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9,fxWhite).toFixed(3)})`; ctx.fillRect(0,0,W,H); }
-  px8End();      // o que veio até aqui (mundo, personagens, efeitos) vira 8-bit; o HUD abaixo fica nítido
+  px8Queue = null;
   if (battle) drawBattleHud(ctx, tSec);
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
   else drawChapterMiniMap(ctx);
@@ -9320,8 +9437,9 @@ function loop(t){
   }
   requestAnimationFrame(loop);
 }
+Object.keys(DRAW).forEach(k=>{ if (typeof DRAW[k] === 'function' && !DRAW[k].px8){ const w = px8WrapSprite(DRAW[k]); w.px8 = true; DRAW[k] = w; } });   // todos os sprites passam pelo filtro de pixel art quando o 8-bit está ligado
 requestAnimationFrame(loop);
-showMenu();                                                            // reflects the restored save (shows "Continuar" when there's one)
+showMenu();                                                           // reflects the restored save (shows "Continuar" when there's one)
 setInterval(saveGame, 5000);                                          // safety net: saves at least every 5s even if some event site forgets to
 window.addEventListener('beforeunload', ()=>{ saveGame(); mpSendRaw({ t:'bye' }); });
 document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'hidden') saveGame(); });
