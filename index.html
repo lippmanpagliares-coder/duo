@@ -12,7 +12,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Duo">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap">
 <style>
+  /* Visual 8-bit (Menu → ⚙): fonte de pixel, cantos retos e a tela do jogo pixelada com poucas cores (ver px8Begin/px8End) */
+  body.px8, body.px8 button, body.px8 input, body.px8 select, body.px8 textarea { font-family:'Pixelify Sans','Press Start 2P',monospace !important; -webkit-font-smoothing:none; }
+  body.px8 *, body.px8 *::before, body.px8 *::after { border-radius:0 !important; }
+  body.px8 button, body.px8 .pRow, body.px8 .settingsPanel, body.px8 .segBtn { border-style:solid; }
   * { margin:0; padding:0; box-sizing:border-box; }
   :root {
     --ui-scale:1; --safe:0px;
@@ -441,6 +448,14 @@
             <button class="segBtn" data-val="alta">Alta</button>
             <button class="segBtn" data-val="media">Média</button>
             <button class="segBtn" data-val="baixa">Baixa</button>
+          </div>
+        </div>
+
+        <div class="settingsRow">
+          <label>Visual <span class="settingsVal">pixels, poucas cores e música de chiptune</span></label>
+          <div class="segGroup" id="segPx8">
+            <button class="segBtn" data-val="on">👾 8-bit</button>
+            <button class="segBtn" data-val="off">Normal</button>
           </div>
         </div>
 
@@ -909,7 +924,7 @@ let saveIndicatorT = 0;   // brief "💾 salvo" flash after each save, purely vi
 function saveGame(){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({ v:1, ts:Date.now(), progress, upgrades, unlocked,
-      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language, music:settings.music } }));
+      settings:{ difficulty:settings.difficulty, quality:settings.quality, language:settings.language, music:settings.music, px8:settings.px8 } }));
     saveIndicatorT = 1.4;
   } catch(e){ /* private browsing / storage disabled — the game still works, it just won't remember next time */ }
 }
@@ -954,7 +969,7 @@ function progressMods(){
 }
 
 /* ---------------- settings (session-only, no storage) ---------------- */
-let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0, music:60 };
+let settings = { difficulty:'normal', quality:'alta', language:'pt', scale:100, safe:0, music:60, px8:true };
 const hadSave = loadGame();      // runs once at boot, now that progress/upgrades/unlocked/settings all exist — everything below sees the restored state
 const DIFFICULTY_MULT = {
   facil:      { hp:0.75, atk:0.7 },
@@ -999,10 +1014,34 @@ function applyMusicVolume(){
   if (musicGain) musicGain.gain.value = musicVol();
   const el = document.getElementById('valMusic'); if (el) el.textContent = settings.music + '%';
 }
+// no visual 8-bit o som também muda: ondas suaves (seno/serra) viram quadrada e triangular, como nos consoles antigos
+function px8Wave(t){ return settings.px8 ? ({ sine:'triangle', sawtooth:'square' }[t] || t) : t; }
+const PX8_TEMPO = { village:0.2, explore:0.22, battle:0.14, boss:0.12, backrooms:0.3 };      // segundos por nota do arpejo de chiptune
+let px8Step = 0;
+function px8MusicNote(){       // um passo do chiptune: arpejo em onda quadrada + baixo triangular no tempo forte
+  const mood = MUSIC_MOODS[musicMood], freqs = mood.chords[Math.max(0,musicChordIdx)] || mood.chords[0];
+  const ctx = getAudioCtx(), now = ctx.currentTime, pat = [0,1,2,1,0,2,1,2], n = px8Step++;
+  const f = freqs[pat[n%8]] * ((n%16) >= 8 ? 2 : 1), len = PX8_TEMPO[musicMood]*0.9;
+  const g = ctx.createGain(), osc = ctx.createOscillator();
+  osc.type = 'square'; osc.frequency.value = f;
+  g.gain.setValueAtTime(0.32, now); g.gain.exponentialRampToValueAtTime(0.001, now+len);
+  osc.connect(g); g.connect(musicGain); osc.start(now); osc.stop(now+len+0.02);
+  if (n%4 === 0){
+    const bg = ctx.createGain(), bo = ctx.createOscillator();
+    bo.type = 'triangle'; bo.frequency.value = freqs[0]/2;
+    bg.gain.setValueAtTime(0.5, now); bg.gain.exponentialRampToValueAtTime(0.001, now+len*3.2);
+    bo.connect(bg); bg.connect(musicGain); bo.start(now); bo.stop(now+len*3.3);
+  }
+  if (mood.pulse && n%2 === 0){      // lutas: um "tchi" de ruído curto marcando o ritmo
+    const buf = ctx.createBuffer(1, Math.round(ctx.sampleRate*0.04), ctx.sampleRate), data = buf.getChannelData(0);
+    for (let i=0;i<data.length;i++) data[i] = (Math.random()*2-1)*(1-i/data.length);
+    const ns = ctx.createBufferSource(), ng = ctx.createGain(); ns.buffer = buf; ng.gain.value = 0.22; ns.connect(ng); ng.connect(musicGain); ns.start(now);
+  }
+}
 function musicPulse(){
   const ctx = getAudioCtx(), now = ctx.currentTime;
   const osc = ctx.createOscillator(), g = ctx.createGain();
-  osc.type = 'sine'; osc.frequency.value = 80;
+  osc.type = px8Wave('sine'); osc.frequency.value = 80;
   g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(0.5, now+0.02); g.gain.exponentialRampToValueAtTime(0.001, now+0.35);
   osc.connect(g); g.connect(musicGain); osc.start(now); osc.stop(now+0.4);
 }
@@ -1016,6 +1055,7 @@ function musicChordStep(){
   const oldNodes = musicChordNodes;
   oldNodes.forEach(({gain})=>{ try{ gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(gain.gain.value, now); gain.gain.linearRampToValueAtTime(0, now+fadeOut); }catch(e){} });
   setTimeout(()=> oldNodes.forEach(({osc})=>{ try{ osc.stop(); }catch(e){} }), (fadeOut+0.15)*1000);
+  if (settings.px8){ musicChordNodes = []; musicGain.gain.linearRampToValueAtTime(musicVol(), now+0.2); musicChordTO = setTimeout(musicChordStep, mood.dur*1000); return; }   // 8-bit: sem colchão de acordes, só o arpejo
   musicChordNodes = freqs.map((f,i)=>{
     const osc = ctx.createOscillator(), g = ctx.createGain();
     osc.type = i===0 ? 'sine' : 'triangle'; osc.frequency.value = f; osc.detune.value = (i-1)*2;
@@ -1029,6 +1069,7 @@ function musicChordStep(){
 }
 function musicArpStep(){
   if (!musicOn) return;
+  if (settings.px8){ px8MusicNote(); musicArpTO = setTimeout(musicArpStep, PX8_TEMPO[musicMood]*1000); return; }
   const mood = MUSIC_MOODS[musicMood], freqs = mood.chords[Math.max(0,musicChordIdx)] || mood.chords[0];
   if (Math.random() < 0.85){
     const f = freqs[Math.floor(Math.random()*freqs.length)] * (Math.random() < 0.4 ? 2 : 1);
@@ -1053,7 +1094,7 @@ function beep(freq, duration, type, volume, delay){
     const startAt = ctx.currentTime + (delay||0);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = type || 'square';
+    osc.type = px8Wave(type || 'square');
     osc.frequency.setValueAtTime(freq, startAt);
     gain.gain.setValueAtTime(volume||0.15, startAt);
     gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
@@ -3040,9 +3081,57 @@ function registerSceneFx(){
       g.fillStyle='#ffd54a'; g.fillRect(x,70,40,6); g.beginPath(); g.arc(x+20,140,9,0,Math.PI*2); g.fill(); }); } });
 }
 registerSceneFx();
+/* ---------------- Visual 8-bit: a cena é desenhada normal e depois pixelada (blocos de 3x3), com poucas cores e
+   trama (dither) de Bayer, no estilo dos consoles antigos. Textos não passam pelo filtro (ficariam ilegíveis): são guardados
+   durante o desenho e reaplicados nítidos por cima, já com a fonte de pixel. ---------------- */
+const PX8_SIZE = 3, PX8_LEVELS = 6, PX8_FONT = "'Pixelify Sans','Press Start 2P',monospace";
+const px8Low = document.createElement('canvas'); px8Low.width = Math.round(W/PX8_SIZE); px8Low.height = Math.round(H/PX8_SIZE);
+const px8LowCtx = px8Low.getContext('2d', { willReadFrequently:true });
+px8LowCtx.imageSmoothingQuality = 'high';
+const PX8_BAYER = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+const px8NativeFill = ctx.fillText.bind(ctx), px8NativeStroke = ctx.strokeText.bind(ctx);
+let px8Queue = null;
+function px8FixFont(){
+  if (!settings.px8) return;
+  const f = ctx.font;
+  if (f.indexOf('Pixelify') < 0){ const m = /^(.*?\d+(?:\.\d+)?px)\s/.exec(f); if (m) ctx.font = m[1] + ' ' + PX8_FONT; }
+}
+function px8Snap(kind, t, x, y, mw){
+  return { kind, t, x, y, mw, font:ctx.font, fs:ctx.fillStyle, ss:ctx.strokeStyle, lw:ctx.lineWidth, lj:ctx.lineJoin, ta:ctx.textAlign, tb:ctx.textBaseline,
+    ga:ctx.globalAlpha, gco:ctx.globalCompositeOperation, m:ctx.getTransform() };
+}
+ctx.fillText = function(t,x,y,mw){ px8FixFont(); if (px8Queue) px8Queue.push(px8Snap('f',t,x,y,mw)); else px8NativeFill(t,x,y,mw); };
+ctx.strokeText = function(t,x,y,mw){ px8FixFont(); if (px8Queue) px8Queue.push(px8Snap('s',t,x,y,mw)); else px8NativeStroke(t,x,y,mw); };
+function px8Begin(){ px8Queue = settings.px8 ? [] : null; }
+function px8End(){
+  const q = px8Queue; px8Queue = null;
+  if (!q) return;
+  const lw = px8Low.width, lh = px8Low.height;
+  px8LowCtx.imageSmoothingEnabled = true;
+  px8LowCtx.clearRect(0,0,lw,lh);
+  px8LowCtx.drawImage(canvas, 0, 0, W, H, 0, 0, lw, lh);
+  const img = px8LowCtx.getImageData(0,0,lw,lh), d = img.data, step = 255/(PX8_LEVELS-1);
+  for (let y=0;y<lh;y++){
+    for (let x=0;x<lw;x++){
+      const i = (y*lw+x)*4, th = (PX8_BAYER[((y&3)<<2)|(x&3)]/16 - 0.47)*step*0.5;
+      for (let c=0;c<3;c++){ const v = Math.round((d[i+c]+th)/step)*step; d[i+c] = v < 0 ? 0 : (v > 255 ? 255 : v); }
+      d[i+3] = 255;
+    }
+  }
+  px8LowCtx.putImageData(img,0,0);
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(px8Low, 0, 0, lw, lh, 0, 0, W, H);
+  q.forEach(r=>{
+    ctx.setTransform(r.m); ctx.font = r.font; ctx.fillStyle = r.fs; ctx.strokeStyle = r.ss; ctx.lineWidth = r.lw; ctx.lineJoin = r.lj;
+    ctx.textAlign = r.ta; ctx.textBaseline = r.tb; ctx.globalAlpha = r.ga; ctx.globalCompositeOperation = r.gco;
+    if (r.kind === 'f') px8NativeFill(r.t, r.x, r.y, r.mw); else px8NativeStroke(r.t, r.x, r.y, r.mw);
+  });
+  ctx.restore();
+}
 function renderScene(){
   ctx.clearRect(0,0,W,H);
   if (!currentScene) return;
+  px8Begin();
   const tSec = Date.now()/1000;
   const sfx = currentScene.fx || SCENE_FX.get(currentScene.draw) || { ambient:{kind:'dust',count:18} };
   ctx.save();
@@ -3166,6 +3255,7 @@ function renderScene(){
   if (fxQuality() > 0) ctx.drawImage(fxVignette, 0, 0);
   fxDrawSpeed(ctx, tSec);
   if (fxWhite > 0.01){ ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9,fxWhite).toFixed(3)})`; ctx.fillRect(0,0,W,H); }
+  px8End();      // o que veio até aqui (mundo, personagens, efeitos) vira 8-bit; o HUD abaixo fica nítido
   if (battle) drawBattleHud(ctx, tSec);
   else if (currentScene.isOpenWorld) drawMiniMap(ctx);
   else drawChapterMiniMap(ctx);
@@ -8354,6 +8444,7 @@ const settingsBtn = document.getElementById('settingsBtn');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const segDifficulty = document.getElementById('segDifficulty');
 const segQuality = document.getElementById('segQuality');
+const segPx8 = document.getElementById('segPx8');
 const selLanguage = document.getElementById('selLanguage');
 const inpPlayerName = document.getElementById('inpPlayerName');
 const rangeScale = document.getElementById('rangeScale');
@@ -8372,6 +8463,10 @@ function applySafeArea(){
 function applyQuality(){
   document.body.classList.toggle('lowfx', settings.quality === 'baixa');
 }
+function applyPx8(){
+  document.body.classList.toggle('px8', !!settings.px8);
+  [...segPx8.children].forEach(b=> b.classList.toggle('active', (b.dataset.val === 'on') === !!settings.px8));
+}
 function refreshSettingsUI(){
   [...segDifficulty.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.difficulty));
   [...segQuality.children].forEach(b=> b.classList.toggle('active', b.dataset.val === settings.quality));
@@ -8380,7 +8475,7 @@ function refreshSettingsUI(){
   rangeScale.value = settings.scale;
   rangeSafe.value = settings.safe;
   rangeMusic.value = settings.music;
-  applyScale(); applySafeArea(); applyQuality(); applyMusicVolume();
+  applyScale(); applySafeArea(); applyQuality(); applyPx8(); applyMusicVolume();
 }
 function toggleSettings(){ settingsOpen ? closeSettings() : openSettings(); }
 function openSettings(){
@@ -8427,6 +8522,11 @@ segQuality.addEventListener('click', e=>{
   const b = e.target.closest('.segBtn'); if (!b) return;
   settings.quality = b.dataset.val;
   refreshSettingsUI();
+});
+segPx8.addEventListener('click', e=>{
+  const b = e.target.closest('.segBtn'); if (!b) return;
+  settings.px8 = b.dataset.val === 'on';
+  refreshSettingsUI(); saveGame();
 });
 selLanguage.addEventListener('change', ()=>{ settings.language = selLanguage.value; });
 rangeScale.addEventListener('input', ()=>{ settings.scale = +rangeScale.value; applyScale(); });
@@ -9215,6 +9315,7 @@ function loop(t){
   } catch(err){
     // a bug in one frame must never permanently freeze the whole game —
     // log it and keep the loop alive so the player can still act next frame
+    px8Queue = null;      // se um frame quebrou no meio da pixelização, os textos não ficam presos na fila
     console.error('loop error', err);
   }
   requestAnimationFrame(loop);
