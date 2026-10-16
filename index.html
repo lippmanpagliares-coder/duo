@@ -793,6 +793,24 @@ const ACC_SPECIALS = {
   star:    { name:'Chuva de Estrelas',   desc:'estrelas cadentes caem em cima do inimigo' },
   magnet:  { name:'Ímã Gigante',         desc:'puxa o inimigo pra perto e o atordoa por 1,5 s' }
 };
+// Cada esmeralda ensina um desses ataques especiais: vale no golpe especial (K) sem precisar do acessório. Dá pra escolher qual
+// usar na mochila → Equipamento; se o acessório equipado também tiver um, os dois saem juntos.
+const EMERALD_SPECIALS = [
+  { sp:'viper',  key:'attack',  icon:'🔥', label:'Esmeralda do Ataque' },
+  { sp:'star',   key:'special', icon:'✨', label:'Esmeralda do Especial' },
+  { sp:'box',    key:'life',    icon:'💚', label:'Esmeralda da Vida' },
+  { sp:'magnet', key:'speed',   icon:'💨', label:'Esmeralda da Velocidade' },
+  { sp:'pencil', key:'crit',    icon:'🎯', label:'Esmeralda da Precisão' },
+  { sp:'cloud',  key:'sky',     icon:'☁️', label:'Esmeralda do Céu' },
+  { sp:'eraser', up:'elementalEmerald', icon:'🌈', label:'Esmeralda dos Elementos' },
+  { sp:'mask',   up:'disguiseEmerald',  icon:'🎭', label:'Esmeralda do Disfarce' }
+];
+function specialUnlocked(e){ return e.up ? !!upgrades[e.up] : !!progress.emeralds[e.key]; }
+function chosenSpecial(){
+  const ok = EMERALD_SPECIALS.filter(specialUnlocked);
+  if (!ok.length) return null;
+  return (ok.find(e=> e.sp === progress.special) || ok[0]).sp;      // sem escolha ainda: usa o primeiro que você já ganhou
+}
 const ELEMENT_LABELS = { fogo:'🔥 Fogo', gelo:'🧊 Gelo', eletrico:'⚡ Elétrico', sombra:'🌑 Sombra' };
 const ENEMY_ELEMENTS = {
   plant:{weak:'fogo',resist:'gelo'}, drone:{weak:'eletrico',resist:'fogo'}, mechaEnemy:{weak:'eletrico',resist:'gelo'},
@@ -887,7 +905,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, special:null, specialSeen:{}, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -3509,6 +3527,8 @@ function battleSpecial(){
   sfxSpecial(); refreshSpecialUI();
   const acc = progress.equip.accessory && EQUIP_DEFS.accessory[progress.equip.accessory];
   if (acc && acc.special) accSpecialFire(acc.special);       // o ataque assinatura do acessório equipado sai junto com o golpe
+  const es = chosenSpecial();                                  // e o ataque ensinado por uma esmeralda (se for diferente), logo depois
+  if (es && !(acc && acc.special === es)) battle.timers.push({ t:(acc && acc.special) ? 0.9 : 0, fn:()=>{ if (battle) accSpecialFire(es); } });
 }
 // Super Víbora, Apagador, Lápis, Máscara, Caixa, Nuvem, Estrelas e Ímã: cada acessório com `special` solta um ataque
 // próprio durante o golpe especial. Danos escalam com o ataque do herói e com o bônus de especial (Joias + acessório).
@@ -6717,8 +6737,8 @@ const ACHIEVEMENTS = [
   { id:'lv50',    name:'Lenda',                 desc:'Chegue ao nível 50',                   reward:400, test:p=> p.level >= 50 },
   { id:'backrooms',name:'Fora dos Limites',     desc:'Encontre a passagem secreta e entre nas Backrooms', reward:100, test:p=> p.backrooms },
   { id:'bug',     name:'Erro de Sistema',       desc:'Pegue a Joia do Bug nas Backrooms',    reward:150, test:p=> p.bugGem },
-  { id:'super',   name:'Além do Limite',        desc:'Libere a forma Super (3 esmeraldas ou o altar da Ilha Celestial)', reward:150, test:p=> p.forms.super },
-  { id:'max',     name:'Poder Máximo',          desc:'Libere a forma Max (6 esmeraldas ou o altar da Ilha Celestial)',   reward:300, test:p=> p.forms.max },
+  { id:'super',   name:'Além do Limite',        desc:'Conquiste a forma Super na Ilha Celestial', reward:150, test:p=> p.forms.super },
+  { id:'max',     name:'Poder Máximo',          desc:'Conquiste a forma Max na Ilha Celestial',   reward:300, test:p=> p.forms.max },
   { id:'lostgems',name:'Caçador de Joias',       desc:'Encontre as 6 Joias Perdidas espalhadas pelo mundo', reward:200, test:p=> lostGemCount() >= 6 },
   { id:'robot1',  name:'Engenheiro',             desc:'Construa seu primeiro robô no Laboratório do Duo',   reward:40,  test:p=> Object.values(p.robots).some(Boolean) },
   { id:'robotall',name:'Fábrica de Robôs',       desc:'Construa todos os robôs do Laboratório',             reward:250, test:p=> Object.values(p.robots).every(Boolean) },
@@ -6819,9 +6839,11 @@ function checkUnlocks(){
   if (progress.level >= 10) unlockChar('zapi','Zapi');
   if (emeraldCount() >= 4) unlockChar('naia','Naia');
   if (ZEBOT_ROBOTS.every(k=> progress.robots[k])) unlockChar('zebot','Zé Bot');
-  // as formas de poder abrem junto com as esmeraldas: Super com 3 e Max com as 6 (os altares da Ilha Celestial seguem valendo como atalho)
-  if (emeraldCount() >= 3 && !progress.forms.super){ progress.forms.super = true; showBanner('✨ Forma SUPER liberada pelas esmeraldas! Equipe na mochila → Personagens'); sfxSpecial(); fxWhite = 0.5; }
-  if (emeraldCount() >= 6 && !progress.forms.max){ progress.forms.max = true; showBanner('🌟 Forma MAX liberada pelas 6 esmeraldas! Equipe na mochila → Personagens'); sfxSpecial(); fxWhite = 0.6; }
+  EMERALD_SPECIALS.forEach(e=>{      // cada esmeralda nova libera um ataque especial
+    if (specialUnlocked(e) && !progress.specialSeen[e.sp]){
+      progress.specialSeen[e.sp] = true; showBanner(`⚡ Ataque especial liberado: ${ACC_SPECIALS[e.sp].name}! (mochila → Equipamento)`); sfxSpecial();
+    }
+  });
   if (progress.hellBossWon) unlockChar('umbra','Umbra');
   if (progress.blockBossWon) unlockChar('folha','Folha');
   if (progress.arcadeBossWon) unlockChar('pixel','Pixel');
@@ -6877,7 +6899,7 @@ function renderPanel(){
     Object.entries(EMERALD_DEFS).forEach(([k,d])=>{
       const got = progress.emeralds[k];
       h += `<div class="pRow ${got ? 'done' : 'locked'}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div>
-        <div class="pSub">${d.text} · ${got ? 'CONQUISTADA' : (d.tier ? 'requer '+d.tier+' esmeraldas' : 'disponível no mapa')}</div></div></div>`;
+        <div class="pSub">${d.text} · ⚡ ensina o ataque especial: ${ACC_SPECIALS[(EMERALD_SPECIALS.find(e=> e.key === k)||{sp:'viper'}).sp].name} · ${got ? 'CONQUISTADA' : (d.tier ? 'requer '+d.tier+' esmeraldas' : 'disponível no mapa')}</div></div></div>`;
     });
     h += `<div class="pHead" style="margin-top:6px"><span>Joias Perdidas (${lostGemCount()}/6)</span></div>`;
     Object.entries(LOST_GEMS).forEach(([k,d])=>{
@@ -6949,7 +6971,7 @@ function renderPanel(){
     h += `<div class="pHead"><span>Principal: ${ROSTER[progress.main].name}</span><span>Reserva: ${ROSTER[progress.sub].name}</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">🛒 Loja de Personagens: quem ainda está trancado pode ser comprado com cristais — ou desbloqueado de graça cumprindo a conquista.</div>`;
     h += `<div class="pRow ${(progress.forms.super || progress.forms.max) ? '' : 'locked'}"><div style="font-size:22px">✨</div><div class="pInfo"><div class="pTitle">Forma de poder: ${FORMS[progress.form].name}</div>
-      <div class="pSub">${(progress.forms.super || progress.forms.max) ? FORMS[progress.form].text : '🔒 Super abre com 3 esmeraldas e Max com as 6 (ou vença os altares na Ilha Celestial, que abre a cada 5 minutos na Praia Calma).'}</div></div>
+      <div class="pSub">${(progress.forms.super || progress.forms.max) ? FORMS[progress.form].text : '🔒 Conquiste as formas Super e Max na Ilha Celestial (abre a cada 5 minutos na Praia Calma).'}</div></div>
       ${['normal','super','max'].map(k=> (k === 'normal' || progress.forms[k]) ? `<button class="pBtn ${k==='normal'?'':'alt'}" data-form="${k}" ${progress.form===k?'disabled':''}>${FORMS[k].icon} ${FORMS[k].name}</button>` : '').join('')}</div>`;
     Object.keys(ROSTER).forEach(id=>{
       const r = ROSTER[id], has = progress.chars[id], st = rosterStats(id, true);
@@ -6982,6 +7004,15 @@ function renderPanel(){
     h += `<div class="pHead"><span>🗡️ Equipamento</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">Arma, armadura e acessório — um de cada, ao mesmo tempo. Cada item comprado é seu pra sempre; troque quando quiser.</div>`;
     h += `<div class="coopRow"><input id="codeInput" maxlength="24" placeholder="TEM UM CÓDIGO?"><button class="pBtn alt" data-redeem="1">Resgatar</button></div>`;
+    h += `<div class="pHead" style="margin-top:6px"><span>⚡ Ataques especiais das esmeraldas</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Cada esmeralda ensina um ataque que sai junto com o golpe especial (K). Escolha qual usar — se o acessório equipado também tiver um, os dois saem juntos.</div>`;
+    const cs = chosenSpecial();
+    EMERALD_SPECIALS.forEach(e=>{
+      const ok = specialUnlocked(e), info = ACC_SPECIALS[e.sp], on = cs === e.sp;
+      h += `<div class="pRow ${ok ? (on ? 'done' : '') : 'locked'}"><div style="font-size:22px">${e.icon}</div><div class="pInfo"><div class="pTitle">${info.name}${on ? ' · EQUIPADO' : ''}</div>
+        <div class="pSub">${info.desc}${ok ? '' : ` · 🔒 vem com a ${e.label}`}</div></div>
+        ${ok ? `<button class="pBtn ${on ? 'alt' : ''}" data-spset="${e.sp}" ${on ? 'disabled' : ''}>${on ? 'Equipado' : 'Equipar'}</button>` : ''}</div>`;
+    });
     const slotNames = { weapon:'⚔️ Arma', armor:'🛡️ Armadura', accessory:'✨ Acessório' };
     EQUIP_SLOTS.forEach(slot=>{
       h += `<div class="pHead" style="margin-top:6px"><span>${slotNames[slot]}</span></div>`;
@@ -7042,6 +7073,9 @@ panelBody.addEventListener('click', e=>{
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
+  } else if (b.dataset.spset){
+    const e = EMERALD_SPECIALS.find(x=> x.sp === b.dataset.spset);
+    if (e && specialUnlocked(e)){ progress.special = e.sp; sfxPickup(); }
   } else if (b.dataset.dailyclaim){
     dailyClaim();
   } else if (b.dataset.charbuy){
