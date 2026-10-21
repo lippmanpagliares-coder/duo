@@ -166,13 +166,13 @@
   .coopChatMsg { font-size:12px; color:#dfffe8; word-break:break-word; }
   .coopChatMsg.me { color:#9fe8ff; }
   /* bugs e sugestões: chat aberto com o dono do jogo (por cima do menu/mochila, que continuam abertos por baixo) */
-  #fbOverlay { position:absolute; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.88); }
-  #fbOverlay.open { display:flex; }
-  #fbBox {
+  #fbOverlay, #lbOverlay { position:absolute; inset:0; z-index:50; display:none; align-items:center; justify-content:center; background:rgba(4,6,14,0.88); }
+  #fbOverlay.open, #lbOverlay.open { display:flex; }
+  #fbBox, #lbBox {
     width:min(460px,94%); max-height:94%; overflow-y:auto; display:flex; flex-direction:column; gap:10px;
     background:linear-gradient(180deg,#141a2e,#0c1020); border:1px solid #3a4a8a; border-radius:12px; padding:16px 18px;
   }
-  #fbBox h3 { color:#9fb8ff; font-size:17px; text-align:center; letter-spacing:1px; margin:0; }
+  #fbBox h3, #lbBox h3 { color:#9fb8ff; font-size:17px; text-align:center; letter-spacing:1px; margin:0; }
   .fbLog { height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; background:#0b0f1e; border:1px solid #2a3560; border-radius:8px; padding:7px 9px; }
   .fbMsg { font-size:12px; color:#e4eaff; word-break:break-word; }
   .fbPeople:empty { display:none; }
@@ -395,12 +395,20 @@
         <div class="settingsActions"><button class="gameBtn" id="fbClose">Fechar</button></div>
       </div>
     </div>
+    <div id="lbOverlay">
+      <div id="lbBox">
+        <h3>🏆 Placar entre amigos</h3>
+        <div id="lbBody"></div>
+        <div class="settingsActions"><button class="gameBtn" id="lbRefresh">🔄 Atualizar</button><button class="gameBtn secondary" id="lbClose">Fechar</button></div>
+      </div>
+    </div>
     <div id="panelOverlay">
       <div id="panelBox">
         <div class="panelTabs" id="panelTabs">
           <button class="segBtn" data-tab="up">⬆ Melhorias</button>
           <button class="segBtn" data-tab="chars">🧑 Personagens</button>
           <button class="segBtn" data-tab="robots">🤖 Robôs</button>
+          <button class="segBtn" data-tab="pets">🐾 Mascotes</button>
           <button class="segBtn" data-tab="equip">🗡️ Equipamento</button>
           <button class="segBtn" data-tab="daily">📅 Diário</button>
           <button class="segBtn" data-tab="ach">🏆 Conquistas</button>
@@ -473,6 +481,7 @@
 
         <div class="settingsActions">
           <button class="gameBtn secondary" id="btnFeedback">💬 Bugs e sugestões</button>
+          <button class="gameBtn secondary" id="btnBoard">🏆 Placar entre amigos</button>
         </div>
 
         <hr class="settingsHr">
@@ -700,6 +709,33 @@ function arcadeItemBonus(){
   Object.entries(ARCADE_ITEMS).forEach(([id,d])=>{ if (progress.arcadeItems[id]) Object.keys(d.bonus).forEach(k=> out[k] += d.bonus[k]); });
   return out;
 }
+// Mascotes: bichinhos que seguem o herói. Um fica ativo por vez: dá um bônus pequeno o tempo todo (passive) e ajuda nas lutas a
+// cada alguns segundos (ab): cura (heal), golpe (hit), carga do especial (charge) ou escudo de invencibilidade (shield).
+const PET_DEFS = {
+  pintinho:  { name:'Pintinho',          icon:'🐥', how:'já vem com você',                         free:true,                        ab:{kind:'heal',   every:10, amt:0.06}, passive:{} },
+  gosma:     { name:'Gosminha',          icon:'🟢', how:'compre por 150 💎 na aba Mascotes',       cost:150,                        ab:{kind:'charge', every:6,  amt:7},    passive:{sp:0.04} },
+  gato:      { name:'Gatinho',           icon:'🐱', how:'resgate o Desafio Diário 3 dias seguidos', test:p=> (p.dailyBest||0) >= 3,    ab:{kind:'hit',    every:7,  mul:0.55}, passive:{crystals:0.03} },
+  peixinho:  { name:'Peixinho Dourado',  icon:'🐟', how:'pesque 10 peixes',                         test:p=> p.fishCaught >= 10,       ab:{kind:'charge', every:5,  amt:6},    passive:{crystals:0.06} },
+  fantasma:  { name:'Fantasminha',       icon:'👻', how:'derrote o Lorde do Caos (Mundo do Mal)',    test:p=> p.hellBossWon,            ab:{kind:'shield', every:13, sec:1.6},  passive:{} },
+  golem:     { name:'Mini Golem',        icon:'🗿', how:'derrote o Golem de Pedra (Mundo dos Blocos)', test:p=> p.blockBossWon,         ab:{kind:'hit',    every:6,  mul:0.8},  passive:{hp:8} },
+  robozinho: { name:'Robozinho',         icon:'🤖', how:'derrote o MEGA-9000 (Fábrica de Robôs)',   test:p=> p.factoryBossWon,         ab:{kind:'hit',    every:5,  mul:0.6},  passive:{atk:3} },
+  pixelzinho:{ name:'Pixelzinho',        icon:'👾', how:'derrote o Chefão Game Over (Mundo do Jogo)', test:p=> p.arcadeBossWon,        ab:{kind:'charge', every:4,  amt:7},    passive:{sp:0.05} },
+  dragao:    { name:'Dragãozinho',       icon:'🐉', how:'reúna as 6 esmeraldas de desafio',         test:p=> emeraldCount() >= 6,      ab:{kind:'heal',   every:8,  amt:0.07}, passive:{atk:4, hp:8} }
+};
+function petAbilityText(d){
+  const a = d.ab;
+  return a.kind === 'heal' ? `a cada ${a.every}s cura ${Math.round(a.amt*100)}% da vida` : a.kind === 'hit' ? `a cada ${a.every}s ataca o inimigo (${Math.round(a.mul*100)}% do seu ataque)`
+    : a.kind === 'charge' ? `a cada ${a.every}s enche ${a.amt}% do golpe especial` : `a cada ${a.every}s dá ${a.sec}s de invencibilidade`;
+}
+function petPassiveText(d){
+  const p = d.passive, out = [];
+  if (p.hp) out.push('+'+p.hp+' vida'); if (p.atk) out.push('+'+p.atk+' ataque'); if (p.sp) out.push('+'+Math.round(p.sp*100)+'% de carga do especial'); if (p.crystals) out.push('+'+Math.round(p.crystals*100)+'% de cristais');
+  return out.join(', ');
+}
+function petBonus(){
+  const id = progress.pet, d = id && PET_DEFS[id];
+  return (d && progress.pets && progress.pets[id]) ? d.passive : {};
+}
 // Laboratório do Duo: spend crystals to build robot companions in the village, then equip one at a time — each is
 // an "accessory" that grants a passive power and shows up as a little badge following you around
 const ROBOT_DEFS = {
@@ -733,29 +769,29 @@ const EQUIP_DEFS = {
   weapon: {
     rusty:     { name:'Adaga Enferrujada',  icon:'🔪', cost:40,  atk:3,  rarity:'comum' },
     iron:      { name:'Espada de Ferro',    icon:'⚔️', cost:100, atk:8,  rarity:'raro' },
-    maca:      { name:'Maça de Choque',     icon:'🔨', cost:140, atk:10, rarity:'raro', element:'eletrico' },
-    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico', element:'gelo' },
-    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario', element:'eletrico' },
-    plasma:    { name:'Bazuca de Plasma',   icon:'🚀', cost:260, atk:13, ranged:true, projColor:'#ff8a3a', rarity:'epico', element:'fogo' },
+    maca:      { name:'Maça de Choque',     icon:'🔨', cost:140, atk:10, rarity:'raro', element:'eletrico', special:'bolt' },
+    crystal:   { name:'Espada de Cristal',  icon:'🔱', cost:220, atk:14, rarity:'epico', element:'gelo', special:'shards' },
+    elemental: { name:'Lança Elemental',    icon:'⚡', cost:400, atk:22, rarity:'lendario', element:'eletrico', special:'spear' },
+    plasma:    { name:'Bazuca de Plasma',   icon:'🚀', cost:260, atk:13, ranged:true, projColor:'#ff8a3a', rarity:'epico', element:'fogo', special:'barrage' },
     chave:     { name:'Chave Inglesa Gigante', icon:'🔧', cost:120, atk:9, rarity:'raro' },
-    laser:     { name:'Pistola Laser',      icon:'🔫', cost:300, atk:15, ranged:true, projColor:'#ff3df0', rarity:'epico' },
-    megapunho: { name:'Megapunho do MEGA-9000', icon:'👊', cost:0, atk:33, crit:0.05, rarity:'ultra', secret:true, element:'eletrico' },
-    gameover:  { name:'Espada Game Over',   icon:'🎮', cost:0, atk:34, crit:0.06, rarity:'ultra', secret:true, element:'fogo' },
+    laser:     { name:'Pistola Laser',      icon:'🔫', cost:300, atk:15, ranged:true, projColor:'#ff3df0', rarity:'epico', special:'beam' },
+    megapunho: { name:'Megapunho do MEGA-9000', icon:'👊', cost:0, atk:33, crit:0.05, rarity:'ultra', secret:true, element:'eletrico', special:'quake' },
+    gameover:  { name:'Espada Game Over',   icon:'🎮', cost:0, atk:34, crit:0.06, rarity:'ultra', secret:true, element:'fogo', special:'combo' },
     universlayer: { name:'Matadora de Universos', icon:'🌌', cost:0, atk:35, crit:0.05, rarity:'ultra', secret:true, element:'sombra' },
     icebazooka:   { name:'Bazuca de Gelo',  icon:'🧊', cost:0, atk:27, ranged:true, projColor:'#aef0ff', rarity:'ultra', secret:true, element:'gelo' }
   },
   armor: {
     leather:  { name:'Colete de Couro',     icon:'🥋', cost:35,  hp:8,  rarity:'comum' },
     iron:     { name:'Armadura de Ferro',   icon:'🛡️', cost:110, hp:18, rarity:'raro' },
-    fogo:     { name:'Armadura de Fogo',    icon:'🔥', cost:160, hp:22, rarity:'raro',  element:'fogo' },
-    gelo:     { name:'Armadura de Gelo',    icon:'🧊', cost:160, hp:22, rarity:'raro',  element:'gelo' },
+    fogo:     { name:'Armadura de Fogo',    icon:'🔥', cost:160, hp:22, rarity:'raro',  element:'fogo', special:'embers' },
+    gelo:     { name:'Armadura de Gelo',    icon:'🧊', cost:160, hp:22, rarity:'raro',  element:'gelo', special:'frost' },
     crystal:  { name:'Armadura de Cristal', icon:'💎', cost:240, hp:32, rarity:'epico' },
-    volt:     { name:'Armadura Elétrica',   icon:'⚡', cost:260, hp:30, rarity:'epico', element:'eletrico' },
-    sombria:  { name:'Manto Sombrio',       icon:'🌑', cost:260, hp:30, rarity:'epico', element:'sombra' },
-    guardian: { name:'Manto do Guardião',   icon:'🦺', cost:420, hp:50, rarity:'lendario' },
+    volt:     { name:'Armadura Elétrica',   icon:'⚡', cost:260, hp:30, rarity:'epico', element:'eletrico', special:'pulse' },
+    sombria:  { name:'Manto Sombrio',       icon:'🌑', cost:260, hp:30, rarity:'epico', element:'sombra', special:'claws' },
+    guardian: { name:'Manto do Guardião',   icon:'🦺', cost:420, hp:50, rarity:'lendario', special:'aegis' },
     macacao:  { name:'Macacão de Fábrica',  icon:'🥼', cost:170, hp:26, rarity:'raro' },
     pixel:    { name:'Armadura Pixel',      icon:'👾', cost:280, hp:34, rarity:'epico' },
-    vidaextra:{ name:'Vida Extra',          icon:'💚', cost:0,   hp:72, atk:5, rarity:'ultra', secret:true },
+    vidaextra:{ name:'Vida Extra',          icon:'💚', cost:0,   hp:72, atk:5, rarity:'ultra', secret:true, special:'oneup' },
     singularity: { name:'Singularidade', icon:'🕳️', cost:0, hp:70, atk:6, rarity:'ultra', secret:true }
   },
   accessory: {
@@ -791,7 +827,21 @@ const ACC_SPECIALS = {
   box:     { name:'Caixa Surpresa',      desc:'uma caixa cai e sorteia: explosão, cura ou atordoamento' },
   cloud:   { name:'Nuvem de Tempestade', desc:'uma nuvem solta 5 raios no inimigo' },
   star:    { name:'Chuva de Estrelas',   desc:'estrelas cadentes caem em cima do inimigo' },
-  magnet:  { name:'Ímã Gigante',         desc:'puxa o inimigo pra perto e o atordoa por 1,5 s' }
+  magnet:  { name:'Ímã Gigante',         desc:'puxa o inimigo pra perto e o atordoa por 1,5 s' },
+  // ataques das armas e armaduras (saem junto com o K, se estiverem equipadas)
+  bolt:    { name:'Raio',                desc:'um raio cai do céu e atordoa o inimigo por 1 s' },
+  shards:  { name:'Estilhaços de Cristal', desc:'5 estilhaços de cristal furam o inimigo' },
+  spear:   { name:'Lança Trovão',        desc:'arremessa a lança elétrica: dano forte e atordoamento de 1,5 s' },
+  barrage: { name:'Chuva de Mísseis',    desc:'6 mísseis explodem em volta do inimigo' },
+  beam:    { name:'Raio Laser',          desc:'um feixe de laser atravessa o inimigo 3 vezes' },
+  quake:   { name:'Terremoto',           desc:'o chão racha: dano enorme e atordoamento de 1,2 s' },
+  combo:   { name:'Combo Game Over',     desc:'8 golpes seguidos em um instante' },
+  embers:  { name:'Explosão de Brasas',  desc:'explode em brasas que continuam queimando por 2 s' },
+  frost:   { name:'Rajada Gélida',       desc:'espetos de gelo prendem o inimigo por 2 s' },
+  pulse:   { name:'Pulso Elétrico',      desc:'onda elétrica que apaga os tiros do inimigo e o atordoa' },
+  claws:   { name:'Garras Sombrias',     desc:'3 arranhões sombrios que roubam um pouco da vida do inimigo' },
+  aegis:   { name:'Égide',               desc:'um escudo brilhante: 3,5 s de invencibilidade e cura de 12%' },
+  oneup:   { name:'1UP',                 desc:'recupera 35% da vida e ainda acerta o inimigo' }
 };
 // Cada esmeralda ensina um desses ataques especiais: vale no golpe especial (K) sem precisar do acessório. Dá pra escolher qual
 // usar na mochila → Equipamento; se o acessório equipado também tiver um, os dois saem juntos.
@@ -905,7 +955,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, special:null, specialSeen:{}, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, pets:{ pintinho:true }, pet:'pintinho', special:null, specialSeen:{}, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -956,17 +1006,17 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus(), pb = petBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + fp.hp + (rb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + fp.hp + (rb.hp||0) + (pb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + fp.atk + ai.atk + (rb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + fp.atk + ai.atk + (rb.atk||0) + (pb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus(), pb = petBonus();
   return {
-    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + bf.sp + ai.sp + (rb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
+    spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + bf.sp + ai.sp + (rb.sp||0) + (pb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
     dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
     critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + hs.crit + fp.crit + (rb.crit||0) + eq.crit,
     bug: !!p.bugGem
@@ -1097,9 +1147,9 @@ function sfxSpecial(){ [392,523,659,784,1047].forEach((f,i)=> beep(f,0.12,'trian
 /* ---------------- input ---------------- */
 const keys = {};
 window.addEventListener('keydown', e=>{
-  if (e.key === 'Escape'){ if (fbIsOpen) closeFeedback(); else if (mapOpen) mapOpen = false; else if (coopOverlay.classList.contains('open')) closeCoop(); else if (panelOpen) closePanel(); else toggleSettings(); return; }
-  if ((e.key === 'm' || e.key === 'M') && !e.repeat && !settingsOpen && !panelOpen && !fbIsOpen){ toggleMap(); return; }
-  if (settingsOpen || panelOpen || fbIsOpen) return;
+  if (e.key === 'Escape'){ if (lbIsOpen) closeBoard(); else if (fbIsOpen) closeFeedback(); else if (mapOpen) mapOpen = false; else if (coopOverlay.classList.contains('open')) closeCoop(); else if (panelOpen) closePanel(); else toggleSettings(); return; }
+  if ((e.key === 'm' || e.key === 'M') && !e.repeat && !settingsOpen && !panelOpen && !fbIsOpen && !lbIsOpen){ toggleMap(); return; }
+  if (settingsOpen || panelOpen || fbIsOpen || lbIsOpen) return;
   if (!e.repeat){
     if (e.key === 'Shift' || e.key === 'j' || e.key === 'J') tryDash();
     if (e.key === 'k' || e.key === 'K') battleSpecial();
@@ -2886,6 +2936,29 @@ function drawAccFxList(g){
       g.fillStyle = '#e8e8f0'; g.fillRect(-39,0,18,14); g.fillRect(21,0,18,14);
       g.strokeStyle = 'rgba(160,200,255,0.6)'; g.lineWidth = 3;
       for (let i=0;i<4;i++){ const u = (p*2+i*0.25)%1; g.beginPath(); g.arc(0,80,70*(1-u),0.4,Math.PI-0.4); g.stroke(); }
+    } else if (e.kind === 'bolt'){     // raio caindo do céu (pisca)
+      if (p < 0.72 && Math.floor(p*16)%2 === 0){
+        const path = ()=>{ g.beginPath(); g.moveTo(10,-340); g.lineTo(-14,-230); g.lineTo(8,-170); g.lineTo(-12,-90); g.lineTo(4,-40); g.lineTo(0,10); };
+        g.lineJoin = 'miter'; g.strokeStyle = 'rgba(255,240,120,0.4)'; g.lineWidth = 24; path(); g.stroke();
+        g.strokeStyle = '#fffbd0'; g.lineWidth = 8; path(); g.stroke();
+      }
+    } else if (e.kind === 'spikes'){   // espetos que sobem do chão
+      const rise = Math.min(1, p*3), n = 7;
+      for (let i=0;i<n;i++){
+        const x = (i-(n-1)/2)*20, h = (58 + ((i*7)%3)*18)*rise;
+        g.fillStyle = `rgba(${e.color},0.92)`; g.beginPath(); g.moveTo(x-9,44); g.lineTo(x,44-h); g.lineTo(x+9,44); g.closePath(); g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.65)'; g.beginPath(); g.moveTo(x-2,44); g.lineTo(x,44-h); g.lineTo(x+3,44); g.closePath(); g.fill();
+      }
+    } else if (e.kind === 'beam'){     // feixe do herói até o inimigo
+      const px = player.x+player.w/2 - e.x, py = player.y+player.h/2 - e.y, t = (e.thick || 12)*Math.sin(Math.min(1,p*1.4)*Math.PI);
+      if (t > 0.5){
+        g.lineCap = 'round'; g.strokeStyle = `rgba(${e.color},0.35)`; g.lineWidth = t*2.4; g.beginPath(); g.moveTo(px,py); g.lineTo(0,0); g.stroke();
+        g.strokeStyle = '#fff'; g.lineWidth = t*0.6; g.beginPath(); g.moveTo(px,py); g.lineTo(0,0); g.stroke();
+      }
+    } else if (e.kind === 'ring'){      // onda expandindo
+      const rr = (e.r || 90)*Math.min(1, p*1.5);
+      g.strokeStyle = `rgba(${e.color},${(0.9*(1-p)).toFixed(3)})`; g.lineWidth = 10*(1-p)+2; g.beginPath(); g.arc(0,0,rr,0,TAU); g.stroke();
+      g.fillStyle = `rgba(${e.color},${(0.18*(1-p)).toFixed(3)})`; g.beginPath(); g.arc(0,0,rr,0,TAU); g.fill();
     }
     g.restore();
   });
@@ -3060,6 +3133,16 @@ function registerSceneFx(){
       g.fillStyle='#ffd54a'; g.fillRect(x,70,40,6); g.beginPath(); g.arc(x+20,140,9,0,Math.PI*2); g.fill(); }); } });
 }
 registerSceneFx();
+// o mascote ativo flutua ao lado do herói (um emoji grande com sombrinha), em qualquer cena
+function drawPetFollower(g, x, y, t){
+  const d = PET_DEFS[progress.pet]; if (!d) return;
+  const bob = Math.sin(t*3.2)*4, px = x - 40, py = y - 18 + bob;
+  g.save();
+  g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(px, y+26, 12, 4, 0, 0, Math.PI*2); g.fill();
+  g.font = '26px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(d.icon, px, py);
+  g.restore();
+}
 function renderScene(){
   ctx.clearRect(0,0,W,H);
   if (!currentScene) return;
@@ -3132,6 +3215,7 @@ function renderScene(){
     DRAW[player.type](ctx, 0, 0, PLAYER_SCALE[player.type]||34, false);
     ctx.restore();
   } else DRAW[player.type](ctx, player.x+player.w/2, player.y+player.h/2, PLAYER_SCALE[player.type]||34, false);
+  if (progress.pet && progress.pets && progress.pets[progress.pet] && !duelActive) drawPetFollower(ctx, player.x+player.w/2, player.y+player.h/2, tSec);
   if (progress.robotEquipped && !battle) drawRobotBadge(ctx, player.x+player.w/2, player.y+player.h/2, tSec, ROBOT_DEFS[progress.robotEquipped]);
   if (!battle) drawEquipBadges(ctx, player.x+player.w/2, player.y+player.h/2, tSec);
   ctx.globalAlpha = 1;
@@ -3527,8 +3611,14 @@ function battleSpecial(){
   sfxSpecial(); refreshSpecialUI();
   const acc = progress.equip.accessory && EQUIP_DEFS.accessory[progress.equip.accessory];
   if (acc && acc.special) accSpecialFire(acc.special);       // o ataque assinatura do acessório equipado sai junto com o golpe
-  const es = chosenSpecial();                                  // e o ataque ensinado por uma esmeralda (se for diferente), logo depois
-  if (es && !(acc && acc.special === es)) battle.timers.push({ t:(acc && acc.special) ? 0.9 : 0, fn:()=>{ if (battle) accSpecialFire(es); } });
+  // lista de ataques que saem com este K: acessório, esmeralda escolhida, arma e armadura (sem repetir o mesmo), um logo depois do outro
+  const wpn = progress.equip.weapon && EQUIP_DEFS.weapon[progress.equip.weapon], arm = progress.equip.armor && EQUIP_DEFS.armor[progress.equip.armor];
+  const es = chosenSpecial(), fired = [acc && acc.special];
+  [es, wpn && wpn.special, arm && arm.special].forEach(id=>{
+    if (!id || fired.includes(id)) return;
+    fired.push(id);
+    battle.timers.push({ t:Math.max(0, 0.45 + (fired.filter(Boolean).length-2)*0.75), fn:()=>{ if (battle) accSpecialFire(id); } });
+  });
 }
 // Super Víbora, Apagador, Lápis, Máscara, Caixa, Nuvem, Estrelas e Ímã: cada acessório com `special` solta um ataque
 // próprio durante o golpe especial. Danos escalam com o ataque do herói e com o bônus de especial (Joias + acessório).
@@ -3588,6 +3678,48 @@ function accSpecialFire(id){
       fxBurst(battle.enemyPos.x, battle.enemyPos.y, 20, '150,190,255', 260, 3, 0.5, 0);
       accStun(1.5); hit(1.1);
     });
+  } else if (id === 'bolt'){
+    spawnAccFx('bolt', ex, ey, 0.8);
+    later(0.3, ()=>{ if (!battle) return; fxWhite = Math.max(fxWhite, 0.45); fxShakeNow(0.25, 7); fxBurst(ex, ey, 26, '255,240,120', 300, 3, 0.5, 0); accStun(1); hit(2.0); });
+  } else if (id === 'shards'){
+    spawnAccFx('spikes', ex, ey, 0.9, { color:'150,230,255' });
+    for (let i=0;i<5;i++) later(0.15+i*0.14, ()=>{ if (!battle) return; fxBurst(battle.enemyPos.x+(Math.random()-0.5)*50, battle.enemyPos.y+(Math.random()-0.5)*40, 8, '170,235,255', 200, 2.4, 0.4, 0); hit(0.55); });
+  } else if (id === 'spear'){
+    spawnAccFx('beam', ex, ey, 0.7, { color:'255,235,110', thick:16 });
+    later(0.3, ()=>{ if (!battle) return; fxShakeNow(0.2, 6); fxBurst(ex, ey, 24, '255,240,120', 300, 3, 0.5, 0); accStun(1.5); hit(2.4); });
+  } else if (id === 'barrage'){
+    for (let i=0;i<6;i++) later(0.1+i*0.16, ()=>{ if (!battle) return; const bx = battle.enemyPos.x+(Math.random()-0.5)*130, by = battle.enemyPos.y+(Math.random()-0.5)*90;
+      spawnAccFx('ring', bx, by, 0.4, { color:'255,150,60', r:36 }); fxBurst(bx, by, 14, '255,160,60', 260, 3, 0.5, 80); fxShakeNow(0.1, 3); hit(0.6); });
+  } else if (id === 'beam'){
+    spawnAccFx('beam', ex, ey, 1.0, { color:'255,70,240', thick:12 });
+    [0.3,0.55,0.8].forEach(t=> later(t, ()=>{ if (!battle) return; fxBurst(battle.enemyPos.x, battle.enemyPos.y, 12, '255,100,240', 220, 2.6, 0.4, 0); hit(0.9); }));
+  } else if (id === 'quake'){
+    spawnAccFx('ring', ex, ey, 0.9, { color:'200,150,90', r:130 });
+    later(0.35, ()=>{ if (!battle) return; fxShakeNow(0.5, 12); fxWhite = Math.max(fxWhite, 0.3); fxBurst(ex, ey, 40, '200,160,100', 340, 3.6, 0.7, 140); accStun(1.2); hit(2.8); });
+  } else if (id === 'combo'){
+    for (let i=0;i<8;i++) later(i*0.09, ()=>{ if (!battle) return; fxSlash(battle.enemyPos.x, battle.enemyPos.y, i*0.8, 120, i%2 ? '255,120,60' : '255,230,120'); fxText(battle.enemyPos.x+(i-4)*14, battle.enemyPos.y-80-(i%2)*14, 'x'+(i+1), '#ffd54a', 22, 0.5); hit(0.45, { stop:0 }); });
+  } else if (id === 'embers'){
+    spawnAccFx('ring', ex, ey, 0.8, { color:'255,120,40', r:110 });
+    later(0.25, ()=>{ if (!battle) return; fxShakeNow(0.25, 7); fxBurst(ex, ey, 36, '255,140,50', 320, 3.4, 0.7, 120); hit(1.4); });
+    for (let i=1;i<=4;i++) later(0.5+i*0.5, ()=>{ if (!battle) return; fxBurst(battle.enemyPos.x, battle.enemyPos.y, 8, '255,120,40', 120, 2.4, 0.5, -40); hit(0.35, { heavy:false, stop:0 }); });
+  } else if (id === 'frost'){
+    spawnAccFx('spikes', ex, ey, 1.2, { color:'170,230,255' });
+    later(0.3, ()=>{ if (!battle) return; fxBurst(ex, ey, 28, '180,235,255', 280, 3, 0.6, 40); accStun(2.2); hit(1.3); });
+  } else if (id === 'pulse'){
+    spawnAccFx('ring', ex, ey, 0.8, { color:'255,240,110', r:120 });
+    later(0.2, ()=>{ if (!battle) return; fxWhite = Math.max(fxWhite, 0.3); fxBurst(ex, ey, 24, '255,240,120', 300, 3, 0.5, 0); accStun(1.5); hit(1.0); });
+  } else if (id === 'claws'){
+    [0,1,2].forEach(i=> later(0.15+i*0.2, ()=>{ if (!battle) return; fxSlash(battle.enemyPos.x+(i-1)*18, battle.enemyPos.y, -0.9+i*0.15, 170, '170,90,255'); fxBurst(battle.enemyPos.x, battle.enemyPos.y, 10, '150,80,230', 220, 2.6, 0.4, 0); hit(0.8);
+      battle.player.hp = Math.min(battle.player.maxHp, battle.player.hp + Math.round(battle.player.maxHp*0.027)); refreshHpUI(); }));
+  } else if (id === 'aegis'){
+    spawnAccFx('ring', player.x+player.w/2, player.y+player.h/2, 0.9, { color:'255,225,120', r:70 });
+    b.iframes = Math.max(b.iframes, 3.5);
+    b.player.hp = Math.min(b.player.maxHp, b.player.hp + Math.round(b.player.maxHp*0.12)); refreshHpUI();
+    fxText(player.x+player.w/2, player.y-30, 'ÉGIDE!', '#ffe27a', 28);
+  } else if (id === 'oneup'){
+    b.player.hp = Math.min(b.player.maxHp, b.player.hp + Math.round(b.player.maxHp*0.35)); refreshHpUI();
+    fxText(player.x+player.w/2, player.y-34, '1UP!', '#6aff9a', 34); fxBurst(player.x+player.w/2, player.y, 24, '120,255,160', 200, 2.8, 0.7, -40);
+    later(0.4, ()=>{ if (battle) hit(1.0); });
   }
 }
 const GEM_ORDER = ['forest','fungo','pantano','deserto','lava','costa'];   // maps each golpe especial hit to the gem whose themed creature shows up there
@@ -3787,6 +3919,29 @@ function drawEnvItems(g, t){
     g.restore();
   });
 }
+// ajuda do mascote ativo durante a luta (ver PET_DEFS): cura, golpe, carga do especial ou escudo, a cada poucos segundos
+function petTick(dt){
+  const b = battle, id = progress.pet, d = id && PET_DEFS[id];
+  if (!b || !d || !progress.pets[id] || b.introT > 0 || b.specialT > 0) return;
+  if (b.petCd == null) b.petCd = d.ab.every*0.6;
+  b.petCd -= dt;
+  if (b.petCd > 0) return;
+  b.petCd = d.ab.every;
+  const a = d.ab, px = player.x+player.w/2, py = player.y+player.h/2;
+  if (a.kind === 'heal'){
+    b.player.hp = Math.min(b.player.maxHp, b.player.hp + Math.round(b.player.maxHp*a.amt)); refreshHpUI();
+    fxText(px, py-70, d.icon+' +vida', '#6aff9a', 20, 0.9); fxBurst(px, py, 10, '120,255,160', 150, 2.4, 0.6, -40);
+  } else if (a.kind === 'charge'){
+    b.special = Math.min(100, b.special + a.amt); refreshSpecialUI();
+    fxText(px, py-70, d.icon+' +especial', '#ffe27a', 20, 0.9); fxBurst(px, py, 8, '255,225,120', 140, 2.2, 0.5, -30);
+  } else if (a.kind === 'shield'){
+    b.iframes = Math.max(b.iframes, a.sec);
+    fxText(px, py-70, d.icon+' escudo!', '#aee8ff', 20, 0.9); fxBurst(px, py, 12, '170,230,255', 150, 2.4, 0.6, -20);
+  } else if (a.kind === 'hit'){
+    fxText(b.enemyPos.x, b.enemyPos.y-70, d.icon+' ataca!', '#ffd0a0', 20, 0.8); fxBurst(b.enemyPos.x, b.enemyPos.y, 10, '255,210,150', 200, 2.4, 0.4, 0);
+    hitEnemy(Math.round(b.player.atk*a.mul), { noGauge:true, stop:0.02 });
+  }
+}
 function updateBattle(dt){
   if (!battle) return;
   const b = battle;
@@ -3801,6 +3956,8 @@ function updateBattle(dt){
   b.comboT = Math.max(0, b.comboT - dt);
   if (b.introT > 0) b.introT -= dt;
   if (b.stunT > 0) b.stunT -= dt;
+  petTick(dt);
+  if (!battle) return;
   if (b.timers && b.timers.length){      // ações com atraso dos ataques especiais de acessório
     for (let i = b.timers.length-1; i >= 0; i--){
       const tm = b.timers[i]; tm.t -= dt;
@@ -6776,6 +6933,8 @@ const ACHIEVEMENTS = [
   { id:'arcadeitems',  name:'Fliperama Completo',  desc:'Encontre os 3 itens de fliperama no Mundo do Jogo', reward:150, test:p=> arcadeItemCount() >= 3 },
   { id:'arcadeboss',   name:'Recorde Mundial',     desc:'Derrote o Chefão Game Over no Mundo do Jogo',    reward:500, test:p=> p.arcadeBossWon },
   { id:'shopper',      name:'Cliente Fiel',        desc:'Compre um personagem na Loja de Personagens',    reward:80,  test:p=> p.shopBuys >= 1 },
+  { id:'pets3',        name:'Treinador',           desc:'Tenha 3 mascotes',                                reward:100, test:p=> Object.values(p.pets||{}).filter(Boolean).length >= 3 },
+  { id:'petsall',      name:'Zoológico',           desc:'Tenha todos os mascotes',                         reward:400, test:p=> Object.keys(PET_DEFS).every(k=> (p.pets||{})[k]) },
   { id:'daily1',       name:'Missão do Dia',       desc:'Resgate seu primeiro Desafio Diário',            reward:60,  test:p=> p.dailyClaims >= 1 },
   { id:'daily7',       name:'Semana Perfeita',     desc:'Resgate o Desafio Diário 7 dias seguidos',       reward:400, test:p=> p.dailyBest >= 7 }
 ];
@@ -6846,6 +7005,9 @@ function checkUnlocks(){
   if (progress.level >= 10) unlockChar('zapi','Zapi');
   if (emeraldCount() >= 4) unlockChar('naia','Naia');
   if (ZEBOT_ROBOTS.every(k=> progress.robots[k])) unlockChar('zebot','Zé Bot');
+  Object.entries(PET_DEFS).forEach(([id,d])=>{      // mascotes que se ganham por conquista
+    if (d.test && !progress.pets[id] && d.test(progress)){ progress.pets[id] = true; showBanner(`🐾 Novo mascote: ${d.name} ${d.icon} (mochila → Mascotes)`); sfxPickup(); }
+  });
   EMERALD_SPECIALS.forEach(e=>{      // cada esmeralda nova libera um ataque especial
     if (specialUnlocked(e) && !progress.specialSeen[e.sp]){
       progress.specialSeen[e.sp] = true; showBanner(`⚡ Ataque especial liberado: ${ACC_SPECIALS[e.sp].name}! (mochila → Equipamento)`); sfxSpecial();
@@ -6876,7 +7038,7 @@ function checkAchievements(){
   checkingAch = false;
   saveGame();
 }
-function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals+arcadeItemBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
+function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals+arcadeItemBonus().crystals+petBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
 function refreshFollowers(){
   const order = Object.keys(ROSTER).filter(id=> progress.chars[id] && id !== progress.main);
   order.sort((a,b)=> (a===progress.sub ? -1 : 0) - (b===progress.sub ? -1 : 0));
@@ -6998,6 +7160,16 @@ function renderPanel(){
       ${d.claimed ? '' : `<button class="pBtn alt" data-dailyclaim="1" ${d.done ? '' : 'disabled'}>Resgatar</button>`}</div>`;
     h += `<div class="pSub" style="margin:8px 0">🎁 ${d.claimed ? `Amanhã, se resgatar: ${dailyReward(progress.dailyStreak + 1)} 💎` : `Recompensa de hoje: ${dailyReward(nextStreak)} 💎`} + XP. Cada dia seguido soma +20 💎 (até 10 dias). Faltam ${hh}h${String(mm).padStart(2,'0')} pro desafio mudar${st > 0 && !d.claimed ? ' — resgate hoje pra não perder a sequência!' : '.'}</div>`;
     h += `<div class="pSub">O desafio muda todo dia e fica mais difícil conforme seu nível. Conquistas: Missão do Dia (1º resgate) e Semana Perfeita (7 dias seguidos).</div>`;
+  } else if (panelTab === 'pets'){
+    h += `<div class="pHead"><span>🐾 Mascotes</span><span>💎 ${progress.crystals}</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Um mascote anda com você e ajuda nas lutas. Só um fica ativo por vez; cada um dá um bônus pequeno o tempo todo e uma ajuda a cada poucos segundos.</div>`;
+    Object.entries(PET_DEFS).forEach(([id,d])=>{
+      const has = progress.pets[id], on = progress.pet === id;
+      h += `<div class="pRow ${has ? (on ? 'done' : '') : 'locked'}"><div style="font-size:26px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${on ? ' · ATIVO' : ''}</div>
+        <div class="pSub">${petAbilityText(d)}${petPassiveText(d) ? ' · sempre: ' + petPassiveText(d) : ''}${has ? '' : ' · 🔒 ' + d.how}</div></div>
+        ${has ? `<button class="pBtn ${on ? 'alt' : ''}" data-petset="${id}" ${on ? 'disabled' : ''}>${on ? 'Ativo' : 'Chamar'}</button>`
+          : (d.cost ? `<button class="pBtn alt" data-petbuy="${id}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar (${d.cost} 💎)</button>` : '')}</div>`;
+    });
   } else if (panelTab === 'robots'){
     h += `<div class="pHead"><span>🔧 Laboratório do Duo</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">Gaste cristais pra construir robôs na vila. Só um fica equipado por vez — o poder dele soma nas suas estatísticas.</div>`;
@@ -7033,7 +7205,7 @@ function renderPanel(){
           ? ` · elemento: ${ELEMENT_LABELS[d.element]} (-30% de dano de inimigos desse elemento)`
           : ` · elemento: ${ELEMENT_LABELS[d.element]} (+50% na fraqueza, -40% na resistência do inimigo)`;
         if (d.specialBoost) stat += ` · +${Math.round(d.specialBoost*100)}% no golpe especial (K)${d.specialCrit ? ' + crítico garantido' : ''}`;
-        if (d.special) stat += ` · ⚡ ataque extra no K: ${ACC_SPECIALS[d.special].name} — ${ACC_SPECIALS[d.special].desc}`;
+        if (d.special) stat += ` · ⚡ ataque extra no K: ${ACC_SPECIALS[d.special].name} — ${ACC_SPECIALS[d.special].desc}`;      // vale pra acessório, arma e armadura
         h += `<div class="pRow ${owned ? (equipped?'done':'') : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}${equipped?' · EQUIPADO':''} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
           <div class="pSub">${stat}${owned ? '' : ` · custa ${d.cost} 💎`}</div></div>
           ${owned ? `<button class="pBtn ${equipped?'alt':''}" data-gearset="${slot}:${k}" ${equipped?'disabled':''}>${equipped?'Equipado':'Equipar'}</button>` : `<button class="pBtn alt" data-gearbuy="${slot}:${k}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
@@ -7080,6 +7252,11 @@ panelBody.addEventListener('click', e=>{
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
+  } else if (b.dataset.petset){
+    if (progress.pets[b.dataset.petset]){ progress.pet = b.dataset.petset; sfxPickup(); }
+  } else if (b.dataset.petbuy){
+    const id = b.dataset.petbuy, d = PET_DEFS[id];
+    if (d && d.cost && !progress.pets[id] && progress.crystals >= d.cost){ progress.crystals -= d.cost; progress.pets[id] = true; progress.pet = id; sfxPickup(); fxWhite = 0.4; showBanner(`🐾 ${d.name} ${d.icon} agora anda com você!`); checkAchievements(); }
   } else if (b.dataset.spset){
     const e = EMERALD_SPECIALS.find(x=> x.sp === b.dataset.spset);
     if (e && specialUnlocked(e)){ progress.special = e.sp; sfxPickup(); }
@@ -7114,7 +7291,7 @@ panelBody.addEventListener('click', e=>{
 // do Mundo Aberto (chOpen.admin, montado em buildOpenWorld); recursos e desbloqueios funcionam em qualquer lugar.
 function adminUnlock(what){
   const all = what === 'all';
-  if (all || what === 'chars') Object.keys(progress.chars).forEach(k=> progress.chars[k] = true);
+  if (all || what === 'chars'){ Object.keys(progress.chars).forEach(k=> progress.chars[k] = true); Object.keys(PET_DEFS).forEach(k=> progress.pets[k] = true); }
   if (all || what === 'gear') EQUIP_SLOTS.forEach(s=> Object.keys(EQUIP_DEFS[s]).forEach(k=> progress.equipOwned[s][k] = true));
   if (all || what === 'gems') ['lostGems','veilGems','schoolRooms','blockOres','hellSouls','bugFrags','factoryParts','arcadeItems'].forEach(f=> Object.keys(progress[f]).forEach(k=> progress[f][k] = true));
   if (all || what === 'emeralds'){
@@ -8922,6 +9099,12 @@ function fbHostStart(){
           if (fbBanned(conn.fbWho)) fbKick(conn, false); else fbRender();
           return;
         }
+        if (d.t === 'lbscore' || d.t === 'lbget'){      // placar entre amigos: guarda a pontuação de quem mandou e devolve a tabela
+          const nowLb = Date.now(); if (nowLb - (conn.lbLast || 0) < 1500) return; conn.lbLast = nowLb;
+          if (d.t === 'lbscore'){ const r = lbClean(d); if (r && !fbBanned(r.who)) lbHostStore(r); }
+          try{ conn.send({ t:'lbboard', rows:lbHostRows() }); }catch(e){}
+          return;
+        }
         if (d.t !== 'fb') return;
         const m = fbClean(d); if (!m) return;
         conn.fbWho = m.who;
@@ -9077,6 +9260,68 @@ document.getElementById('fbClose').addEventListener('click', closeFeedback);
 document.getElementById('btnFeedback').addEventListener('click', ()=> openFeedback(false));
 // o dono (quem liberou o admin) liga a caixa de entrada sozinho assim que o jogo abre — não precisa lembrar de abrir
 // o painel; se já houver outra caixa ligada em outro aparelho, a tentativa simplesmente falha em silêncio
+/* ---------------- Placar entre amigos: quem está online manda suas marcas pro aparelho do dono (o mesmo endereço da caixa de
+   bugs), que guarda a tabela e devolve pra todo mundo. Sem o dono online só aparece a sua marca. As marcas são enviadas pelo
+   próprio jogo de cada um, então não dá pra provar que não foram mexidas — é um placar de brincadeira. ---------------- */
+const lbOverlay = document.getElementById('lbOverlay'), lbBody = document.getElementById('lbBody');
+const LB_STATS = { level:{label:'Nível', icon:'⭐'}, kills:{label:'Monstros', icon:'⚔️'}, dodge:{label:'Queimada', icon:'🏃'}, duels:{label:'Duelos', icon:'🥊'}, streak:{label:'Sequência', icon:'🔥'} };
+let lbIsOpen = false, lbRows = [], lbStat = 'level', lbStatus = '', lbPeer = null, lbTO = null;
+function lbNum(v){ return Math.max(0, Math.min(999999, Math.floor(+v || 0))); }
+function lbClean(d){
+  const who = String((d && d.who) || '').trim().slice(0,16); if (!who) return null;
+  return { who, level:lbNum(d.level), kills:lbNum(d.kills), dodge:lbNum(d.dodge), duels:lbNum(d.duels), streak:lbNum(d.streak), at:Date.now() };
+}
+function lbMine(){ return { who:fbName(), level:progress.level, kills:progress.kills, dodge:progress.dodgeballHits, duels:progress.duelWins, streak:progress.dailyBest || 0 }; }
+function lbHostStore(r){
+  const board = fbLoad().board || {}; board[r.who.toLowerCase()] = r;
+  const keys = Object.keys(board);
+  if (keys.length > 80){ keys.sort((a,b)=> board[a].at - board[b].at); keys.slice(0, keys.length-80).forEach(k=> delete board[k]); }
+  fbSave({ board });
+}
+function lbHostRows(){ return Object.values(fbLoad().board || {}).map(r=> ({ who:r.who, level:r.level, kills:r.kills, dodge:r.dodge, duels:r.duels, streak:r.streak })); }
+function lbTeardown(){ clearTimeout(lbTO); lbTO = null; try{ lbPeer && lbPeer.destroy(); }catch(e){} lbPeer = null; }
+function lbRender(){
+  if (!lbIsOpen) return;
+  const me = fbName().toLowerCase();
+  const rows = lbRows.slice().sort((a,b)=> (b[lbStat]-a[lbStat]) || (b.level-a.level)).slice(0,15);
+  lbBody.innerHTML = `<div class="segGroup" id="lbTabs">${Object.entries(LB_STATS).map(([k,d])=>`<button class="segBtn${k===lbStat?' active':''}" data-lb="${k}">${d.icon} ${d.label}</button>`).join('')}</div>
+    <div class="coopStatus" style="margin:8px 0">${escapeHtml(lbStatus)}</div>
+    <div class="fbLog" style="height:230px">${rows.length ? rows.map((r,i)=>`<div class="fbMsg" style="display:flex;gap:8px;${r.who.toLowerCase()===me ? 'color:#ffe27a;font-weight:bold' : ''}"><span style="width:26px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º'}</span><span style="flex:1">${escapeHtml(r.who)}</span><span>${r[lbStat]}</span></div>`).join('') : '<div class="fbMsg" style="opacity:0.6">Ninguém no placar ainda.</div>'}</div>`;
+  document.getElementById('lbTabs').onclick = e=>{ const b = e.target.closest('[data-lb]'); if (b){ lbStat = b.dataset.lb; lbRender(); } };
+}
+function lbLoad(){
+  lbTeardown();
+  const mine = lbMine(), named = !!mine.who;
+  lbRows = named ? [Object.assign({}, mine)] : [];
+  if (!named){ lbStatus = 'Escreva seu nome em ⚙ → "Seu nome" pra aparecer no placar.'; }
+  if (fbRole === 'host'){      // o dono: a própria caixa já guarda a tabela
+    if (named) lbHostStore(Object.assign(lbClean(mine) || {}, {}));
+    lbRows = lbHostRows(); lbStatus = `Você é o dono: ${lbRows.length} jogador(es) no placar.`; lbRender(); return;
+  }
+  if (typeof Peer === 'undefined'){ lbStatus = 'Placar online indisponível agora. Aqui só aparece a sua marca.'; lbRender(); return; }
+  lbStatus = 'Buscando o placar...'; lbRender();
+  const offline = why=>{ lbTeardown(); lbStatus = why || 'O dono não está online agora, então só aparece a sua marca. O placar completo funciona quando o dono estiver com o jogo aberto.'; lbRender(); };
+  try{
+    lbPeer = new Peer({ debug:0 });
+    lbTO = setTimeout(()=> offline('Demorou demais pra conectar (rede lenta?). Tente "Atualizar".'), 15000);
+    lbPeer.on('open', ()=>{
+      const c = lbPeer.connect(FB_HUB_ID, { reliable:true });
+      c.on('open', ()=>{ try{ c.send(named ? Object.assign({ t:'lbscore' }, mine) : { t:'lbget' }); }catch(e){} });
+      c.on('data', d=>{
+        if (!d || d.t !== 'lbboard' || !Array.isArray(d.rows)) return;
+        lbRows = d.rows.map(r=> lbClean(r)).filter(Boolean).slice(0, 100);
+        lbStatus = `Placar online · ${lbRows.length} jogador(es)`; clearTimeout(lbTO); lbTO = null; lbRender();
+        setTimeout(lbTeardown, 800);
+      });
+    });
+    lbPeer.on('error', err=> offline(err && err.type === 'peer-unavailable' ? null : `Não consegui conectar (${(err && err.type) || 'erro'}). Só aparece a sua marca.`));
+  } catch(e){ offline(); }
+}
+function openBoard(){ lbIsOpen = true; lbOverlay.classList.add('open'); lbLoad(); }
+function closeBoard(){ lbIsOpen = false; lbOverlay.classList.remove('open'); lbTeardown(); }
+document.getElementById('btnBoard').addEventListener('click', openBoard);
+document.getElementById('lbClose').addEventListener('click', closeBoard);
+document.getElementById('lbRefresh').addEventListener('click', lbLoad);
 function fbAutoHost(){ if (progress.adminUnlocked && fbRole !== 'host' && !fbIsOpen) fbHostStart(); }
 setTimeout(fbAutoHost, 2000);
 
