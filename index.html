@@ -175,6 +175,12 @@
   #fbBox h3, #lbBox h3 { color:#9fb8ff; font-size:17px; text-align:center; letter-spacing:1px; margin:0; }
   .fbLog { height:150px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; background:#0b0f1e; border:1px solid #2a3560; border-radius:8px; padding:7px 9px; }
   .fbMsg { font-size:12px; color:#e4eaff; word-break:break-word; }
+  .cardGrid { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 8px; }
+  .cardBox { width:80px; position:relative; background:#12182c; border:1px solid #2a3560; border-radius:8px; padding:4px; text-align:center; }
+  .cardBox.got { border-color:#ffd54a; background:#1c2140; }
+  .cardCv { width:72px; height:70px; display:block; margin:0 auto; }
+  .cardName { font-size:10px; color:#cfe0ff; height:26px; overflow:hidden; line-height:1.25; }
+  .cardN { position:absolute; top:2px; right:5px; font-size:11px; color:#ffd54a; font-weight:bold; }
   .fbPeople:empty { display:none; }
   .fbPeople { font-size:12px; color:#e4eaff; background:#0b0f1e; border:1px solid #2a3560; border-radius:8px; padding:6px 9px; display:flex; flex-direction:column; gap:4px; max-height:110px; overflow-y:auto; }
   .fbPeopleHead { font-weight:bold; opacity:0.8; }
@@ -197,7 +203,7 @@
     background:linear-gradient(180deg,#171c34,#0c0f1e); border:1px solid #3a4a70; border-radius:12px; padding:var(--sp-3);
   }
   .panelTabs { display:flex; gap:8px; flex-wrap:wrap; }
-  .panelTabs .segBtn { min-width:0; }
+  .panelTabs .segBtn { min-width:78px; flex:1 1 auto; white-space:nowrap; }
   #panelBody { overflow-y:auto; display:flex; flex-direction:column; gap:8px; font-size:var(--font-sm); color:#dfe8ff; }
   .pRow { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.05); border:1px solid #2a3a63; border-radius:8px; padding:8px 10px; }
   .pRow .pInfo { flex:1; min-width:0; }
@@ -409,6 +415,9 @@
           <button class="segBtn" data-tab="chars">🧑 Personagens</button>
           <button class="segBtn" data-tab="robots">🤖 Robôs</button>
           <button class="segBtn" data-tab="pets">🐾 Mascotes</button>
+          <button class="segBtn" data-tab="collection">🃏 Coleção</button>
+          <button class="segBtn" data-tab="merchant">🛍️ Loja do dia</button>
+          <button class="segBtn" data-tab="house">🏠 Casa</button>
           <button class="segBtn" data-tab="equip">🗡️ Equipamento</button>
           <button class="segBtn" data-tab="daily">📅 Diário</button>
           <button class="segBtn" data-tab="ach">🏆 Conquistas</button>
@@ -722,6 +731,115 @@ const PET_DEFS = {
   pixelzinho:{ name:'Pixelzinho',        icon:'👾', how:'derrote o Chefão Game Over (Mundo do Jogo)', test:p=> p.arcadeBossWon,        ab:{kind:'charge', every:4,  amt:7},    passive:{sp:0.05} },
   dragao:    { name:'Dragãozinho',       icon:'🐉', how:'reúna as 6 esmeraldas de desafio',         test:p=> emeraldCount() >= 6,      ab:{kind:'heal',   every:8,  amt:0.07}, passive:{atk:4, hp:8} }
 };
+/* ---------------- Coleção: cartas de monstros (caem ao derrotá-los; set completo dá bônus) e álbum de peixes ---------------- */
+const CARD_NAMES = { drone:'Drone Selvagem', shadowPredator:'Predador das Sombras', predator:'Predador de Vulcrom', hunter:'Caçador Errante',
+  plant:'Planta-Olho', mechaEnemy:'Piloto Alienígena', armaGuardia:'Guardião da Arma', titan:'Titã', giant:'Gigante', king:'Rei',
+  faceless:'Sem-Rosto', smiler:'Sorridente', crawler:'Rastejante', eyeAngel:'Anjo-Olho', ortsa:'Ortsa', wordDevourer:'Devorador de Palavras',
+  universeDevourer:'Devorador de Universos', professora:'Professora', bombom:'Bombom Verde', golemPedra:'Golem de Pedra', lordeCaos:'Lorde do Caos',
+  erroFatal:'Erro Fatal', mega9000:'MEGA-9000', chefaoGO:'Chefão Game Over' };
+const CARD_SETS = {
+  selvagens: { name:'Selvagens',           icon:'🐾', bonus:{atk:5},          text:'+5 de ataque',               types:['drone','shadowPredator','predator','hunter'] },
+  capitulos: { name:'Aventura Principal',  icon:'📖', bonus:{hp:10},          text:'+10 de vida',                types:['plant','mechaEnemy','armaGuardia','titan','giant','king'] },
+  sombras:   { name:'Sombras e Véu',       icon:'👁️', bonus:{crit:0.04},      text:'+4% de chance crítica',      types:['faceless','smiler','crawler','eyeAngel'] },
+  finais:    { name:'Devoradores',         icon:'🌌', bonus:{atk:8},          text:'+8 de ataque',               types:['ortsa','wordDevourer','universeDevourer'] },
+  mundos:    { name:'Mundos Bônus',        icon:'🌀', bonus:{hp:12, atk:3},   text:'+12 de vida e +3 de ataque', types:['professora','bombom','golemPedra','lordeCaos','erroFatal','mega9000','chefaoGO'] }
+};
+const CARD_BOSSES = ['ortsa','wordDevourer','universeDevourer','golemPedra','lordeCaos','erroFatal','mega9000','chefaoGO','king'];      // chefes sempre largam a carta
+function cardSetDone(id){ return CARD_SETS[id].types.every(t=> progress.cards[t] > 0); }
+function cardBonus(){
+  const out = { hp:0, atk:0, crit:0 };
+  Object.entries(CARD_SETS).forEach(([id,s])=>{ if (cardSetDone(id)) Object.keys(s.bonus).forEach(k=> out[k] += s.bonus[k]); });
+  return out;
+}
+function cardDrop(type){
+  if (!CARD_NAMES[type]) return;
+  if (!(CARD_BOSSES.includes(type) || Math.random() < 0.14)) return;
+  const had = progress.cards[type] > 0;
+  progress.cards[type] = (progress.cards[type] || 0) + 1;
+  if (had){ progress.crystals += 8; progress.earned += 8; showBanner(`🃏 Carta repetida: ${CARD_NAMES[type]} (+8 💎)`); }
+  else {
+    const done = Object.keys(CARD_SETS).find(id=> CARD_SETS[id].types.includes(type) && cardSetDone(id));
+    showBanner(done ? `🃏 Coleção completa: ${CARD_SETS[done].name}! ${CARD_SETS[done].text}` : `🃏 Nova carta: ${CARD_NAMES[type]}!`); sfxPickup();
+  }
+}
+const FISH_DEFS = {
+  sardinha: { name:'Sardinha',       icon:'🐟', kg:[0.1,0.3],  gain:[12,22],   rarity:'comum',    weight:34 },
+  tilapia:  { name:'Tilápia',        icon:'🐠', kg:[0.4,1.2],  gain:[16,30],   rarity:'comum',    weight:26 },
+  baiacu:   { name:'Baiacu Inflado', icon:'🐡', kg:[0.5,1.5],  gain:[22,40],   rarity:'raro',     weight:14 },
+  polvo:    { name:'Polvo Roxo',     icon:'🐙', kg:[1,4],      gain:[30,50],   rarity:'raro',     weight:8 },
+  tubarao:  { name:'Tubarãozinho',   icon:'🦈', kg:[3,12],     gain:[45,75],   rarity:'epico',    weight:4 },
+  dourado:  { name:'Peixe Dourado',  icon:'🏅', kg:[0.3,0.8],  gain:[80,120],  rarity:'lendario', weight:1.5 },
+  sol:      { name:'Peixe-sol',      icon:'☀️', kg:[0.5,2],    gain:[60,90],   rarity:'epico',    weight:7,  when:'dia' },
+  lanterna: { name:'Peixe-lanterna', icon:'💡', kg:[0.2,0.6],  gain:[40,70],   rarity:'epico',    weight:12, when:'noite' },
+  lua:      { name:'Peixe-lua',      icon:'🌙', kg:[8,30],     gain:[100,150], rarity:'lendario', weight:3,  when:'noite' }
+};
+/* ---------------- Dia e noite: acompanha o relógio do aparelho (7h–18h dia, 20h–5h noite, com amanhecer/entardecer suave) ---------------- */
+let owForceDark = null;      // admin: força dia (0) ou noite (1) pra testar
+function owDark(){
+  if (owForceDark != null) return owForceDark;
+  const n = new Date(), t = n.getHours() + n.getMinutes()/60;
+  if (t < 5 || t >= 20) return 1; if (t < 7) return 1-(t-5)/2; if (t < 18) return 0; return (t-18)/2;
+}
+function owIsNight(){ return owDark() >= 0.6; }
+/* ---------------- Casa do Duo: móveis comprados com cristais aparecem na casa; troféus dos chefes derrotados ficam numa prateleira ---------------- */
+const HOME_ITEMS = {
+  sofa:    { name:'Sofá',            icon:'🛋️', cost:120, x:150, y:420, s:66 },
+  tv:      { name:'Televisão',       icon:'📺', cost:200, x:150, y:330, s:46 },
+  cama:    { name:'Cama gigante',    icon:'🛏️', cost:150, x:810, y:400, s:68 },
+  planta:  { name:'Planta',          icon:'🪴', cost:60,  x:330, y:310, s:46 },
+  quadro:  { name:'Quadro na parede', icon:'🖼️', cost:80,  x:330, y:150, s:42 },
+  luz:     { name:'Luminária',       icon:'🕯️', cost:70,  x:700, y:310, s:38 },
+  aquario: { name:'Aquário',         icon:'🐠', cost:180, x:590, y:330, s:48 },
+  violao:  { name:'Violão',          icon:'🎸', cost:110, x:260, y:480, s:44 },
+  console: { name:'Videogame',       icon:'🎮', cost:160, x:480, y:455, s:44 }
+};
+const HOME_TROPHIES = [ ['hellBossWon','👹','Lorde do Caos'], ['blockBossWon','🗿','Golem de Pedra'], ['bugBossWon','💻','Erro Fatal'], ['factoryBossWon','🤖','MEGA-9000'],
+  ['arcadeBossWon','🕹️','Chefão Game Over'], ['veilBossWon','😇','Arquiteto do Véu'], ['backroomsBossWon','👁️','Entidade Suprema'], ['finalWins','🌌','Devorador de Universos'] ];
+function homeCount(){ return Object.keys(HOME_ITEMS).filter(id=> progress.home[id]).length; }
+function drawHomeDecor(g){
+  g.save(); g.textAlign = 'center'; g.textBaseline = 'middle';
+  Object.entries(HOME_ITEMS).forEach(([id,d])=>{
+    if (!progress.home[id]) return;
+    g.fillStyle = 'rgba(0,0,0,0.25)'; g.beginPath(); g.ellipse(d.x, d.y+d.s*0.42, d.s*0.42, d.s*0.12, 0, 0, Math.PI*2); g.fill();
+    g.font = `${d.s}px sans-serif`; g.fillStyle = '#fff'; g.fillText(d.icon, d.x, d.y);
+    if (id === 'luz'){ g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,200,100,${0.14+0.04*Math.sin(Date.now()/400)})`; g.beginPath(); g.arc(d.x, d.y, 90, 0, Math.PI*2); g.fill(); g.restore(); }
+  });
+  const won = HOME_TROPHIES.filter(([k])=> progress[k] > 0 || progress[k] === true);      // troféus: uma estatuinha por chefe derrotado, na faixa de baixo da casa
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(40, 520, 340, 44); g.fillRect(580, 520, 340, 44);
+  HOME_TROPHIES.forEach(([k,icon],i)=>{
+    const x = i < 6 ? 70+i*52 : 610+(i-6)*52, y = 542, has = progress[k] > 0 || progress[k] === true;
+    g.font = '30px sans-serif'; g.globalAlpha = has ? 1 : 0.18; g.fillStyle = '#fff'; g.fillText(icon, x, y); g.globalAlpha = 1;
+  });
+  g.font = 'bold 11px sans-serif'; g.fillStyle = 'rgba(255,230,180,0.8)'; g.fillText(`🏆 Troféus ${won.length}/${HOME_TROPHIES.length}`, 210, 512);
+  g.restore();
+}
+/* ---------------- Mercador do Dia: 3 ofertas sorteadas pela data, com 30% de desconto ---------------- */
+const CONSUMABLES = { xp:{ name:'Pergaminho de XP', icon:'📜', price:150, text:'+120 XP na hora' }, bau:{ name:'Baú Misterioso', icon:'🎁', price:90, text:'de 60 a 220 cristais lá dentro' } };
+function shopDeals(){
+  const k = dailyKey();
+  if (progress.shopDay && progress.shopDay.date === k) return progress.shopDay;
+  let h = 7; for (const ch of k) h = (h*33 + ch.charCodeAt(0)) >>> 0;
+  const rnd = ()=>{ h = (h*1664525 + 1013904223) >>> 0; return h/4294967296; };
+  const pool = [];
+  EQUIP_SLOTS.forEach(slot=> Object.entries(EQUIP_DEFS[slot]).forEach(([id,d])=>{ if (!d.secret && d.cost > 0 && !progress.equipOwned[slot][id]) pool.push({ slot, id }); }));
+  const items = [];
+  while (items.length < 3 && pool.length) items.push(pool.splice(Math.floor(rnd()*pool.length), 1)[0]);
+  const cons = Object.keys(CONSUMABLES);
+  while (items.length < 3) items.push({ slot:'cons', id:cons[Math.floor(rnd()*cons.length)] });
+  progress.shopDay = { date:k, items:items.map(it=> Object.assign({ bought:false }, it)) };
+  return progress.shopDay;
+}
+function shopPrice(it){ return it.slot === 'cons' ? CONSUMABLES[it.id].price : Math.round(EQUIP_DEFS[it.slot][it.id].cost*0.7); }
+function shopBuy(i){
+  const it = shopDeals().items[i]; if (!it || it.bought) return;
+  if (it.slot !== 'cons' && progress.equipOwned[it.slot][it.id]) return;
+  const price = shopPrice(it); if (progress.crystals < price) return;
+  progress.crystals -= price; it.bought = true;
+  if (it.slot === 'cons'){
+    if (it.id === 'xp') grantXp(120); else { const g = rnd(60,220); progress.crystals += g; progress.earned += g; showBanner(`🎁 O baú tinha ${g} 💎!`); }
+  } else { progress.equipOwned[it.slot][it.id] = true; progress.equip[it.slot] = it.id; }
+  sfxPickup(); fxWhite = 0.4; checkAchievements();
+}
 function petAbilityText(d){
   const a = d.ab;
   return a.kind === 'heal' ? `a cada ${a.every}s cura ${Math.round(a.amt*100)}% da vida` : a.kind === 'hit' ? `a cada ${a.every}s ataca o inimigo (${Math.round(a.mul*100)}% do seu ataque)`
@@ -955,7 +1073,7 @@ function computePowerScore(){
 }
 function freshProgress(){
   return { crystals:0, earned:0, kills:0, arenaWins:0, hpLv:0, atkLv:0, spLv:0, dashLv:0, critLv:0, level:1, xp:0, bugGem:false, backrooms:false, finalWins:0,
-    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, pets:{ pintinho:true }, pet:'pintinho', special:null, specialSeen:{}, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
+    duelWins:0, duelLosses:0, fishCaught:0, dodgeballHits:0, classGameHits:0, secretBossWins:0, backroomsBossWon:false, veilBossWon:false, veilUnlocked:false, immortalCode:false, veilBlessed:false, voidUnlocked:false, blockBossWon:false, hellBossWon:false, bugBossWon:false, adminUnlocked:false, adminKey:'', playerName:'', factoryBossWon:false, arcadeBossWon:false, shopBuys:0, pets:{ pintinho:true }, pet:'pintinho', cards:{}, fishDex:{}, fishBest:{}, shopDay:null, home:{}, special:null, specialSeen:{}, daily:null, dailyStreak:0, dailyBest:0, dailyLastClaim:'', dailyClaims:0,
     emeralds:{ life:false, special:false, attack:false, speed:false, crit:false, sky:false },
     lostGems:{ forest:false, fungo:false, pantano:false, deserto:false, lava:false, costa:false },
     veilGems:{ luz:false, graca:false, eternidade:false },
@@ -995,6 +1113,9 @@ function loadGame(){
     });
     Object.assign(fresh, data.progress, { chars:fresh.chars, emeralds:fresh.emeralds, lostGems:fresh.lostGems, veilGems:fresh.veilGems, schoolRooms:fresh.schoolRooms, blockOres:fresh.blockOres, hellSouls:fresh.hellSouls, bugFrags:fresh.bugFrags, factoryParts:fresh.factoryParts, arcadeItems:fresh.arcadeItems, robots:fresh.robots, quests:fresh.quests, equipOwned:fresh.equipOwned, redeemedCodes:fresh.redeemedCodes, achievements:fresh.achievements, forms:fresh.forms, visited:fresh.visited });
     Object.assign(progress, fresh);
+    // um bug passageiro dos mascotes deixou cristais "NaN" em alguns saves: repara (com um pouco de cristais de desculpa)
+    if (!Number.isFinite(progress.crystals)) progress.crystals = 500;
+    if (!Number.isFinite(progress.earned)) progress.earned = Math.max(0, progress.crystals);
     if (progress.adminUnlocked && progress.adminKey !== ADMIN_HASH) progress.adminUnlocked = false;   // admin liberado pelo código antigo (público) deixa de valer
     Object.assign(upgrades, data.upgrades || {});
     Object.assign(unlocked, data.unlocked || {});
@@ -1006,19 +1127,19 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); } catch(e){} }
 function emeraldCount(){ return Object.values(progress.emeralds).filter(Boolean).length; }
 // final combat stats for a roster member, folding in upgrades, emeralds and every story item
 function rosterStats(id, isMain){
-  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus(), pb = petBonus();
+  const r = ROSTER[id], p = progress, em = p.emeralds, lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), bo = blockOreBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus(), pb = petBonus(), cb = cardBonus();
   const fm = isMain ? FORMS[p.form || 'normal'] : FORMS.normal;      // Super / Max forms only power up whoever leads
-  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + fp.hp + (rb.hp||0) + (pb.hp||0) + eq.hp)*fm.hp);
+  const hp = Math.round(((isMain?60:50)*r.hp + p.hpLv*12 + (p.level-1)*3 + (em.life?25:0) + (em.sky?10:0) + (upgrades.jewelOfLife?15:0) + lg.hp + vg.hp + sr.hp + bo.hp + hs.hp + bf.hp + fp.hp + (rb.hp||0) + (pb.hp||0) + (cb.hp||0) + eq.hp)*fm.hp);
   const atk = Math.round((Math.round(9*r.atk) + p.atkLv*(isMain?4:2) + (p.level-1) + (em.attack?15:0) + (em.sky?6:0)
-    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + fp.atk + ai.atk + (rb.atk||0) + (pb.atk||0) + eq.atk)*fm.atk);
+    + (upgrades.emeraldOfPower?10:0) + (upgrades.alienWeapon?20:0) + (upgrades.monsterEmerald?12:0) + lg.atk + vg.atk + sr.atk + bo.atk + hs.atk + bf.atk + fp.atk + ai.atk + (rb.atk||0) + (pb.atk||0) + (cb.atk||0) + eq.atk)*fm.atk);
   return { name:r.name, type:id, hp, maxHp:hp, atk };
 }
 function progressMods(){
-  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus(), pb = petBonus();
+  const p = progress, em = p.emeralds, r = ROSTER[p.main], lg = lostGemBonus(), vg = veilGemBonus(), sr = schoolRoomBonus(), hs = hellSoulBonus(), bf = bugFragBonus(), fp = factoryPartBonus(), ai = arcadeItemBonus(), rb = robotBonus(), eq = equipBonus(), pb = petBonus(), cb = cardBonus();
   return {
     spGain: r.spGain*(1 + p.spLv*UPGRADE_DEFS.sp.per + (em.special?0.5:0) + (em.sky?0.25:0) + lg.sp + sr.sp + bf.sp + ai.sp + (rb.sp||0) + (pb.sp||0) + eq.sp)*FORMS[p.form||'normal'].sp,
     dashCdMul: Math.max(0.3, r.dashMul*(1 - p.dashLv*UPGRADE_DEFS.dash.per - (em.speed?0.25:0) - lg.dash - (rb.dash||0) - eq.dash)*FORMS[p.form||'normal'].dash),
-    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + hs.crit + fp.crit + (rb.crit||0) + eq.crit,
+    critAdd: r.crit + p.critLv*UPGRADE_DEFS.crit.per + (em.crit?0.12:0) + lg.crit + vg.crit + sr.crit + hs.crit + fp.crit + (rb.crit||0) + (cb.crit||0) + eq.crit,
     bug: !!p.bugGem
   };
 }
@@ -3267,6 +3388,10 @@ function renderScene(){
   // screen-wide finishing: colour grade, drifting ambience, soft dark edges
   if (sfx.tint && !duelActive && fxQuality() > 0){ ctx.fillStyle = sfx.tint; ctx.fillRect(0,0,W,H); }
   fxAmbient(ctx, sfx.ambient, tSec);
+  if (currentScene.isOpenWorld){      // noite: tudo escurece e esfria aos poucos (acompanha o relógio do aparelho)
+    const dk = owDark();
+    if (dk > 0.02){ ctx.fillStyle = `rgba(8,12,56,${(0.44*dk).toFixed(3)})`; ctx.fillRect(0,0,W,H); }
+  }
   if (fxQuality() > 0) ctx.drawImage(fxVignette, 0, 0);
   fxDrawSpeed(ctx, tSec);
   if (fxWhite > 0.01){ ctx.fillStyle = `rgba(255,255,255,${Math.min(0.9,fxWhite).toFixed(3)})`; ctx.fillRect(0,0,W,H); }
@@ -3550,7 +3675,7 @@ function hitEnemy(dmg, o){
   else if (elResist) fxText(ex, ey-118, 'RESISTENTE', '#7fa8ff', 20);
   fxHitStop = Math.max(fxHitStop, o.stop != null ? o.stop : (o.crit || o.heavy ? 0.09 : 0.045));
   refreshHpUI(); refreshSpecialUI();
-  if (b.enemy.hp <= 0) return defeatEnemy();
+  if (b.enemy.hp <= 0){ cardDrop(b.enemy.type); return defeatEnemy(); }
   return false;
 }
 // returns true when the whole battle is over
@@ -5246,10 +5371,14 @@ function drawOpenArea(g, ix, iy, t){
     const slot = Math.floor(t*4);
     if (b === 'storm' && fxRand(slot,67) > 0.8){ g.fillStyle = 'rgba(220,210,255,0.35)'; g.fillRect(0,0,W,hz+10); }
     g.fillStyle = b==='storm' ? 'rgba(160,110,255,0.12)' : 'rgba(255,90,40,0.10)'; g.beginPath(); g.ellipse(W*0.7,hz,260,60,0,0,Math.PI*2); g.fill();
-  } else if (b !== 'cave' && b !== 'graveyard' && b !== 'mushroom' && b !== 'crystal'){
+  } else if (b !== 'cave' && b !== 'graveyard' && b !== 'mushroom' && b !== 'crystal' && owDark() < 0.5){
     g.fillStyle = 'rgba(255,250,220,0.55)'; g.beginPath(); g.arc(W*0.8,46,20,0,Math.PI*2); g.fill();
   } else {
     g.fillStyle = 'rgba(255,255,255,0.7)'; for (let i=0;i<30;i++) g.fillRect(fxRand(i,68)*W, fxRand(i,69)*90, 1.6, 1.6);
+    if (owDark() >= 0.5 && b !== 'cave' && b !== 'graveyard' && b !== 'mushroom' && b !== 'crystal'){      // lua no lugar do sol
+      g.fillStyle = 'rgba(235,240,255,0.85)'; g.beginPath(); g.arc(W*0.8,46,17,0,Math.PI*2); g.fill();
+      g.fillStyle = 'rgba(20,30,70,0.5)'; g.beginPath(); g.arc(W*0.8+7,42,14,0,Math.PI*2); g.fill();
+    }
   }
   drawOwFar(g, st, t);
   const gg = g.createLinearGradient(0,hz,0,H); gg.addColorStop(0,st.gr[0]); gg.addColorStop(1,st.gr[1]);
@@ -6933,6 +7062,10 @@ const ACHIEVEMENTS = [
   { id:'arcadeitems',  name:'Fliperama Completo',  desc:'Encontre os 3 itens de fliperama no Mundo do Jogo', reward:150, test:p=> arcadeItemCount() >= 3 },
   { id:'arcadeboss',   name:'Recorde Mundial',     desc:'Derrote o Chefão Game Over no Mundo do Jogo',    reward:500, test:p=> p.arcadeBossWon },
   { id:'shopper',      name:'Cliente Fiel',        desc:'Compre um personagem na Loja de Personagens',    reward:80,  test:p=> p.shopBuys >= 1 },
+  { id:'cards10',      name:'Colecionador',        desc:'Junte 10 cartas de monstros',                     reward:100, test:p=> Object.values(p.cards||{}).filter(n=> n > 0).length >= 10 },
+  { id:'cardsall',     name:'Álbum Completo',      desc:'Junte todas as cartas de monstros',               reward:500, test:p=> Object.keys(CARD_NAMES).every(t=> (p.cards||{})[t] > 0) },
+  { id:'fishdex',      name:'Mestre Pescador',     desc:'Complete o álbum de peixes (inclui os de dia e de noite)', reward:300, test:p=> Object.keys(FISH_DEFS).every(f=> (p.fishDex||{})[f]) },
+  { id:'homeall',      name:'Lar Doce Lar',        desc:'Compre todos os móveis da Casa do Duo',           reward:200, test:p=> Object.keys(HOME_ITEMS).every(h=> (p.home||{})[h]) },
   { id:'pets3',        name:'Treinador',           desc:'Tenha 3 mascotes',                                reward:100, test:p=> Object.values(p.pets||{}).filter(Boolean).length >= 3 },
   { id:'petsall',      name:'Zoológico',           desc:'Tenha todos os mascotes',                         reward:400, test:p=> Object.keys(PET_DEFS).every(k=> (p.pets||{})[k]) },
   { id:'daily1',       name:'Missão do Dia',       desc:'Resgate seu primeiro Desafio Diário',            reward:60,  test:p=> p.dailyClaims >= 1 },
@@ -7038,7 +7171,7 @@ function checkAchievements(){
   checkingAch = false;
   saveGame();
 }
-function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals+arcadeItemBonus().crystals+petBonus().crystals)); progress.crystals += n; progress.earned += n; checkAchievements(); }
+function grantCrystals(n){ n = Math.round(n*(1+lostGemBonus().crystals+blockOreBonus().crystals+arcadeItemBonus().crystals+(petBonus().crystals||0))); progress.crystals += n; progress.earned += n; checkAchievements(); }
 function refreshFollowers(){
   const order = Object.keys(ROSTER).filter(id=> progress.chars[id] && id !== progress.main);
   order.sort((a,b)=> (a===progress.sub ? -1 : 0) - (b===progress.sub ? -1 : 0));
@@ -7170,6 +7303,45 @@ function renderPanel(){
         ${has ? `<button class="pBtn ${on ? 'alt' : ''}" data-petset="${id}" ${on ? 'disabled' : ''}>${on ? 'Ativo' : 'Chamar'}</button>`
           : (d.cost ? `<button class="pBtn alt" data-petbuy="${id}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar (${d.cost} 💎)</button>` : '')}</div>`;
     });
+  } else if (panelTab === 'collection'){
+    const total = Object.keys(CARD_NAMES).length, got = Object.keys(CARD_NAMES).filter(t=> progress.cards[t] > 0).length;
+    h += `<div class="pHead"><span>🃏 Cartas de monstros ${got}/${total}</span><span>completar um set dá bônus</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Cada monstro derrotado pode largar a carta dele (chefes sempre largam). Carta repetida vira +8 💎.</div>`;
+    Object.entries(CARD_SETS).forEach(([sid,s])=>{
+      const n = s.types.filter(t=> progress.cards[t] > 0).length;
+      h += `<div class="pHead" style="margin-top:6px"><span>${s.icon} ${s.name} (${n}/${s.types.length})</span><span>${cardSetDone(sid) ? '✅ ' : 'ao completar: '}${s.text}</span></div>`;
+      h += `<div class="cardGrid">${s.types.map(t=> `<div class="cardBox ${progress.cards[t] > 0 ? 'got' : ''}"><canvas class="cardCv" data-card="${t}" width="72" height="70"></canvas><div class="cardName">${progress.cards[t] > 0 ? CARD_NAMES[t] : '???'}</div>${progress.cards[t] > 1 ? `<span class="cardN">x${progress.cards[t]}</span>` : ''}</div>`).join('')}</div>`;
+    });
+    const fishGot = Object.keys(FISH_DEFS).filter(id=> progress.fishDex[id]).length;
+    h += `<div class="pHead" style="margin-top:10px"><span>🎣 Álbum de peixes ${fishGot}/${Object.keys(FISH_DEFS).length}</span><span>pesque na Praia Calma</span></div>`;
+    Object.entries(FISH_DEFS).forEach(([id,f])=>{
+      const c = progress.fishDex[id], rar = RARITY_DEFS[f.rarity];
+      h += `<div class="pRow ${c ? '' : 'locked'}" style="border-left:3px solid ${rar.color}"><div style="font-size:22px">${c ? f.icon : '❔'}</div><div class="pInfo"><div class="pTitle">${c ? f.name : '???'} <span style="color:${rar.color};font-size:11px">● ${rar.label}</span></div>
+        <div class="pSub">${c ? `pescado ${c}x · maior: ${progress.fishBest[id]} kg` : (f.when === 'noite' ? 'só aparece de noite 🌙' : (f.when === 'dia' ? 'só aparece de dia ☀️' : 'ainda não pescado'))}</div></div></div>`;
+    });
+  } else if (panelTab === 'merchant'){
+    const deals = shopDeals();
+    h += `<div class="pHead"><span>🛍️ Mercador do Dia</span><span>💎 ${progress.crystals}</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Três ofertas com 30% de desconto, sorteadas pela data — mudam todo dia. Converse com o mercador na vila ou volte aqui amanhã.</div>`;
+    deals.items.forEach((it,i)=>{
+      const cons = it.slot === 'cons', d = cons ? CONSUMABLES[it.id] : EQUIP_DEFS[it.slot][it.id], price = shopPrice(it), owned = !cons && progress.equipOwned[it.slot][it.id];
+      const rar = !cons && RARITY_DEFS[d.rarity];
+      const stat = cons ? d.text : Object.entries(d).filter(([sk])=> ['hp','atk','crit','dash','sp'].includes(sk)).map(([sk,sv])=> ({hp:'+'+sv+' vida', atk:'+'+sv+' ataque', crit:'+'+Math.round(sv*100)+'% crítico', dash:'-'+Math.round(sv*100)+'% recarga de dash', sp:'+'+Math.round(sv*100)+'% especial'}[sk])).join(', ') + (d.special ? ` · ⚡ ${ACC_SPECIALS[d.special].name}` : '') + (d.element ? ` · ${ELEMENT_LABELS[d.element]}` : '');
+      const slotLabel = cons ? 'Item' : ({weapon:'Arma', armor:'Armadura', accessory:'Acessório'})[it.slot];
+      h += `<div class="pRow ${it.bought || owned ? 'done' : ''}" style="${rar ? 'border-left:3px solid '+rar.color : ''}"><div style="font-size:24px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name} <span style="font-size:11px;opacity:0.7">${slotLabel}</span></div>
+        <div class="pSub">${stat} · <s style="opacity:0.6">${cons ? Math.round(price/0.7) : d.cost} 💎</s> <b>${price} 💎</b></div></div>
+        ${it.bought ? '<b>COMPRADO</b>' : (owned ? '<b>JÁ TEM</b>' : `<button class="pBtn alt" data-deal="${i}" ${progress.crystals < price ? 'disabled' : ''}>Comprar</button>`)}</div>`;
+    });
+  } else if (panelTab === 'house'){
+    h += `<div class="pHead"><span>🏠 Casa do Duo (${homeCount()}/${Object.keys(HOME_ITEMS).length} móveis)</span><span>💎 ${progress.crystals}</span></div>`;
+    h += `<div class="pSub" style="margin-bottom:4px">Entre pela casinha da esquerda na vila. Móveis comprados aparecem na casa, e cada chefe derrotado ganha um troféu na prateleira de baixo.</div>`;
+    Object.entries(HOME_ITEMS).forEach(([id,d])=>{
+      const has = progress.home[id];
+      h += `<div class="pRow ${has ? 'done' : ''}"><div style="font-size:24px">${d.icon}</div><div class="pInfo"><div class="pTitle">${d.name}</div><div class="pSub">${has ? 'na sua casa' : `custa ${d.cost} 💎`}</div></div>
+        ${has ? '<b>✅</b>' : `<button class="pBtn alt" data-homebuy="${id}" ${progress.crystals < d.cost ? 'disabled' : ''}>Comprar</button>`}</div>`;
+    });
+    h += `<div class="pHead" style="margin-top:6px"><span>🏆 Troféus</span></div>`;
+    HOME_TROPHIES.forEach(([k,icon,name])=>{ const has = progress[k] > 0 || progress[k] === true; h += `<div class="pRow ${has ? 'done' : 'locked'}"><div style="font-size:22px">${has ? icon : '❔'}</div><div class="pInfo"><div class="pTitle">${has ? name : '???'}</div><div class="pSub">${has ? 'na prateleira da casa' : 'derrote este chefe'}</div></div></div>`; });
   } else if (panelTab === 'robots'){
     h += `<div class="pHead"><span>🔧 Laboratório do Duo</span><span>💎 ${progress.crystals}</span></div>`;
     h += `<div class="pSub" style="margin-bottom:4px">Gaste cristais pra construir robôs na vila. Só um fica equipado por vez — o poder dele soma nas suas estatísticas.</div>`;
@@ -7220,7 +7392,7 @@ function renderPanel(){
     h += `<div class="pHead"><span>Desbloquear</span></div>`;
     h += btns([['unlock:chars','Personagens'],['unlock:gear','Equipamentos'],['unlock:gems','Joias e colecionáveis'],['unlock:emeralds','Esmeraldas'],['unlock:forms','Super/Max'],['unlock:robots','Robôs'],['unlock:portals','Portais (Vazio e Véu)'],['unlock:all','🔓 TUDO']]);
     h += `<div class="pHead"><span>Modos</span></div>`;
-    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles'],['daily:done','📅 Completar desafio diário'],['fb:host', fbRole === 'host' ? '📬 Caixa de bugs: ABERTA (ver)' : '📬 Abrir caixa de bugs e sugestões']]);
+    h += btns([['toggle:imortal', progress.immortalCode ? '☠️ Imortal: LIGADO' : '☠️ Imortal: desligado'],['puzzles','🧩 Resolver puzzles'],['daily:done','📅 Completar desafio diário'],['unlock:coll','🃏 Cartas, peixes e casa'],['time:night','🌙 Forçar noite'],['time:day','☀️ Forçar dia'],['time:auto','⏱️ Hora real'],['fb:host', fbRole === 'host' ? '📬 Caixa de bugs: ABERTA (ver)' : '📬 Abrir caixa de bugs e sugestões']]);
     if (!ad){
       h += `<div class="pSub" style="margin:8px 0">Teleporte e chefes só funcionam no Mundo Aberto — comece uma partida lá primeiro.</div>`;
     } else {
@@ -7239,6 +7411,17 @@ function renderPanel(){
     });
   }
   panelBody.innerHTML = h;
+  if (panelTab === 'collection') paintCards();
+}
+// desenha cada carta com o sprite do monstro (silhueta escura enquanto a carta não foi encontrada)
+function paintCards(){
+  panelBody.querySelectorAll('canvas[data-card]').forEach(cv=>{
+    const t = cv.dataset.card, g = cv.getContext('2d'), d = DRAW[t];
+    g.clearRect(0,0,cv.width,cv.height);
+    if (!d) return;
+    try{ d(g, 36, 40, 17, false); }catch(err){}
+    if (!(progress.cards[t] > 0)){ g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(8,12,28,0.93)'; g.fillRect(0,0,cv.width,cv.height); g.globalCompositeOperation = 'source-over'; }
+  });
 }
 panelBody.addEventListener('click', e=>{
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -7252,6 +7435,11 @@ panelBody.addEventListener('click', e=>{
     progress.main = id; player.type = id; refreshFollowers(); sfxPickup();
   } else if (b.dataset.sub){
     progress.sub = b.dataset.sub; refreshFollowers(); sfxPickup();
+  } else if (b.dataset.deal){
+    shopBuy(+b.dataset.deal);
+  } else if (b.dataset.homebuy){
+    const id = b.dataset.homebuy, d = HOME_ITEMS[id];
+    if (d && !progress.home[id] && progress.crystals >= d.cost){ progress.crystals -= d.cost; progress.home[id] = true; sfxPickup(); fxWhite = 0.3; showBanner(`🏠 ${d.name} ${d.icon} colocado na casa!`); checkAchievements(); }
   } else if (b.dataset.petset){
     if (progress.pets[b.dataset.petset]){ progress.pet = b.dataset.petset; sfxPickup(); }
   } else if (b.dataset.petbuy){
@@ -7298,6 +7486,11 @@ function adminUnlock(what){
     Object.keys(progress.emeralds).forEach(k=> progress.emeralds[k] = true);
     upgrades.elementalEmerald = true; upgrades.disguiseEmerald = true; upgrades.monsterEmerald = true;
   }
+  if (all || what === 'coll'){
+    Object.keys(CARD_NAMES).forEach(t=> progress.cards[t] = progress.cards[t] || 1);
+    Object.keys(FISH_DEFS).forEach(f=>{ progress.fishDex[f] = progress.fishDex[f] || 1; progress.fishBest[f] = progress.fishBest[f] || FISH_DEFS[f].kg[1]; });
+    Object.keys(HOME_ITEMS).forEach(h=> progress.home[h] = true);
+  }
   if (all || what === 'forms'){ progress.forms.super = true; progress.forms.max = true; }
   if (all || what === 'robots') Object.keys(progress.robots).forEach(k=> progress.robots[k] = true);
   if (all || what === 'portals'){ progress.voidUnlocked = true; progress.veilUnlocked = true; }
@@ -7310,6 +7503,7 @@ function adminAction(cmd){
   else if (k === 'unlock'){ adminUnlock(v); sfxPickup(); fxWhite = 0.3; }
   else if (k === 'toggle' && v === 'imortal'){ progress.immortalCode = !progress.immortalCode; sfxPickup(); }
   else if (k === 'fb'){ openFeedback(true); }
+  else if (k === 'time'){ owForceDark = v === 'night' ? 1 : (v === 'day' ? 0 : null); sfxPickup(); }
   else if (k === 'daily'){ dailyEnsure().done = true; sfxPickup(); }      // admin: marca o desafio de hoje como concluído (aí é só resgatar)
   else if (k === 'puzzles' && ad){ ad.solvePuzzles(); sfxPickup(); showBanner('🧩 Puzzles resolvidos nos mundos do Mal, do Bug, da Fábrica e do Jogo'); }
   else if (k === 'tp' && ad){
@@ -7403,6 +7597,10 @@ function buildOpenWorld(){
     {type:'shadowPredator',name:'Predador das Sombras',hp:120,atk:9,speed:140},
     {type:'predator',name:'Predador de Vulcrom',hp:140,atk:10,speed:125},
     {type:'hunter',name:'Caçador Errante',hp:150,atk:10,speed:145}
+  ];
+  const NIGHT_ROAM = [
+    {type:'faceless',name:'Sombra Noturna',hp:130,atk:11,speed:125},
+    {type:'smiler',name:'Sorriso da Noite',hp:110,atk:10,ranged:true}
   ];
   const VIL = [2,1];
   const key = (x,y)=> x+','+y;
@@ -7508,7 +7706,7 @@ function buildOpenWorld(){
     if (q) sc.npcs.push(questNpc(q));
     sc.onEnter = ()=>{
       progress.visited[key(ix,iy)] = true; checkAchievements();
-      if (biome !== 'village') populate(sc, ROAM, 1 + 0.22*(Math.abs(ix-VIL[0]) + Math.abs(iy-VIL[1])));   // tougher the further you roam
+      if (biome !== 'village') populate(sc, owIsNight() ? ROAM.concat(NIGHT_ROAM) : ROAM, 1 + 0.22*(Math.abs(ix-VIL[0]) + Math.abs(iy-VIL[1])), owIsNight() ? 2 : 0);   // tougher the further you roam; à noite aparecem mais monstros, e alguns só de noite
     };
     return sc;
   }
@@ -7539,6 +7737,10 @@ function buildOpenWorld(){
           onDefeat: ()=>{ player.type=progress.main; startDialogue([{speaker:ROSTER[progress.main].name, text:'A arena venceu dessa vez... mas eu volto.', color:'#7ef9ff'}]); } });
       }) },
     portalNpc(1,300), portalNpc(2,380), portalNpc(3,460), portalNpc(4,540), portalNpc(5,610),
+    { x:845, y:255, w:42, h:60, type:'villager', scale:34, persistent:true, label:'🛍️ Mercador do Dia',
+      onInteract: ()=> startDialogue([{speaker:'Mercador', text:'Hoje tenho três ofertas com 30% de desconto — só por hoje! Amanhã muda tudo.', color:'#ffd27a'}], ()=> openPanel('merchant')) },
+    { x:100, y:200, w:50, h:34, type:'houseDoor', scale:30, persistent:true, label:'🏠 Casa do Duo →',
+      onInteract: ()=> startDialogue([{speaker:'Duo', text:'Minha casinha! Dá pra decorar com móveis e guardar os troféus dos chefes.', color:'#7ef9ff'}], ()=> goToScene(duoHome, {x:W/2-17, y:H-110})) },
     { x:770, y:250, w:42, h:60, type:'mother', scale:34, persistent:true, label:'Viajante',
       onInteract: ()=> startDialogue([
         {speaker:'Viajante', text:'Nas Cavernas Profundas tem uma parede que treme quando ninguém está olhando...', color:'#e8b0ff'},
@@ -8288,11 +8490,23 @@ function buildOpenWorld(){
     portalType:'arcadePortal', portal:{ x:100, y:260, label:'Portal do Jogo →', text:'Um portal neon que pisca como uma tela de fliperama. Dá pra ouvir musiquinha de 8 bits do outro lado.' }
   });
 
+  // ---- Casa do Duo: a casinha da esquerda da vila. Os móveis comprados e os troféus dos chefes aparecem aqui. ----
+  const duoHome = {
+    banner:'CASA DO DUO', isOpenWorld:false, draw:(g)=>{ drawDuoHouse(g); drawHomeDecor(g); }, obstacles:[],
+    npcs:[ { x:690, y:470, w:50, h:50, type:'chest', scale:30, persistent:true, label:'Catálogo de decoração',
+      onInteract: ()=> startDialogue([{speaker:'Catálogo', text:'Escolha móveis novos pra casa!', color:'#ffd27a'}], ()=> openPanel('house')) } ],
+    exits:[ {x:W/2-40,y:H-40,w:80,h:34, onEnter: ()=> goToScene(village, {x:100,y:250}) } ]
+  };
+  // à noite as janelas das casas, do laboratório e da escola acendem na vila
+  village.fx = { ambient:{kind:'dust',count:20,color:'255,240,200'}, get lights(){ return owDark() > 0.3
+    ? [{x:125,y:200,r:95,c:'255,200,110'},{x:835,y:200,r:95,c:'255,200,110'},{x:130,y:440,r:120,c:'150,220,255'},{x:745,y:470,r:130,c:'255,210,120'},{x:W/2,y:120,r:90,c:'255,230,170'}] : null; } };
+
   // atalhos do Painel de Admin (código secreto): onde teleportar, quais chefes chamar, e como resolver os puzzles dos mundos
   const admin = {
     scenes: [
       { id:'vila',    name:'Vila',                  scene:village,       spawn:{x:W/2-17,y:430} },
       { id:'lab',     name:'Laboratório',           scene:labInterior,   spawn:{x:W/2-17,y:H-90} },
+      { id:'casa',    name:'Casa do Duo',           scene:duoHome,       spawn:{x:W/2-17,y:H-110} },
       { id:'escola',  name:'Escola',                scene:schoolHall,    spawn:{x:W/2-17,y:H-90} },
       { id:'artes',   name:'Sala de Artes',         scene:salaArtes,     spawn:{x:W/2-17,y:H-90} },
       { id:'edfis',   name:'Educação Física',       scene:salaEdFisica,  spawn:{x:W/2-17,y:H-90} },
@@ -9519,11 +9733,20 @@ function startFishing(){ fishing = { t:0, zoneStart:0.3+Math.random()*0.35, zone
 function fishPos(){ return Math.abs(Math.sin(fishing.t*3)); }
 function reelFish(){
   if (!fishing) return;
-  const pos = fishPos(), hit = pos >= fishing.zoneStart && pos <= fishing.zoneStart+fishing.zoneLen;
+  const pos = fishPos(), fishingZone = { start:fishing.zoneStart, len:fishing.zoneLen }, hit = pos >= fishing.zoneStart && pos <= fishing.zoneStart+fishing.zoneLen;
   fishing = null; sceneLocked = false;
   if (hit){
-    const gain = rnd(15,35); grantCrystals(gain); grantXp(10); progress.fishCaught++; sfxPickup(); fxWhite = 0.3; checkAchievements();
-    startDialogue([{speaker:ROSTER[progress.main].name, text:`🐟 Pesquei um peixe! +${gain} 💎`, color:'#7ef9ff'}]);
+    // cada peixe tem raridade, peso e (alguns) só aparece de dia ou de noite; acertar bem no meio da faixa melhora a chance dos raros
+    const perfect = Math.abs(pos - (fishingZone.start + fishingZone.len/2)) < fishingZone.len*0.22, night = owIsNight();
+    const eligible = Object.entries(FISH_DEFS).filter(([id,f])=> !f.when || (f.when === 'noite') === night);
+    const wts = eligible.map(([id,f])=> f.weight * (perfect && f.rarity !== 'comum' ? 2.5 : 1)), tot = wts.reduce((a,b)=> a+b, 0);
+    let r = Math.random()*tot, pick = eligible[0];
+    for (let i=0;i<eligible.length;i++){ r -= wts[i]; if (r <= 0){ pick = eligible[i]; break; } }
+    const [fid, f] = pick, kg = Math.round((f.kg[0] + Math.random()*(f.kg[1]-f.kg[0]))*10)/10;
+    const gain = Math.round(rnd(f.gain[0], f.gain[1])*(perfect ? 1.2 : 1)), isNew = !progress.fishDex[fid];
+    progress.fishDex[fid] = (progress.fishDex[fid] || 0) + 1; progress.fishBest[fid] = Math.max(progress.fishBest[fid] || 0, kg);
+    grantCrystals(gain); grantXp(10 + (f.rarity === 'comum' ? 0 : 10)); progress.fishCaught++; sfxPickup(); fxWhite = 0.3; checkAchievements();
+    startDialogue([{speaker:ROSTER[progress.main].name, text:`${f.icon} ${f.name} de ${kg} kg!${perfect ? ' (acerto perfeito!)' : ''} +${gain} 💎${isNew ? ' · NOVO no álbum!' : ''} (${Object.keys(progress.fishDex).length}/${Object.keys(FISH_DEFS).length})`, color:'#7ef9ff'}]);
   } else {
     startDialogue([{speaker:ROSTER[progress.main].name, text:'Escapou... vou tentar de novo!', color:'#7ef9ff'}]);
   }
