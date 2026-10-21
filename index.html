@@ -5018,7 +5018,14 @@ const OW_DIM = { tree:[58,80,1], pine:[50,86,1], palm:[50,90,1], bush:[40,30,1],
   spike:[34,80,1], icespike:[34,80,1], shell:[22,16,0], bones:[40,20,0] };
 const OW_LM_BOX = { x:50, y:96, w:150, h:130 };
 const OW_LM_BOX2 = { x:W-200, y:96, w:150, h:130 };              // the village gets a second hut
-const OW_AVOID = { '4,2':[{x:790,y:390,w:130,h:110}], '4,3':[{x:760,y:90,w:130,h:150}], '2,2':[{x:800,y:90,w:100,h:120}] };   // free space around the final portal and the secret wall
+// free space around every portal / fixed prop placed in these areas (decor is scattered at random, so without this a tree or rock
+// could land on top of a portal and block it)
+const OW_AVOID = {
+  '4,2':[{x:790,y:390,w:130,h:110}, {x:236,y:406,w:80,h:70}],                                              // barco da Ilha, ponto de pesca
+  '4,3':[{x:760,y:90,w:130,h:150}, {x:240,y:90,w:110,h:110}, {x:440,y:450,w:110,h:110}, {x:760,y:410,w:110,h:110},
+         {x:90,y:410,w:110,h:110}, {x:500,y:90,w:110,h:110}, {x:90,y:250,w:110,h:110}],                      // portais: Vazio, Bug, Blocos, Mal, Véu, Fábrica, Jogo
+  '2,2':[{x:800,y:90,w:100,h:120}]                                                                          // parede secreta
+};
 const OW_ITEM_CACHE = {};
 // four quadrants — the two central lanes (horizontal and vertical) are never used, so every exit stays reachable
 const OW_QUADS = [[34,W/2-100,96,H/2-80],[W/2+100,W-34,96,H/2-80],[34,W/2-100,H/2+80,H-70],[W/2+100,W-34,H/2+80,H-70]];
@@ -7224,6 +7231,7 @@ function buildOpenWorld(){
   const key = (x,y)=> x+','+y;
   function goArea(x, y, from){
     const sp = { l:{x:60,y:H/2-20}, r:{x:W-100,y:H/2-20}, t:{x:W/2-17,y:110}, b:{x:W/2-17,y:H-110} }[from];
+    if (x === VIL[0] && y === VIL[1] && from === 'l') sp.y = 240;     // na vila o laboratório ocupa o canto: entrando pela esquerda o jogador nascia preso dentro dele
     goToScene(areas[key(x,y)], sp);
   }
   function fightRoamer(sc, npc, t, danger){
@@ -7248,7 +7256,9 @@ function buildOpenWorld(){
     sc.npcs = sc.npcs.filter(n=> n.persistent);      // keep shrines/villagers, respawn only the roaming monsters
     const spots = [[230,250],[730,250],[230,410],[730,410],[480,200],[480,460]];
     const want = Math.max(1 + (Math.random() < 0.5 ? 1 : 0), minCount||0);
-    const free = spots.filter(([x,y])=> !sc.obstacles.some(o=> rectsOverlap({x:x-40,y:y-40,w:80,h:100}, o)));
+    const fixed = sc.npcs;       // só sobraram os fixos (altares, portais, pontos de pesca...): monstro não pode nascer em cima deles
+    const free = spots.filter(([x,y])=> { const r = {x:x-40,y:y-40,w:80,h:100};
+      return !sc.obstacles.some(o=> rectsOverlap(r, o)) && !fixed.some(n=> rectsOverlap(r, {x:n.x-14,y:n.y-14,w:n.w+28,h:n.h+28})); });
     for (let i=0;i<want && free.length;i++){
       const [x,y] = free.splice(Math.floor(Math.random()*free.length), 1)[0];
       const t = pool[Math.floor(Math.random()*pool.length)];
@@ -7351,8 +7361,8 @@ function buildOpenWorld(){
           onVictory: ()=>{ player.type=progress.main; progress.arenaWins++; grantCrystals(50); grantXp(150); startDialogue([{speaker:ROSTER[progress.main].name, text:'Arena vencida! +50 💎', color:'#7ef9ff'}]); },
           onDefeat: ()=>{ player.type=progress.main; startDialogue([{speaker:ROSTER[progress.main].name, text:'A arena venceu dessa vez... mas eu volto.', color:'#7ef9ff'}]); } });
       }) },
-    portalNpc(1,300), portalNpc(2,380), portalNpc(3,460), portalNpc(4,540), portalNpc(5,620),
-    { x:770, y:300, w:42, h:60, type:'mother', scale:34, persistent:true, label:'Viajante',
+    portalNpc(1,300), portalNpc(2,380), portalNpc(3,460), portalNpc(4,540), portalNpc(5,610),
+    { x:770, y:250, w:42, h:60, type:'mother', scale:34, persistent:true, label:'Viajante',
       onInteract: ()=> startDialogue([
         {speaker:'Viajante', text:'Nas Cavernas Profundas tem uma parede que treme quando ninguém está olhando...', color:'#e8b0ff'},
         {speaker:'Viajante', text:'Dizem que ela leva pra um lugar sem fim, amarelo, cheio de zumbido. Só volta de lá quem carrega uma Joia do Teleporte.', color:'#e8b0ff'}
